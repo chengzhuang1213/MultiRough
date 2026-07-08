@@ -64,6 +64,7 @@ var defend_action: StringName = "defend"
 var use_mouse_aim := true
 var player_tint := Color.WHITE
 var unit_color_folder := "Blue Units"
+var cooldowns_paused := false
 
 var _attack_timer := 0.0
 var _dash_timer := 0.0
@@ -103,35 +104,35 @@ func _physics_process(delta: float) -> void:
 	if input_direction != Vector2.ZERO and _attack_anim_left <= 0.0:
 		_last_direction = input_direction.normalized()
 
-	if Input.is_action_just_pressed(basic_attack_action) and _attack_timer <= 0.0:
+	if not cooldowns_paused and Input.is_action_just_pressed(basic_attack_action) and _attack_timer <= 0.0:
 		var attack_direction: Vector2 = _get_attack_direction()
 		_last_direction = attack_direction
 		_attack_timer = attack_cooldown
 		_start_attack_animation(false)
 		basic_attack_requested.emit(global_position, attack_direction, attack_range, attack_half_width, _roll_damage(attack_damage))
 
-	if Input.is_action_just_pressed(dash_action) and dash_charges > 0 and input_direction != Vector2.ZERO:
+	if not cooldowns_paused and Input.is_action_just_pressed(dash_action) and dash_charges > 0 and input_direction != Vector2.ZERO:
 		dash_charges -= 1
 		if _dash_timer <= 0.0:
 			_dash_timer = dash_cooldown
 		_dash_time_left = dash_time
 		_invulnerable_left = maxf(_invulnerable_left, invulnerable_time)
 
-	if Input.is_action_just_pressed(active_skill_action) and _skill_timer <= 0.0:
+	if not cooldowns_paused and Input.is_action_just_pressed(active_skill_action) and _skill_timer <= 0.0:
 		var skill_direction: Vector2 = _get_attack_direction()
 		_last_direction = skill_direction
 		_skill_timer = skill_cooldown
 		_start_attack_animation(true)
 		active_skill_requested.emit(global_position, skill_direction, skill_length, skill_half_width, _roll_damage(skill_damage))
 
-	if Input.is_action_just_pressed(fan_skill_action) and _fan_skill_timer <= 0.0:
+	if not cooldowns_paused and Input.is_action_just_pressed(fan_skill_action) and _fan_skill_timer <= 0.0:
 		var fan_direction: Vector2 = _get_attack_direction()
 		_last_direction = fan_direction
 		_fan_skill_timer = fan_skill_cooldown
 		_start_attack_animation(true)
 		fan_skill_requested.emit(global_position, fan_direction, fan_skill_length, fan_skill_half_width, _roll_damage(fan_skill_damage))
 
-	if Input.is_action_just_pressed(ultimate_skill_action) and _ultimate_timer <= 0.0:
+	if not cooldowns_paused and Input.is_action_just_pressed(ultimate_skill_action) and _ultimate_timer <= 0.0:
 		_ultimate_timer = ultimate_cooldown
 		ultimate_skill_requested.emit(attack_damage * 1.5, ultimate_duration)
 
@@ -237,18 +238,19 @@ func apply_upgrade(upgrade: Dictionary) -> void:
 			heal(max_health * float(upgrade.get("percent", 0.15)))
 
 func _tick_timers(delta: float) -> void:
-	_attack_timer = maxf(0.0, _attack_timer - delta)
-	if dash_charges < dash_max_charges:
-		_dash_timer = maxf(0.0, _dash_timer - delta)
-		if _dash_timer <= 0.0:
-			dash_charges += 1
-			if dash_charges < dash_max_charges:
-				_dash_timer = dash_cooldown
-	else:
-		_dash_timer = 0.0
-	_skill_timer = maxf(0.0, _skill_timer - delta)
-	_fan_skill_timer = maxf(0.0, _fan_skill_timer - delta)
-	_ultimate_timer = maxf(0.0, _ultimate_timer - delta)
+	if not cooldowns_paused:
+		_attack_timer = maxf(0.0, _attack_timer - delta)
+		if dash_charges < dash_max_charges:
+			_dash_timer = maxf(0.0, _dash_timer - delta)
+			if _dash_timer <= 0.0:
+				dash_charges += 1
+				if dash_charges < dash_max_charges:
+					_dash_timer = dash_cooldown
+		else:
+			_dash_timer = 0.0
+		_skill_timer = maxf(0.0, _skill_timer - delta)
+		_fan_skill_timer = maxf(0.0, _fan_skill_timer - delta)
+		_ultimate_timer = maxf(0.0, _ultimate_timer - delta)
 	_dash_time_left = maxf(0.0, _dash_time_left - delta)
 	_invulnerable_left = maxf(0.0, _invulnerable_left - delta)
 	_damage_flash_left = maxf(0.0, _damage_flash_left - delta)

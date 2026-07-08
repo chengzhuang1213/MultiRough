@@ -162,14 +162,15 @@ func _add_mouse_action(action: StringName, button_index: int) -> void:
 		InputMap.action_add_event(action, event)
 
 func _process(delta: float) -> void:
-	if game_state != GameStateScript.LOBBY and game_state != GameStateScript.VICTORY and game_state != GameStateScript.DEFEAT:
+	if _is_combat_active():
 		elapsed_time += delta
 	_update_camera()
 	_update_enemy_targets()
-	_update_ultimate(delta)
+	if _is_combat_active():
+		_update_ultimate(delta)
 	_handle_upgrade_hotkeys()
 	_update_status()
-	if game_state == GameStateScript.WAVE_ACTIVE or game_state == GameStateScript.BOSS_WAVE:
+	if _is_combat_active():
 		if _all_players_dead():
 			_enter_defeat()
 
@@ -416,6 +417,7 @@ func _setup_ultimate_blades() -> void:
 		ultimate_blade_root.add_child(blade)
 
 func _start_next_wave() -> void:
+	_set_player_cooldowns_paused(false)
 	wave_index += 1
 	_clear_upgrade_panel()
 	_clear_projectiles()
@@ -638,6 +640,14 @@ func _all_players_dead() -> bool:
 			return false
 	return true
 
+func _is_combat_active() -> bool:
+	return game_state == GameStateScript.WAVE_ACTIVE or game_state == GameStateScript.BOSS_WAVE
+
+func _set_player_cooldowns_paused(paused: bool) -> void:
+	for existing_player in players:
+		if is_instance_valid(existing_player):
+			existing_player.cooldowns_paused = paused
+
 func _on_enemy_died(enemy: EnemyController) -> void:
 	enemies_defeated += 1
 	if is_instance_valid(enemy):
@@ -656,11 +666,13 @@ func _on_enemy_died(enemy: EnemyController) -> void:
 			_enter_wave_clear()
 
 func _enter_wave_clear() -> void:
+	game_state = GameStateScript.COUNTDOWN
+	_set_player_cooldowns_paused(true)
 	result_label.text = "波次清理完成"
 	result_label.visible = true
 	var timer: SceneTreeTimer = get_tree().create_timer(1.0)
 	timer.timeout.connect(func() -> void:
-		if game_state == GameStateScript.WAVE_ACTIVE and enemies.is_empty():
+		if game_state == GameStateScript.COUNTDOWN and enemies.is_empty():
 			result_label.visible = false
 			_enter_upgrade_select()
 	)
@@ -899,6 +911,7 @@ func _spawn_damage_number(origin: Vector2, amount: float, color: Color) -> void:
 
 func _enter_upgrade_select() -> void:
 	game_state = GameStateScript.UPGRADE_SELECT
+	_set_player_cooldowns_paused(true)
 	current_upgrades_p1 = UpgradeCatalogScript.roll(3)
 	current_upgrades_p2 = UpgradeCatalogScript.roll(3)
 	selected_upgrade_p1 = false
