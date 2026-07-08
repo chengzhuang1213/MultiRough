@@ -919,7 +919,51 @@ func _enter_upgrade_select() -> void:
 	_clear_upgrade_panel()
 	start_next_wave_button.visible = false
 	start_next_wave_button.disabled = true
+	if local_player_count <= 1:
+		_build_single_player_upgrade_panel()
+	else:
+		_build_coop_upgrade_panel()
 
+	upgrade_panel.visible = true
+	_update_status()
+
+func _build_single_player_upgrade_panel() -> void:
+	var panel_width: float = 1180.0
+	var panel_height: float = 540.0
+	var card_width: float = 340.0
+	var card_height: float = 420.0
+	_configure_upgrade_panel(panel_width, panel_height)
+	var title: Label = Label.new()
+	title.text = "选择升级"
+	title.custom_minimum_size = Vector2(panel_width, 0.0)
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.add_theme_font_size_override("font_size", 28)
+	upgrade_panel.add_child(title)
+
+	var cards: HBoxContainer = HBoxContainer.new()
+	cards.custom_minimum_size = Vector2(panel_width, card_height)
+	cards.alignment = BoxContainer.ALIGNMENT_CENTER
+	cards.add_theme_constant_override("separation", 54)
+	upgrade_panel.add_child(cards)
+
+	var key_labels: Array[String] = ["I", "O", "P"]
+	for index in range(current_upgrades_p1.size()):
+		var upgrade: Dictionary = current_upgrades_p1[index]
+		var key_label: String = key_labels[index]
+		var button: Button = Button.new()
+		button.text = "%s  [%s] %s" % [
+			key_label,
+			_format_rarity(str(upgrade.get("rarity", "Common"))),
+			_format_upgrade_button(upgrade, player),
+		]
+		button.custom_minimum_size = Vector2(card_width, card_height)
+		button.alignment = HORIZONTAL_ALIGNMENT_LEFT
+		button.add_theme_font_size_override("font_size", 18)
+		button.pressed.connect(_select_upgrade.bind(1, upgrade))
+		cards.add_child(button)
+
+func _build_coop_upgrade_panel() -> void:
+	_configure_upgrade_panel(UPGRADE_PANEL_WIDTH, UPGRADE_PANEL_HEIGHT)
 	var title: Label = Label.new()
 	title.text = "选择升级"
 	title.custom_minimum_size = Vector2(UPGRADE_PANEL_WIDTH, 0.0)
@@ -932,11 +976,12 @@ func _enter_upgrade_select() -> void:
 	upgrade_panel.add_child(columns)
 
 	columns.add_child(_build_upgrade_column("P1 选择：I / O / P", current_upgrades_p1, player, 1, ["I", "O", "P"]))
-	if local_player_count > 1 and player_two != null:
+	if player_two != null:
 		columns.add_child(_build_upgrade_column("P2 选择：7 / 8 / 9", current_upgrades_p2, player_two, 2, ["7", "8", "9"]))
 
-	upgrade_panel.visible = true
-	_update_status()
+func _configure_upgrade_panel(width: float, height: float) -> void:
+	upgrade_panel.position = (VIEWPORT_SIZE - Vector2(width, height)) * 0.5
+	upgrade_panel.custom_minimum_size = Vector2(width, height)
 
 func _revive_dead_players_for_next_wave() -> void:
 	var revive_position: Vector2 = _get_alive_players_center()
