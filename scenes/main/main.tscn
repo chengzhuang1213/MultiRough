@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3 uid="uid://multirough_main"]
+
+[ext_resource type="Script" path="res://scripts/gameplay/main_game.gd" id="1_main_game"]
+
+[node name="Main" type="Node2D"]
+script = ExtResource("1_main_game")
