@@ -51,6 +51,7 @@ var _anim_frame := 0
 var _anim_timer := 0.0
 var _attack_anim_left := 0.0
 var _boss_area_timer := 2.4
+var _boss_cast_pause_left := 0.0
 var _boss_enraged := false
 
 var _sprite: Sprite2D
@@ -151,6 +152,7 @@ func _physics_process(delta: float) -> void:
 	_stagger_left = maxf(0.0, _stagger_left - delta)
 	_hit_flash_left = maxf(0.0, _hit_flash_left - delta)
 	_attack_anim_left = maxf(0.0, _attack_anim_left - delta)
+	_boss_cast_pause_left = maxf(0.0, _boss_cast_pause_left - delta)
 	_update_feedback()
 
 	if _knockback_velocity.length() > 2.0:
@@ -162,6 +164,11 @@ func _physics_process(delta: float) -> void:
 		return
 
 	if _stagger_left > 0.0:
+		velocity = Vector2.ZERO
+		_update_animation(delta, false)
+		return
+
+	if _boss_cast_pause_left > 0.0:
 		velocity = Vector2.ZERO
 		_update_animation(delta, false)
 		return
@@ -361,12 +368,13 @@ func _start_boss_area_attack() -> void:
 		return
 	velocity = Vector2.ZERO
 	_attack_timer = attack_interval
-	_attack_recovery_left = 0.55
+	_attack_recovery_left = 0.75
+	_boss_cast_pause_left = 0.72
 	_start_attack_animation()
 	var radius: float = 132.0 if _boss_enraged else 112.0
 	var damage: float = attack_damage * (1.4 if _boss_enraged else 1.15)
-	area_attack_requested.emit(self, _target.global_position, radius, damage, 0.72)
-	_boss_area_timer = 3.0 if _boss_enraged else 4.2
+	area_attack_requested.emit(self, _target.global_position, radius, damage, _boss_cast_pause_left)
+	_boss_area_timer = 3.2 if _boss_enraged else 4.4
 
 func _enter_boss_enrage() -> void:
 	_boss_enraged = true

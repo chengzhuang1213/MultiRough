@@ -5,6 +5,7 @@ const UpgradeCatalogScript := preload("res://scripts/upgrades/upgrade_catalog.gd
 const PlayerScript := preload("res://scripts/player/player_controller.gd")
 const EnemyScript := preload("res://scripts/enemy/enemy_controller.gd")
 const ProjectileScript := preload("res://scripts/projectiles/enemy_projectile.gd")
+const PlayerProjectileScript := preload("res://scripts/projectiles/player_projectile.gd")
 
 const ARENA_BOUNDS := Rect2(Vector2(-960, -540), Vector2(1920, 1080))
 const VIEWPORT_SIZE := Vector2(1280, 720)
@@ -12,7 +13,11 @@ const UPGRADE_PANEL_WIDTH := 980.0
 const UPGRADE_PANEL_HEIGHT := 460.0
 const NEXT_WAVE_BUTTON_WIDTH := 220.0
 const NEXT_WAVE_BUTTON_HEIGHT := 44.0
-const SHOW_ENEMY_ATTACK_TELEGRAPH := false
+const LOCAL_PLAYER_HUD_WIDTH := 520.0
+const SHOW_ENEMY_ATTACK_TELEGRAPH := true
+const NETWORK_PORT := 24567
+const NETWORK_SYNC_SEED := 260708
+const WAVE_CLEAR_HEAL_AMOUNT := 20.0
 const TREE_PATHS := [
 	"res://assets/tiny_swords_free_pack/Terrain/Resources/Wood/Trees/Tree1.png",
 	"res://assets/tiny_swords_free_pack/Terrain/Resources/Wood/Trees/Tree2.png",
@@ -41,14 +46,66 @@ const WAVE_DEFS := [
 	{"minions": 24},
 	{"boss": true},
 ]
+const CHARACTER_ORDER := ["warrior", "archer", "lancer"]
+const CHARACTER_CONFIGS := {
+	"warrior": {
+		"id": "warrior",
+		"name": "战士",
+		"max_health": 120.0,
+		"move_speed": 240.0,
+		"attack_damage": 26.0,
+		"attack_cooldown": 0.34,
+		"attack_range": 76.0,
+		"attack_half_width": 34.0,
+		"attack_knockback": 150.0,
+		"skill_damage": 58.0,
+		"skill_length": 220.0,
+		"skill_half_width": 42.0,
+		"fan_skill_damage": 115.0,
+		"fan_skill_length": 250.0,
+		"fan_skill_half_width": 16.0,
+	},
+	"archer": {
+		"id": "archer",
+		"name": "弓箭手",
+		"max_health": 95.0,
+		"move_speed": 255.0,
+		"attack_damage": 21.0,
+		"attack_cooldown": 0.42,
+		"attack_range": 420.0,
+		"attack_half_width": 18.0,
+		"attack_knockback": 80.0,
+		"skill_damage": 50.0,
+		"skill_length": 260.0,
+		"skill_half_width": 36.0,
+		"fan_skill_damage": 92.0,
+		"fan_skill_length": 300.0,
+		"fan_skill_half_width": 14.0,
+	},
+	"lancer": {
+		"id": "lancer",
+		"name": "长枪",
+		"max_health": 130.0,
+		"move_speed": 225.0,
+		"attack_damage": 30.0,
+		"attack_cooldown": 0.60,
+		"attack_range": 165.0,
+		"attack_half_width": 28.0,
+		"attack_knockback": 190.0,
+		"defense_damage_multiplier": 0.60,
+		"skill_damage": 66.0,
+		"skill_length": 260.0,
+		"skill_half_width": 36.0,
+		"fan_skill_damage": 120.0,
+		"fan_skill_length": 280.0,
+		"fan_skill_half_width": 14.0,
+	},
+}
 
 var game_state := GameStateScript.LOBBY
 var wave_index := -1
 var enemies: Array[EnemyController] = []
-var current_upgrades_p1: Array = []
-var current_upgrades_p2: Array = []
-var selected_upgrade_p1: bool = false
-var selected_upgrade_p2: bool = false
+var local_player_slots: Array = []
 var local_player_count := 1
 var minion_count_multiplier := 1.0
 var enemy_health_multiplier := 1.0
@@ -59,11 +116,16 @@ var elapsed_time := 0.0
 var enemies_defeated := 0
 var damage_dealt := 0.0
 var damage_taken := 0.0
-var ultimate_duration_left: float = 0.0
-var ultimate_angle: float = 0.0
-var ultimate_damage: float = 0.0
-var ultimate_hit_cooldowns: Dictionary = {}
-var ultimate_owner: PlayerController
+var ultimate_states: Dictionary = {}
+var persistent_skill_areas: Array = []
+var waiting_for_next_wave_input := false
+var pending_player_count := 1
+var selected_character_ids: Array = ["warrior", "warrior"]
+var character_select_rows: Array = []
+var network_mode := "none"
+var local_peer_player_index := 1
+var network_peer_joined := false
+var network_status_text := ""
 
 var player: PlayerController
 var player_two: PlayerController
@@ -75,31 +137,40 @@ var projectile_root: Node2D
 var effect_root: Node2D
 var ui_layer: CanvasLayer
 var main_menu_panel: VBoxContainer
+var network_ip_edit: LineEdit
+var network_status_label: Label
+var character_select_panel: VBoxContainer
+var character_select_start_button: Button
 var hud_left: VBoxContainer
 var hud_right: VBoxContainer
+var player_hud_left: VBoxContainer
+var player_hud_right: VBoxContainer
 var status_label: Label
-var health_label: Label
-var health_bar: ProgressBar
-var health_label_two: Label
-var health_bar_two: ProgressBar
 var wave_label: Label
 var enemies_label: Label
-var cooldown_label: Label
-var cooldown_label_two: Label
-var defense_label: Label
-var defense_label_two: Label
+var player_huds: Array = []
 var upgrade_panel: VBoxContainer
 var start_next_wave_button: Button
 var result_label: Label
 var restart_button: Button
-var ultimate_blade_root: Node2D
 
 func _ready() -> void:
 	randomize()
 	_ensure_input_map()
 	_build_world()
 	_build_ui()
+	get_viewport().size_changed.connect(_layout_ui)
 	_show_main_menu()
+
+func _unhandled_input(event: InputEvent) -> void:
+	if not waiting_for_next_wave_input:
+		return
+	if game_state != GameStateScript.UPGRADE_SELECT or not _all_required_upgrades_selected():
+		return
+	if event is InputEventKey and event.pressed and not event.echo:
+		_start_next_wave()
+	elif event is InputEventMouseButton and event.pressed:
+		_start_next_wave()
 
 func _ensure_input_map() -> void:
 	_add_key_action("move_left", [KEY_A])
@@ -108,6 +179,7 @@ func _ensure_input_map() -> void:
 	_add_key_action("move_down", [KEY_S])
 	_add_key_action("basic_attack", [KEY_J])
 	_add_mouse_action("basic_attack", MOUSE_BUTTON_LEFT)
+	_add_key_action("basic_attack_p1_keyboard", [KEY_J])
 	_add_key_action("dash", [KEY_SPACE])
 	_remove_key_action("dash", [KEY_K])
 	_add_key_action("active_skill", [KEY_Q])
@@ -120,7 +192,7 @@ func _ensure_input_map() -> void:
 	_add_key_action("move_up_p2", [KEY_UP])
 	_add_key_action("move_down_p2", [KEY_DOWN])
 	_add_key_action("basic_attack_p2", [KEY_ENTER, KEY_KP_ENTER])
-	_ensure_input_action("dash_p2")
+	_add_key_action("dash_p2", [KEY_KP_0])
 	_add_key_action("defend_p2", [KEY_EQUAL, KEY_KP_ADD])
 	_add_key_action("active_skill_p2", [KEY_1, KEY_KP_1])
 	_add_key_action("fan_skill_p2", [KEY_2, KEY_KP_2])
@@ -164,10 +236,15 @@ func _add_mouse_action(action: StringName, button_index: int) -> void:
 func _process(delta: float) -> void:
 	if _is_combat_active():
 		elapsed_time += delta
+	if _is_network_game():
+		_send_network_input()
+	elif network_mode == "local_test":
+		_send_local_network_test_input()
 	_update_camera()
 	_update_enemy_targets()
 	if _is_combat_active():
 		_update_ultimate(delta)
+		_update_persistent_skill_areas(delta)
 	_handle_upgrade_hotkeys()
 	_update_status()
 	if _is_combat_active():
@@ -219,45 +296,31 @@ func _build_ui() -> void:
 	enemies_label = Label.new()
 	hud_left.add_child(enemies_label)
 
-	health_label = Label.new()
-	hud_left.add_child(health_label)
+	player_hud_left = VBoxContainer.new()
+	player_hud_left.visible = false
+	player_hud_left.custom_minimum_size = Vector2(LOCAL_PLAYER_HUD_WIDTH, 0.0)
+	player_hud_left.add_theme_constant_override("separation", 6)
+	ui_layer.add_child(player_hud_left)
 
-	health_bar = ProgressBar.new()
-	health_bar.custom_minimum_size = Vector2(220, 18)
-	health_bar.show_percentage = false
-	_style_player_health_bar(health_bar)
-	hud_left.add_child(health_bar)
-
-	cooldown_label = Label.new()
-	hud_left.add_child(cooldown_label)
-
-	defense_label = Label.new()
-	hud_left.add_child(defense_label)
+	_create_player_hud(player_hud_left, "P1", "K", ["普攻", "Q", "E", "F"])
 
 	hud_right = VBoxContainer.new()
-	hud_right.position = Vector2(1030, 16)
+	hud_right.position = Vector2(16, 16)
 	hud_right.visible = false
 	hud_right.add_theme_constant_override("separation", 6)
 	ui_layer.add_child(hud_right)
 
-	health_label_two = Label.new()
-	hud_right.add_child(health_label_two)
+	player_hud_right = VBoxContainer.new()
+	player_hud_right.visible = false
+	player_hud_right.custom_minimum_size = Vector2(LOCAL_PLAYER_HUD_WIDTH, 0.0)
+	player_hud_right.add_theme_constant_override("separation", 6)
+	ui_layer.add_child(player_hud_right)
 
-	health_bar_two = ProgressBar.new()
-	health_bar_two.custom_minimum_size = Vector2(220, 18)
-	health_bar_two.show_percentage = false
-	_style_player_health_bar(health_bar_two)
-	hud_right.add_child(health_bar_two)
-
-	cooldown_label_two = Label.new()
-	hud_right.add_child(cooldown_label_two)
-
-	defense_label_two = Label.new()
-	hud_right.add_child(defense_label_two)
+	_create_player_hud(player_hud_right, "P2", "+", ["普攻", "1", "2", "3"])
 
 	main_menu_panel = VBoxContainer.new()
 	main_menu_panel.position = Vector2(460, 230)
-	main_menu_panel.custom_minimum_size = Vector2(360, 220)
+	main_menu_panel.custom_minimum_size = Vector2(360, 320)
 	main_menu_panel.add_theme_constant_override("separation", 16)
 	ui_layer.add_child(main_menu_panel)
 
@@ -278,6 +341,46 @@ func _build_ui() -> void:
 	coop_button.custom_minimum_size = Vector2(360, 54)
 	coop_button.pressed.connect(_start_local_coop)
 	main_menu_panel.add_child(coop_button)
+
+	var network_test_button: Button = Button.new()
+	network_test_button.text = "本机联机测试"
+	network_test_button.custom_minimum_size = Vector2(360, 48)
+	network_test_button.pressed.connect(_start_local_network_test)
+	main_menu_panel.add_child(network_test_button)
+
+	var network_row: HBoxContainer = HBoxContainer.new()
+	network_row.add_theme_constant_override("separation", 8)
+	main_menu_panel.add_child(network_row)
+
+	network_ip_edit = LineEdit.new()
+	network_ip_edit.placeholder_text = "朋友 IP"
+	network_ip_edit.text = "127.0.0.1"
+	network_ip_edit.custom_minimum_size = Vector2(184, 42)
+	network_row.add_child(network_ip_edit)
+
+	var host_button: Button = Button.new()
+	host_button.text = "创建联机"
+	host_button.custom_minimum_size = Vector2(82, 42)
+	host_button.pressed.connect(_start_network_host)
+	network_row.add_child(host_button)
+
+	var join_button: Button = Button.new()
+	join_button.text = "加入"
+	join_button.custom_minimum_size = Vector2(82, 42)
+	join_button.pressed.connect(_start_network_client)
+	network_row.add_child(join_button)
+
+	network_status_label = Label.new()
+	network_status_label.text = ""
+	network_status_label.custom_minimum_size = Vector2(360, 0.0)
+	network_status_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	main_menu_panel.add_child(network_status_label)
+
+	character_select_panel = VBoxContainer.new()
+	character_select_panel.custom_minimum_size = Vector2(560, 360)
+	character_select_panel.visible = false
+	character_select_panel.add_theme_constant_override("separation", 14)
+	ui_layer.add_child(character_select_panel)
 
 	upgrade_panel = VBoxContainer.new()
 	upgrade_panel.position = (VIEWPORT_SIZE - Vector2(UPGRADE_PANEL_WIDTH, UPGRADE_PANEL_HEIGHT)) * 0.5
@@ -312,7 +415,47 @@ func _build_ui() -> void:
 	restart_button.pressed.connect(_on_restart_pressed)
 	ui_layer.add_child(restart_button)
 
+	_layout_ui()
 	_update_status()
+
+func _get_viewport_size() -> Vector2:
+	var viewport_size: Vector2 = get_viewport_rect().size
+	if viewport_size.x <= 0.0 or viewport_size.y <= 0.0:
+		return VIEWPORT_SIZE
+	return viewport_size
+
+func _layout_ui() -> void:
+	var viewport_size: Vector2 = _get_viewport_size()
+	if hud_left != null:
+		hud_left.position = Vector2(16, 16)
+	if hud_right != null:
+		hud_right.position = Vector2(16, 16)
+	if player_hud_left != null:
+		player_hud_left.position = Vector2(16.0, maxf(16.0, viewport_size.y - _get_hud_height(player_hud_left) - 16.0))
+	if player_hud_right != null:
+		player_hud_right.position = Vector2(
+			maxf(16.0, viewport_size.x - LOCAL_PLAYER_HUD_WIDTH - 16.0),
+			maxf(16.0, viewport_size.y - _get_hud_height(player_hud_right) - 16.0)
+		)
+	if main_menu_panel != null:
+		main_menu_panel.position = (viewport_size - main_menu_panel.custom_minimum_size) * 0.5
+	if character_select_panel != null:
+		character_select_panel.position = (viewport_size - character_select_panel.custom_minimum_size) * 0.5
+	if upgrade_panel != null:
+		upgrade_panel.position = (viewport_size - upgrade_panel.custom_minimum_size) * 0.5
+	if start_next_wave_button != null:
+		start_next_wave_button.position = Vector2(
+			(viewport_size.x - NEXT_WAVE_BUTTON_WIDTH) * 0.5,
+			viewport_size.y - 92.0
+		)
+	if result_label != null and restart_button != null:
+		_position_result_panel()
+
+func _get_hud_height(hud: VBoxContainer) -> float:
+	var height: float = hud.size.y
+	if height <= 0.0:
+		return 128.0
+	return height
 
 func _style_player_health_bar(target_bar: ProgressBar) -> void:
 	var lost_health_style: StyleBoxFlat = StyleBoxFlat.new()
@@ -325,23 +468,287 @@ func _style_player_health_bar(target_bar: ProgressBar) -> void:
 	current_health_style.set_corner_radius_all(2)
 	target_bar.add_theme_stylebox_override("fill", current_health_style)
 
+func _create_player_hud(parent: VBoxContainer, player_label: String, defend_hint: String, skill_labels: Array[String]) -> void:
+	var health_label_node: Label = Label.new()
+	_configure_local_hud_label(health_label_node)
+	parent.add_child(health_label_node)
+
+	var health_bar_node: ProgressBar = ProgressBar.new()
+	health_bar_node.custom_minimum_size = Vector2(LOCAL_PLAYER_HUD_WIDTH, 18)
+	health_bar_node.show_percentage = false
+	_style_player_health_bar(health_bar_node)
+	parent.add_child(health_bar_node)
+
+	var cooldown_label_node: Label = Label.new()
+	_configure_local_hud_label(cooldown_label_node)
+	parent.add_child(cooldown_label_node)
+
+	var defense_label_node: Label = Label.new()
+	_configure_local_hud_label(defense_label_node)
+	parent.add_child(defense_label_node)
+
+	player_huds.append({
+		"player": null,
+		"name": player_label,
+		"defend_hint": defend_hint,
+		"skill_labels": skill_labels,
+		"health_label": health_label_node,
+		"health_bar": health_bar_node,
+		"cooldown_label": cooldown_label_node,
+		"defense_label": defense_label_node,
+	})
+
+func _configure_local_hud_label(label: Label) -> void:
+	label.custom_minimum_size = Vector2(LOCAL_PLAYER_HUD_WIDTH, 0.0)
+	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+
 func _show_main_menu() -> void:
 	game_state = GameStateScript.LOBBY
 	if main_menu_panel != null:
 		main_menu_panel.visible = true
+	if character_select_panel != null:
+		character_select_panel.visible = false
 	if hud_left != null:
 		hud_left.visible = false
 	if hud_right != null:
 		hud_right.visible = false
+	if player_hud_left != null:
+		player_hud_left.visible = false
+	if player_hud_right != null:
+		player_hud_right.visible = false
 	_update_status()
 
 func _start_single_player() -> void:
-	_start_game(1)
+	network_mode = "none"
+	_show_character_select(1)
 
 func _start_local_coop() -> void:
+	network_mode = "none"
+	_show_character_select(2)
+
+func _start_local_network_test() -> void:
+	network_mode = "local_test"
+	local_peer_player_index = 1
+	network_peer_joined = true
+	_set_network_status("本机联机测试：P2 使用方向键 / Enter / 1 / 2 / 3 / +")
+	_show_character_select(2)
+
+func _start_network_host() -> void:
+	_connect_network_signals()
+	var peer := ENetMultiplayerPeer.new()
+	var error := peer.create_server(NETWORK_PORT, 1)
+	if error != OK:
+		_set_network_status("创建失败：端口 %d 不可用" % NETWORK_PORT)
+		return
+	multiplayer.multiplayer_peer = peer
+	network_mode = "host"
+	local_peer_player_index = 1
+	network_peer_joined = false
+	selected_character_ids = ["warrior", "warrior"]
+	_set_network_status("房间已创建，端口 %d。等待朋友加入。" % NETWORK_PORT)
+	_show_character_select(2)
+
+func _start_network_client() -> void:
+	_connect_network_signals()
+	var address := network_ip_edit.text.strip_edges() if network_ip_edit != null else ""
+	if address.is_empty():
+		address = "127.0.0.1"
+	var peer := ENetMultiplayerPeer.new()
+	var error := peer.create_client(address, NETWORK_PORT)
+	if error != OK:
+		_set_network_status("加入失败：无法连接 %s:%d" % [address, NETWORK_PORT])
+		return
+	multiplayer.multiplayer_peer = peer
+	network_mode = "client"
+	local_peer_player_index = 2
+	network_peer_joined = false
+	selected_character_ids = ["warrior", "warrior"]
+	_set_network_status("连接中：%s:%d" % [address, NETWORK_PORT])
+
+func _connect_network_signals() -> void:
+	if not multiplayer.peer_connected.is_connected(_on_network_peer_connected):
+		multiplayer.peer_connected.connect(_on_network_peer_connected)
+	if not multiplayer.connected_to_server.is_connected(_on_network_connected_to_server):
+		multiplayer.connected_to_server.connect(_on_network_connected_to_server)
+	if not multiplayer.connection_failed.is_connected(_on_network_connection_failed):
+		multiplayer.connection_failed.connect(_on_network_connection_failed)
+	if not multiplayer.server_disconnected.is_connected(_on_network_server_disconnected):
+		multiplayer.server_disconnected.connect(_on_network_server_disconnected)
+
+func _on_network_peer_connected(peer_id: int) -> void:
+	if network_mode != "host":
+		return
+	network_peer_joined = true
+	_set_network_status("朋友已加入：peer %d。选择职业后由房主开始。" % peer_id)
+	rpc_id(peer_id, "_network_enter_room", selected_character_ids)
+	_refresh_character_select_buttons()
+
+func _on_network_connected_to_server() -> void:
+	network_peer_joined = true
+	_set_network_status("已连接，选择 P2 职业，等待房主开始")
+	_show_character_select(2)
+
+func _on_network_connection_failed() -> void:
+	_set_network_status("连接失败")
+	network_mode = "none"
+	network_peer_joined = false
+	multiplayer.multiplayer_peer = null
+
+func _on_network_server_disconnected() -> void:
+	_set_network_status("已断开连接")
+	network_mode = "none"
+	network_peer_joined = false
+	multiplayer.multiplayer_peer = null
+	_clear_run_state()
+	_show_main_menu()
+
+func _set_network_status(text: String) -> void:
+	network_status_text = text
+	if network_status_label != null:
+		network_status_label.text = text
+
+@rpc("any_peer", "reliable")
+func _network_enter_room(character_ids: Array) -> void:
+	selected_character_ids = character_ids.duplicate()
+	_show_character_select(2)
+
+@rpc("any_peer", "reliable")
+func _network_set_character(player_index: int, character_id: String) -> void:
+	if player_index < 1 or player_index > 2 or not CHARACTER_CONFIGS.has(character_id):
+		return
+	selected_character_ids[player_index - 1] = character_id
+	if network_mode == "host":
+		rpc("_network_set_character", player_index, character_id)
+	_refresh_character_select_buttons()
+
+@rpc("any_peer", "reliable")
+func _network_start_game(character_ids: Array) -> void:
+	selected_character_ids = character_ids.duplicate()
+	if character_select_panel != null:
+		character_select_panel.visible = false
 	_start_game(2)
 
+func _is_network_game() -> bool:
+	return network_mode == "host" or network_mode == "client"
+
+func _uses_external_player_input() -> bool:
+	return _is_network_game() or network_mode == "local_test"
+
+func _show_character_select(player_count: int) -> void:
+	pending_player_count = player_count
+	if selected_character_ids.size() < 2:
+		selected_character_ids = ["warrior", "warrior"]
+	if main_menu_panel != null:
+		main_menu_panel.visible = false
+	if character_select_panel == null:
+		_start_game(player_count)
+		return
+	character_select_panel.visible = true
+	_rebuild_character_select_panel()
+	_layout_ui()
+
+func _rebuild_character_select_panel() -> void:
+	character_select_rows.clear()
+	for child in character_select_panel.get_children():
+		character_select_panel.remove_child(child)
+		child.queue_free()
+
+	var title: Label = Label.new()
+	title.text = "联机房间" if _is_network_game() else "选择角色"
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.add_theme_font_size_override("font_size", 32)
+	character_select_panel.add_child(title)
+
+	if _is_network_game():
+		var room_status: Label = Label.new()
+		room_status.text = network_status_text
+		room_status.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		room_status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		character_select_panel.add_child(room_status)
+
+	for slot_index in range(pending_player_count):
+		var row: HBoxContainer = HBoxContainer.new()
+		row.add_theme_constant_override("separation", 10)
+		character_select_panel.add_child(row)
+
+		var label: Label = Label.new()
+		label.text = "P%d" % (slot_index + 1)
+		label.custom_minimum_size = Vector2(56, 44)
+		row.add_child(label)
+
+		var buttons: Array = []
+		for character_id in CHARACTER_ORDER:
+			var button: Button = Button.new()
+			button.custom_minimum_size = Vector2(140, 44)
+			button.pressed.connect(_select_character.bind(slot_index, character_id))
+			row.add_child(button)
+			buttons.append(button)
+		character_select_rows.append(buttons)
+
+	character_select_start_button = Button.new()
+	character_select_start_button.custom_minimum_size = Vector2(560, 52)
+	character_select_start_button.pressed.connect(_confirm_character_select)
+	character_select_panel.add_child(character_select_start_button)
+	_refresh_character_select_buttons()
+
+func _select_character(slot_index: int, character_id: String) -> void:
+	if slot_index < 0:
+		return
+	if _is_network_game() and slot_index != local_peer_player_index - 1:
+		return
+	while selected_character_ids.size() <= slot_index:
+		selected_character_ids.append("warrior")
+	selected_character_ids[slot_index] = character_id
+	if _is_network_game():
+		rpc("_network_set_character", slot_index + 1, character_id)
+	_refresh_character_select_buttons()
+
+func _refresh_character_select_buttons() -> void:
+	for slot_index in range(character_select_rows.size()):
+		var buttons: Array = character_select_rows[slot_index]
+		var selected_id: String = _get_selected_character_id(slot_index)
+		for character_index in range(CHARACTER_ORDER.size()):
+			var character_id: String = str(CHARACTER_ORDER[character_index])
+			var button: Button = buttons[character_index] as Button
+			var prefix := "> " if character_id == selected_id else ""
+			button.text = prefix + _get_character_name(character_id)
+			button.disabled = _is_network_game() and slot_index != local_peer_player_index - 1
+	if character_select_start_button != null:
+		if network_mode == "host":
+			character_select_start_button.text = "开始联机" if network_peer_joined else "等待朋友加入"
+			character_select_start_button.disabled = not network_peer_joined
+		elif network_mode == "client":
+			character_select_start_button.text = "等待房主开始"
+			character_select_start_button.disabled = true
+		else:
+			character_select_start_button.text = "开始"
+			character_select_start_button.disabled = false
+
+func _confirm_character_select() -> void:
+	if network_mode == "client":
+		return
+	if network_mode == "host":
+		if not network_peer_joined:
+			_set_network_status("等待朋友加入后才能开始")
+			_refresh_character_select_buttons()
+			return
+		if character_select_panel != null:
+			character_select_panel.visible = false
+		rpc("_network_start_game", selected_character_ids)
+		_start_game(2)
+		return
+	if network_mode == "local_test":
+		if character_select_panel != null:
+			character_select_panel.visible = false
+		_start_game(2)
+		return
+	if character_select_panel != null:
+		character_select_panel.visible = false
+	_start_game(pending_player_count)
+
 func _start_game(player_count: int) -> void:
+	if _uses_external_player_input():
+		seed(NETWORK_SYNC_SEED)
 	local_player_count = player_count
 	minion_count_multiplier = 2.0 if local_player_count > 1 else 1.0
 	enemy_health_multiplier = 1.15 if local_player_count > 1 else 1.0
@@ -353,22 +760,26 @@ func _start_game(player_count: int) -> void:
 	enemies_defeated = 0
 	damage_dealt = 0.0
 	damage_taken = 0.0
-	selected_upgrade_p1 = false
-	selected_upgrade_p2 = false
-	current_upgrades_p1.clear()
-	current_upgrades_p2.clear()
+	local_player_slots.clear()
 	if main_menu_panel != null:
 		main_menu_panel.visible = false
 	hud_left.visible = true
-	hud_right.visible = local_player_count > 1
+	hud_right.visible = false
+	player_hud_left.visible = true
+	player_hud_right.visible = local_player_count > 1
 	_spawn_players(local_player_count)
 	_start_next_wave()
 
 func _spawn_players(player_count: int) -> void:
-	player = _create_player("Player1", Vector2(-42.0, 0.0), Color.WHITE, true, "Blue Units")
-	players = [player]
+	player = _create_player("Player1", Vector2(-42.0, 0.0), Color.WHITE, player_count <= 1, _build_character_config(0, "Blue Units"))
 	if player_count > 1:
-		player_two = _create_player("Player2", Vector2(42.0, 0.0), Color.WHITE, false, "Red Units")
+		player.basic_attack_action = "basic_attack_p1_keyboard"
+	players = [player]
+	_add_local_player_slot(1, player, 0, ["I", "O", "P"], ["upgrade_p1_1", "upgrade_p1_2", "upgrade_p1_3"])
+	_assign_player_hud(0, player)
+	_setup_ultimate_blades(player)
+	if player_count > 1:
+		player_two = _create_player("Player2", Vector2(42.0, 0.0), Color.WHITE, false, _build_character_config(1, "Red Units"))
 		player_two.move_left_action = "move_left_p2"
 		player_two.move_right_action = "move_right_p2"
 		player_two.move_up_action = "move_up_p2"
@@ -380,29 +791,178 @@ func _spawn_players(player_count: int) -> void:
 		player_two.fan_skill_action = "fan_skill_p2"
 		player_two.ultimate_skill_action = "ultimate_skill_p2"
 		players.append(player_two)
-	_setup_ultimate_blades()
+		_add_local_player_slot(2, player_two, 1, ["7", "8", "9"], ["upgrade_p2_1", "upgrade_p2_2", "upgrade_p2_3"])
+		_assign_player_hud(1, player_two)
+		_setup_ultimate_blades(player_two)
+	else:
+		_assign_player_hud(1, null)
+	if _uses_external_player_input():
+		_configure_network_players()
 
-func _create_player(player_name: String, spawn_position: Vector2, tint: Color, mouse_aim: bool, unit_folder: String) -> PlayerController:
+func _configure_network_players() -> void:
+	if player != null:
+		player.external_input_enabled = local_peer_player_index != 1
+		player.use_mouse_aim = local_peer_player_index == 1
+	if player_two != null:
+		player_two.external_input_enabled = local_peer_player_index != 2
+		player_two.use_mouse_aim = local_peer_player_index == 2
+		if local_peer_player_index == 2:
+			player_two.move_left_action = "move_left"
+			player_two.move_right_action = "move_right"
+			player_two.move_up_action = "move_up"
+			player_two.move_down_action = "move_down"
+			player_two.basic_attack_action = "basic_attack"
+			player_two.dash_action = "dash"
+			player_two.defend_action = "defend"
+			player_two.active_skill_action = "active_skill"
+			player_two.fan_skill_action = "fan_skill"
+			player_two.ultimate_skill_action = "ultimate_skill"
+
+func _get_network_local_player() -> PlayerController:
+	if local_peer_player_index == 1:
+		return player
+	if local_peer_player_index == 2:
+		return player_two
+	return null
+
+func _get_network_player(player_index: int) -> PlayerController:
+	if player_index == 1:
+		return player
+	if player_index == 2:
+		return player_two
+	return null
+
+func _send_network_input() -> void:
+	if multiplayer.multiplayer_peer == null:
+		return
+	var local_player := _get_network_local_player()
+	if local_player == null or not is_instance_valid(local_player):
+		return
+	rpc("_receive_player_input", local_peer_player_index, local_player.make_input_packet())
+
+@rpc("any_peer", "unreliable")
+func _receive_player_input(player_index: int, packet: Dictionary) -> void:
+	if player_index == local_peer_player_index:
+		return
+	var target_player := _get_network_player(player_index)
+	if target_player == null or not is_instance_valid(target_player):
+		return
+	target_player.apply_external_input(packet)
+
+func _send_local_network_test_input() -> void:
+	if player_two == null or not is_instance_valid(player_two):
+		return
+	player_two.apply_external_input(_make_input_packet_from_actions(
+		"move_left_p2",
+		"move_right_p2",
+		"move_up_p2",
+		"move_down_p2",
+		"basic_attack_p2",
+		"dash_p2",
+		"defend_p2",
+		"active_skill_p2",
+		"fan_skill_p2",
+		"ultimate_skill_p2",
+		player_two.global_position
+	))
+
+func _make_input_packet_from_actions(
+	move_left: StringName,
+	move_right: StringName,
+	move_up: StringName,
+	move_down: StringName,
+	basic: StringName,
+	dash: StringName,
+	defend: StringName,
+	active_skill: StringName,
+	fan_skill: StringName,
+	ultimate_skill: StringName,
+	current_position: Vector2
+) -> Dictionary:
+	var move_direction: Vector2 = Input.get_vector(move_left, move_right, move_up, move_down)
+	var aim_direction: Vector2 = move_direction.normalized()
+	if aim_direction == Vector2.ZERO:
+		aim_direction = Vector2.LEFT
+	return {
+		"move": move_direction,
+		"aim": aim_direction,
+		"defend": Input.is_action_pressed(defend),
+		"basic": Input.is_action_just_pressed(basic),
+		"dash": Input.is_action_just_pressed(dash),
+		"skill": Input.is_action_just_pressed(active_skill),
+		"fan": Input.is_action_just_pressed(fan_skill),
+		"ultimate": Input.is_action_just_pressed(ultimate_skill),
+		"position": current_position,
+	}
+
+func _get_selected_character_id(slot_index: int) -> String:
+	if slot_index >= 0 and slot_index < selected_character_ids.size():
+		var selected_id: String = str(selected_character_ids[slot_index])
+		if CHARACTER_CONFIGS.has(selected_id):
+			return selected_id
+	return "warrior"
+
+func _get_character_name(character_id: String) -> String:
+	var config: Dictionary = CHARACTER_CONFIGS.get(character_id, CHARACTER_CONFIGS["warrior"])
+	return str(config.get("name", character_id))
+
+func _build_character_config(slot_index: int, unit_color_folder: String) -> Dictionary:
+	var character_id: String = _get_selected_character_id(slot_index)
+	var config: Dictionary = (CHARACTER_CONFIGS.get(character_id, CHARACTER_CONFIGS["warrior"]) as Dictionary).duplicate()
+	config["unit_color_folder"] = unit_color_folder
+	return config
+
+func _add_local_player_slot(player_index: int, target_player: PlayerController, hud_index: int, key_labels: Array[String], key_actions: Array[String]) -> void:
+	local_player_slots.append({
+		"player_index": player_index,
+		"player": target_player,
+		"hud_index": hud_index,
+		"key_labels": key_labels,
+		"key_actions": key_actions,
+		"upgrades": [],
+		"selected": false,
+	})
+
+func _reset_upgrade_slots() -> void:
+	for slot in local_player_slots:
+		slot["upgrades"] = []
+		slot["selected"] = false
+
+func _get_local_player_slot(player_index: int) -> Dictionary:
+	for slot in local_player_slots:
+		if int(slot.get("player_index", 0)) == player_index:
+			return slot
+	return {}
+
+func _create_player(player_name: String, spawn_position: Vector2, tint: Color, mouse_aim: bool, character_config: Dictionary) -> PlayerController:
 	var new_player: PlayerController = PlayerScript.new()
 	new_player.name = player_name
 	new_player.global_position = spawn_position
 	new_player.arena_bounds = ARENA_BOUNDS
 	new_player.player_tint = tint
 	new_player.use_mouse_aim = mouse_aim
-	new_player.unit_color_folder = unit_folder
+	new_player.apply_character_config(character_config)
 	new_player.basic_attack_requested.connect(_on_player_basic_attack.bind(new_player))
+	new_player.projectile_attack_requested.connect(_on_player_projectile_attack.bind(new_player))
 	new_player.active_skill_requested.connect(_on_player_active_skill.bind(new_player))
 	new_player.fan_skill_requested.connect(_on_player_fan_skill.bind(new_player))
 	new_player.ultimate_skill_requested.connect(_on_player_ultimate_skill.bind(new_player))
+	new_player.cooldown_notice_requested.connect(_on_player_cooldown_notice_requested.bind(new_player))
 	new_player.health_changed.connect(_on_player_health_changed.bind(new_player))
 	new_player.damage_taken.connect(_on_player_damage_taken.bind(new_player))
 	new_player.died.connect(_on_player_died)
 	add_child(new_player)
 	return new_player
 
-func _setup_ultimate_blades() -> void:
-	ultimate_blade_root = Node2D.new()
-	ultimate_blade_root.name = "UltimateBlades"
+func _assign_player_hud(index: int, target_player: PlayerController) -> void:
+	if index < 0 or index >= player_huds.size():
+		return
+	player_huds[index]["player"] = target_player
+	_update_player_hud(index)
+
+func _setup_ultimate_blades(owner: PlayerController) -> void:
+	var ultimate_blade_root: Node2D = Node2D.new()
+	ultimate_blade_root.name = "UltimateBlades_%s" % owner.name
 	ultimate_blade_root.visible = false
 	add_child(ultimate_blade_root)
 	for index in range(2):
@@ -415,17 +975,31 @@ func _setup_ultimate_blades() -> void:
 			Vector2(42.0, 0.0),
 		])
 		ultimate_blade_root.add_child(blade)
+	ultimate_states[owner.get_instance_id()] = {
+		"owner": owner,
+		"root": ultimate_blade_root,
+		"duration_left": 0.0,
+		"angle": 0.0,
+		"damage": 0.0,
+		"hit_cooldowns": {},
+	}
 
 func _start_next_wave() -> void:
+	if game_state == GameStateScript.UPGRADE_SELECT and not _all_required_upgrades_selected():
+		return
+	if game_state == GameStateScript.VICTORY or game_state == GameStateScript.DEFEAT:
+		return
 	_set_player_cooldowns_paused(false)
+	_stop_ultimate()
 	wave_index += 1
 	_clear_upgrade_panel()
 	_clear_projectiles()
 	upgrade_panel.visible = false
 	start_next_wave_button.visible = false
 	start_next_wave_button.disabled = true
-	selected_upgrade_p1 = false
-	selected_upgrade_p2 = false
+	result_label.visible = false
+	waiting_for_next_wave_input = false
+	_reset_upgrade_slots()
 
 	if wave_index >= WAVE_DEFS.size():
 		_enter_victory()
@@ -601,10 +1175,18 @@ func _update_camera() -> void:
 	if camera == null or players.is_empty():
 		return
 	var focus: Vector2 = _get_alive_players_center()
-	var half_view: Vector2 = VIEWPORT_SIZE * 0.5
+	var half_view: Vector2 = _get_viewport_size() * 0.5
 	var min_position: Vector2 = ARENA_BOUNDS.position + half_view
 	var max_position: Vector2 = ARENA_BOUNDS.end - half_view
-	camera.global_position = focus.clamp(min_position, max_position)
+	camera.global_position = Vector2(
+		_clamp_camera_axis(focus.x, min_position.x, max_position.x, ARENA_BOUNDS.get_center().x),
+		_clamp_camera_axis(focus.y, min_position.y, max_position.y, ARENA_BOUNDS.get_center().y)
+	)
+
+func _clamp_camera_axis(value: float, minimum: float, maximum: float, fallback: float) -> float:
+	if minimum > maximum:
+		return fallback
+	return clampf(value, minimum, maximum)
 
 func _get_alive_players_center() -> Vector2:
 	var total: Vector2 = Vector2.ZERO
@@ -666,8 +1248,11 @@ func _on_enemy_died(enemy: EnemyController) -> void:
 			_enter_wave_clear()
 
 func _enter_wave_clear() -> void:
+	if not _is_combat_active():
+		return
 	game_state = GameStateScript.COUNTDOWN
 	_set_player_cooldowns_paused(true)
+	_stop_ultimate()
 	result_label.text = "波次清理完成"
 	result_label.visible = true
 	var timer: SceneTreeTimer = get_tree().create_timer(1.0)
@@ -679,7 +1264,8 @@ func _enter_wave_clear() -> void:
 
 func _on_enemy_attack_started(enemy: EnemyController, windup_time: float, attack_range: float) -> void:
 	if SHOW_ENEMY_ATTACK_TELEGRAPH and is_instance_valid(enemy):
-		_spawn_effect(enemy.global_position, attack_range, Color(1.0, 0.84, 0.25, 0.16), windup_time)
+		var warning_color: Color = Color(1.0, 0.24, 0.18, 0.20) if enemy.is_boss else Color(1.0, 0.84, 0.25, 0.13)
+		_spawn_effect(enemy.global_position, attack_range, warning_color, windup_time)
 
 func _on_enemy_attacked_player(enemy: EnemyController, target: Node2D, damage: float) -> void:
 	var target_player: PlayerController = target as PlayerController
@@ -700,6 +1286,7 @@ func _on_enemy_projectile_requested(_enemy: EnemyController, target: Node2D, ori
 		projectile.target = target
 	projectile.hit_player.connect(_on_enemy_projectile_hit_player.bind(projectile.target))
 	projectile_root.add_child(projectile)
+	_spawn_line_skill_effect(origin, direction, 58.0, Color(1.0, 0.74, 0.28, 0.42), 0.10)
 
 func _on_enemy_projectile_hit_player(damage: float, target: Node2D) -> void:
 	var target_player: PlayerController = target as PlayerController
@@ -708,9 +1295,10 @@ func _on_enemy_projectile_hit_player(damage: float, target: Node2D) -> void:
 
 func _on_enemy_area_attack_requested(_enemy: EnemyController, origin: Vector2, radius: float, damage: float, windup_time: float) -> void:
 	if SHOW_ENEMY_ATTACK_TELEGRAPH:
-		_spawn_effect(origin, radius, Color(1.0, 0.28, 0.18, 0.18), windup_time)
+		_spawn_effect(origin, radius, Color(1.0, 0.18, 0.12, 0.22), windup_time)
 	var timer: SceneTreeTimer = get_tree().create_timer(windup_time)
 	timer.timeout.connect(func() -> void:
+		_spawn_effect(origin, radius, Color(1.0, 0.34, 0.20, 0.30), 0.16)
 		for existing_player in players:
 			if is_instance_valid(existing_player) and not existing_player.is_dead and existing_player.global_position.distance_to(origin) <= radius:
 				existing_player.apply_damage(damage)
@@ -733,11 +1321,60 @@ func _on_player_damage_taken(amount: float, defended: bool, damaged_player: Play
 func _on_player_basic_attack(origin: Vector2, direction: Vector2, attack_length: float, half_width: float, damage: float, attacker: PlayerController) -> void:
 	_damage_enemies_in_front(origin, direction, attack_length, half_width, damage, -1.0, attacker)
 
+func _on_player_projectile_attack(origin: Vector2, direction: Vector2, damage: float, attacker: PlayerController) -> void:
+	_fire_player_arrow(origin, direction, damage, attacker)
+	_spawn_line_skill_effect(origin, direction, 54.0, Color(1.0, 0.88, 0.42, 0.35), 0.08)
+
+func _on_player_projectile_hit_enemy(enemy: EnemyController, damage: float, attacker: PlayerController) -> void:
+	if not is_instance_valid(enemy):
+		return
+	enemy.apply_damage(damage, attacker.global_position, attacker.attack_knockback)
+	_apply_lifesteal(attacker, damage)
+
+func _fire_player_arrow(origin: Vector2, direction: Vector2, damage: float, attacker: PlayerController, speed: float = 560.0, lifetime: float = 1.2, hit_radius: float = 18.0) -> void:
+	var projectile: PlayerProjectile = PlayerProjectileScript.new()
+	projectile.global_position = origin
+	projectile.direction = direction
+	projectile.damage = damage
+	projectile.speed = speed
+	projectile.lifetime = lifetime
+	projectile.hit_radius = hit_radius
+	projectile.enemies = enemies
+	projectile.hit_enemy.connect(_on_player_projectile_hit_enemy.bind(attacker))
+	projectile_root.add_child(projectile)
+
+func _fire_piercing_arrow(origin: Vector2, direction: Vector2, damage: float, attacker: PlayerController) -> void:
+	_damage_enemies_in_front(origin, direction, attacker.skill_length * 1.28, 24.0, damage, attacker.attack_knockback * 0.6, attacker)
+	_spawn_line_skill_effect(origin, direction, attacker.skill_length * 1.28, Color(0.95, 0.78, 0.28, 0.72), 0.14)
+
+func _fire_spread_arrows(origin: Vector2, direction: Vector2, damage: float, attacker: PlayerController) -> void:
+	var forward: Vector2 = direction.normalized()
+	if forward == Vector2.ZERO:
+		forward = Vector2.RIGHT
+	for angle in [-0.22, 0.0, 0.22]:
+		var arrow_direction: Vector2 = forward.rotated(angle)
+		_fire_player_arrow(origin + arrow_direction * 24.0, arrow_direction, damage, attacker, 600.0, 1.0, 17.0)
+		_spawn_line_skill_effect(origin, arrow_direction, 48.0, Color(1.0, 0.86, 0.38, 0.32), 0.07)
+
 func _on_player_active_skill(origin: Vector2, direction: Vector2, length: float, half_width: float, damage: float, attacker: PlayerController) -> void:
+	if attacker.character_id == "archer":
+		_fire_piercing_arrow(origin, direction, damage * 1.1, attacker)
+		return
+	if attacker.character_id == "lancer":
+		_damage_enemies_in_front(origin, direction, length * 1.18, half_width * 0.9, damage, attacker.attack_knockback * 0.85, attacker)
+		_spawn_line_skill_effect(origin, direction, length * 1.18, Color(0.65, 0.9, 1.0, 0.60), 0.13)
+		return
 	_damage_enemies_in_front(origin, direction, length, half_width, damage, attacker.attack_knockback * 0.75, attacker)
 	_spawn_shockwave_effect(origin, direction, length)
 
 func _on_player_fan_skill(origin: Vector2, direction: Vector2, length: float, half_width: float, damage: float, attacker: PlayerController) -> void:
+	if attacker.character_id == "archer":
+		_fire_spread_arrows(origin, direction, damage * 0.45, attacker)
+		return
+	if attacker.character_id == "lancer":
+		_damage_enemies_in_front(origin, direction, length * 0.72, half_width * 4.2, damage * 0.72, attacker.attack_knockback * 0.95, attacker)
+		_spawn_lancer_sweep_effect(origin, direction, length * 0.72, half_width * 4.2)
+		return
 	var forward: Vector2 = direction.normalized()
 	if forward == Vector2.ZERO:
 		forward = Vector2.RIGHT
@@ -747,42 +1384,182 @@ func _on_player_fan_skill(origin: Vector2, direction: Vector2, length: float, ha
 		_damage_enemies_in_front(origin, line_direction, length, half_width, damage, attacker.attack_knockback * 0.45, attacker)
 		_spawn_line_skill_effect(origin, line_direction, length)
 
-func _on_player_ultimate_skill(damage: float, duration: float, attacker: PlayerController) -> void:
-	ultimate_duration_left = duration
-	ultimate_angle = 0.0
-	ultimate_damage = damage
-	ultimate_owner = attacker
-	ultimate_hit_cooldowns.clear()
+func _on_player_ultimate_skill(origin: Vector2, direction: Vector2, damage: float, duration: float, attacker: PlayerController) -> void:
+	if attacker.character_id == "archer":
+		_spawn_arrow_rain(origin, direction, damage, duration, attacker)
+		return
+	if attacker.character_id == "lancer":
+		_spawn_lancer_barricade(origin, direction, damage, duration, attacker)
+		return
+	var state: Dictionary = _get_ultimate_state(attacker)
+	if state.is_empty():
+		return
+	state["duration_left"] = duration
+	state["angle"] = 0.0
+	state["damage"] = damage
+	var hit_cooldowns: Dictionary = state["hit_cooldowns"] as Dictionary
+	hit_cooldowns.clear()
+	var ultimate_blade_root: Node2D = state["root"] as Node2D
 	if ultimate_blade_root != null:
 		ultimate_blade_root.visible = true
 
+func _spawn_arrow_rain(origin: Vector2, direction: Vector2, damage: float, duration: float, attacker: PlayerController) -> void:
+	var forward: Vector2 = direction.normalized()
+	if forward == Vector2.ZERO:
+		forward = Vector2.RIGHT
+	var center: Vector2 = origin + forward * 180.0
+	var root: Node2D = Node2D.new()
+	root.name = "ArrowRain_%s" % attacker.name
+	effect_root.add_child(root)
+	_spawn_area_visual(root, center, 125.0, Color(0.95, 0.78, 0.24, 0.16))
+	persistent_skill_areas.append({
+		"type": "arrow_rain",
+		"owner": attacker,
+		"root": root,
+		"duration_left": minf(duration, 6.0),
+		"tick_left": 0.0,
+		"interval": 0.35,
+		"origin": center,
+		"radius": 125.0,
+		"damage": damage * 0.38,
+	})
+
+func _spawn_lancer_barricade(origin: Vector2, direction: Vector2, damage: float, duration: float, attacker: PlayerController) -> void:
+	var forward: Vector2 = direction.normalized()
+	if forward == Vector2.ZERO:
+		forward = Vector2.RIGHT
+	var center: Vector2 = origin + forward * 135.0
+	var root: Node2D = Node2D.new()
+	root.name = "LancerBarricade_%s" % attacker.name
+	effect_root.add_child(root)
+	_spawn_lancer_barricade_visual(root, center, forward, 280.0, 70.0)
+	persistent_skill_areas.append({
+		"type": "lancer_barricade",
+		"owner": attacker,
+		"root": root,
+		"duration_left": minf(duration, 6.0),
+		"tick_left": 0.0,
+		"interval": 0.35,
+		"origin": center,
+		"forward": forward,
+		"length": 280.0,
+		"half_depth": 35.0,
+		"damage": damage * 0.42,
+	})
+
+func _update_persistent_skill_areas(delta: float) -> void:
+	for area in persistent_skill_areas.duplicate():
+		var owner: PlayerController = area.get("owner") as PlayerController
+		var root: Node2D = area.get("root") as Node2D
+		var duration_left: float = float(area.get("duration_left", 0.0)) - delta
+		area["duration_left"] = duration_left
+		if duration_left <= 0.0 or owner == null or not is_instance_valid(owner) or owner.is_dead:
+			_remove_persistent_skill_area(area)
+			continue
+		var tick_left: float = float(area.get("tick_left", 0.0)) - delta
+		if tick_left > 0.0:
+			area["tick_left"] = tick_left
+			continue
+		area["tick_left"] = float(area.get("interval", 0.35))
+		match str(area.get("type", "")):
+			"arrow_rain":
+				_tick_arrow_rain(area, owner)
+			"lancer_barricade":
+				_tick_lancer_barricade(area, owner)
+		if root != null and is_instance_valid(root):
+			root.visible = true
+
+func _tick_arrow_rain(area: Dictionary, owner: PlayerController) -> void:
+	var center: Vector2 = area.get("origin", owner.global_position) as Vector2
+	var radius: float = float(area.get("radius", 120.0))
+	var damage: float = float(area.get("damage", owner.attack_damage))
+	_spawn_effect(center, radius, Color(1.0, 0.86, 0.28, 0.08), 0.08)
+	for enemy in enemies.duplicate():
+		if is_instance_valid(enemy) and enemy.global_position.distance_to(center) <= radius:
+			enemy.apply_damage(damage, center, owner.attack_knockback * 0.28)
+			_apply_lifesteal(owner, damage)
+
+func _tick_lancer_barricade(area: Dictionary, owner: PlayerController) -> void:
+	var center: Vector2 = area.get("origin", owner.global_position) as Vector2
+	var forward: Vector2 = (area.get("forward", Vector2.RIGHT) as Vector2).normalized()
+	if forward == Vector2.ZERO:
+		forward = Vector2.RIGHT
+	var side_axis: Vector2 = Vector2(-forward.y, forward.x)
+	var half_side: float = float(area.get("length", 260.0)) * 0.5
+	var half_depth: float = float(area.get("half_depth", 35.0))
+	var damage: float = float(area.get("damage", owner.attack_damage))
+	for enemy in enemies.duplicate():
+		if not is_instance_valid(enemy):
+			continue
+		var to_enemy: Vector2 = enemy.global_position - center
+		if absf(to_enemy.dot(forward)) <= half_depth and absf(to_enemy.dot(side_axis)) <= half_side:
+			var knockback: float = 0.0 if enemy.is_boss else owner.attack_knockback * 0.55
+			enemy.apply_damage(damage, center - forward * 40.0, knockback)
+			_apply_lifesteal(owner, damage)
+
+func _remove_persistent_skill_area(area: Dictionary) -> void:
+	persistent_skill_areas.erase(area)
+	var root: Node2D = area.get("root") as Node2D
+	if root != null and is_instance_valid(root):
+		root.queue_free()
+
+func _on_player_cooldown_notice_requested(skill_index: int, source_player: PlayerController) -> void:
+	for index in range(player_huds.size()):
+		var hud: Dictionary = player_huds[index]
+		if hud.get("player") != source_player:
+			continue
+		var skill_labels: Array = hud.get("skill_labels", ["普攻", "Q", "E", "F"])
+		var skill_label: String = str(skill_labels[clampi(skill_index, 0, skill_labels.size() - 1)])
+		_spawn_cooldown_bubble(source_player, "%s：冷却中" % skill_label)
+		return
+
 func _update_ultimate(delta: float) -> void:
-	if ultimate_duration_left <= 0.0 or ultimate_owner == null or not is_instance_valid(ultimate_owner) or ultimate_owner.is_dead:
+	for key in ultimate_states.keys():
+		var state: Dictionary = ultimate_states[key]
+		_update_player_ultimate(state, delta)
+
+func _update_player_ultimate(state: Dictionary, delta: float) -> void:
+	var owner: PlayerController = state["owner"] as PlayerController
+	var ultimate_blade_root: Node2D = state["root"] as Node2D
+	var duration_left: float = float(state.get("duration_left", 0.0))
+	if duration_left <= 0.0 or owner == null or not is_instance_valid(owner) or owner.is_dead:
 		if ultimate_blade_root != null:
 			ultimate_blade_root.visible = false
 		return
 
-	ultimate_duration_left = maxf(0.0, ultimate_duration_left - delta)
-	ultimate_angle += 7.2 * delta
-	_update_ultimate_hit_cooldowns(delta)
-	_update_ultimate_blade_visuals()
-	_damage_enemies_with_ultimate()
-	if ultimate_duration_left <= 0.0 and ultimate_blade_root != null:
+	duration_left = maxf(0.0, duration_left - delta)
+	state["duration_left"] = duration_left
+	state["angle"] = float(state.get("angle", 0.0)) + 7.2 * delta
+	_update_ultimate_hit_cooldowns(state, delta)
+	_update_ultimate_blade_visuals(state)
+	_damage_enemies_with_ultimate(state)
+	if duration_left <= 0.0 and ultimate_blade_root != null:
 		ultimate_blade_root.visible = false
 
-func _update_ultimate_hit_cooldowns(delta: float) -> void:
-	for key in ultimate_hit_cooldowns.keys():
-		ultimate_hit_cooldowns[key] = maxf(0.0, float(ultimate_hit_cooldowns[key]) - delta)
+func _get_ultimate_state(owner: PlayerController) -> Dictionary:
+	if owner == null:
+		return {}
+	var key: int = owner.get_instance_id()
+	if not ultimate_states.has(key):
+		_setup_ultimate_blades(owner)
+	return ultimate_states.get(key, {})
 
-func _update_ultimate_blade_visuals() -> void:
+func _update_ultimate_hit_cooldowns(state: Dictionary, delta: float) -> void:
+	var hit_cooldowns: Dictionary = state["hit_cooldowns"] as Dictionary
+	for key in hit_cooldowns.keys():
+		hit_cooldowns[key] = maxf(0.0, float(hit_cooldowns[key]) - delta)
+
+func _update_ultimate_blade_visuals(state: Dictionary) -> void:
+	var ultimate_blade_root: Node2D = state["root"] as Node2D
 	if ultimate_blade_root == null:
 		return
-	if ultimate_owner == null or not is_instance_valid(ultimate_owner):
+	var owner: PlayerController = state["owner"] as PlayerController
+	if owner == null or not is_instance_valid(owner):
 		return
-	ultimate_blade_root.global_position = ultimate_owner.global_position
+	ultimate_blade_root.global_position = owner.global_position
 	for index in range(ultimate_blade_root.get_child_count()):
 		var blade: Line2D = ultimate_blade_root.get_child(index) as Line2D
-		var angle: float = ultimate_angle + PI * float(index)
+		var angle: float = float(state.get("angle", 0.0)) + PI * float(index)
 		var center: Vector2 = Vector2(cos(angle), sin(angle)) * 62.0
 		var tangent: Vector2 = Vector2(-sin(angle), cos(angle))
 		blade.position = center
@@ -791,21 +1568,26 @@ func _update_ultimate_blade_visuals() -> void:
 			tangent * 42.0,
 		])
 
-func _damage_enemies_with_ultimate() -> void:
+func _damage_enemies_with_ultimate(state: Dictionary) -> void:
+	var owner: PlayerController = state["owner"] as PlayerController
+	var hit_cooldowns: Dictionary = state["hit_cooldowns"] as Dictionary
+	if owner == null or not is_instance_valid(owner):
+		return
 	var hit_width: float = 18.0
 	for enemy in enemies.duplicate():
 		if not is_instance_valid(enemy):
 			continue
 		var enemy_id: int = enemy.get_instance_id()
-		if float(ultimate_hit_cooldowns.get(enemy_id, 0.0)) > 0.0:
+		if float(hit_cooldowns.get(enemy_id, 0.0)) > 0.0:
 			continue
-		if _enemy_touched_by_ultimate_blade(enemy.global_position, hit_width):
-			var hit_damage: float = ultimate_owner.roll_damage(ultimate_damage)
-			enemy.apply_damage(hit_damage, ultimate_owner.global_position, ultimate_owner.attack_knockback * 0.35)
-			_apply_lifesteal(ultimate_owner, hit_damage)
-			ultimate_hit_cooldowns[enemy_id] = 0.35
+		if _enemy_touched_by_ultimate_blade(state, enemy.global_position, hit_width):
+			var hit_damage: float = owner.roll_damage(float(state.get("damage", 0.0)))
+			enemy.apply_damage(hit_damage, owner.global_position, owner.attack_knockback * 0.35)
+			_apply_lifesteal(owner, hit_damage)
+			hit_cooldowns[enemy_id] = 0.35
 
-func _enemy_touched_by_ultimate_blade(enemy_position: Vector2, hit_width: float) -> bool:
+func _enemy_touched_by_ultimate_blade(state: Dictionary, enemy_position: Vector2, hit_width: float) -> bool:
+	var ultimate_blade_root: Node2D = state["root"] as Node2D
 	if ultimate_blade_root == null:
 		return false
 	for index in range(ultimate_blade_root.get_child_count()):
@@ -870,6 +1652,60 @@ func _spawn_effect(origin: Vector2, radius: float, color: Color, lifetime: float
 	var timer: SceneTreeTimer = get_tree().create_timer(lifetime)
 	timer.timeout.connect(Callable(effect, "queue_free"))
 
+func _spawn_area_visual(root: Node2D, origin: Vector2, radius: float, color: Color) -> void:
+	var area: Polygon2D = Polygon2D.new()
+	var points: PackedVector2Array = []
+	var segments := 36
+	for index in range(segments):
+		var angle: float = TAU * float(index) / float(segments)
+		points.append(origin + Vector2(cos(angle), sin(angle)) * radius)
+	area.polygon = points
+	area.color = color
+	root.add_child(area)
+
+func _spawn_lancer_barricade_visual(root: Node2D, center: Vector2, forward: Vector2, length: float, depth: float) -> void:
+	var side_axis: Vector2 = Vector2(-forward.y, forward.x)
+	var half_side: float = length * 0.5
+	var half_depth: float = depth * 0.5
+	var area: Polygon2D = Polygon2D.new()
+	area.color = Color(0.55, 0.86, 1.0, 0.14)
+	area.polygon = PackedVector2Array([
+		center - side_axis * half_side - forward * half_depth,
+		center + side_axis * half_side - forward * half_depth,
+		center + side_axis * half_side + forward * half_depth,
+		center - side_axis * half_side + forward * half_depth,
+	])
+	root.add_child(area)
+	for index in range(5):
+		var t: float = -0.5 + float(index) / 4.0
+		var spear_center: Vector2 = center + side_axis * length * t
+		var spear: Line2D = Line2D.new()
+		spear.width = 5.0
+		spear.default_color = Color(0.72, 0.95, 1.0, 0.72)
+		spear.points = PackedVector2Array([
+			spear_center - forward * 42.0,
+			spear_center + forward * 42.0,
+		])
+		root.add_child(spear)
+
+func _spawn_lancer_sweep_effect(origin: Vector2, direction: Vector2, length: float, half_width: float) -> void:
+	var forward: Vector2 = direction.normalized()
+	if forward == Vector2.ZERO:
+		forward = Vector2.RIGHT
+	var side_axis: Vector2 = Vector2(-forward.y, forward.x)
+	for side in [-1.0, 0.0, 1.0]:
+		var line: Line2D = Line2D.new()
+		line.position = origin
+		line.width = 5.0
+		line.default_color = Color(0.65, 0.92, 1.0, 0.48)
+		line.points = PackedVector2Array([
+			side_axis * half_width * side * 0.45,
+			forward * length + side_axis * half_width * side,
+		])
+		effect_root.add_child(line)
+		var timer: SceneTreeTimer = get_tree().create_timer(0.12)
+		timer.timeout.connect(Callable(line, "queue_free"))
+
 func _spawn_shockwave_effect(origin: Vector2, direction: Vector2, length: float) -> void:
 	var forward: Vector2 = direction.normalized()
 	if forward == Vector2.ZERO:
@@ -878,21 +1714,21 @@ func _spawn_shockwave_effect(origin: Vector2, direction: Vector2, length: float)
 		var t: float = float(index + 1) / 4.0
 		_spawn_effect(origin + forward * length * t, 18.0 + 8.0 * t, Color(0.35, 0.75, 1.0, 0.18), 0.12)
 
-func _spawn_line_skill_effect(origin: Vector2, direction: Vector2, length: float) -> void:
+func _spawn_line_skill_effect(origin: Vector2, direction: Vector2, length: float, color: Color = Color(1.0, 0.86, 0.32, 0.55), lifetime: float = 0.09) -> void:
 	var forward: Vector2 = direction.normalized()
 	if forward == Vector2.ZERO:
 		forward = Vector2.RIGHT
 	var line: Line2D = Line2D.new()
 	line.position = origin
 	line.width = 4.0
-	line.default_color = Color(1.0, 0.86, 0.32, 0.55)
+	line.default_color = color
 	line.points = PackedVector2Array([
 		Vector2.ZERO,
 		forward * length,
 	])
 	effect_root.add_child(line)
 
-	var timer: SceneTreeTimer = get_tree().create_timer(0.09)
+	var timer: SceneTreeTimer = get_tree().create_timer(lifetime)
 	timer.timeout.connect(Callable(line, "queue_free"))
 
 func _spawn_damage_number(origin: Vector2, amount: float, color: Color) -> void:
@@ -909,16 +1745,50 @@ func _spawn_damage_number(origin: Vector2, amount: float, color: Color) -> void:
 	tween.tween_property(label, "modulate:a", 0.0, 0.45)
 	tween.finished.connect(Callable(label, "queue_free"))
 
+func _spawn_cooldown_bubble(target_player: PlayerController, text: String) -> void:
+	if target_player == null or not is_instance_valid(target_player):
+		return
+	var bubble: PanelContainer = PanelContainer.new()
+	var style: StyleBoxFlat = StyleBoxFlat.new()
+	style.bg_color = Color(0.05, 0.07, 0.08, 0.78)
+	style.border_color = Color(0.95, 0.95, 0.95, 0.85)
+	style.set_border_width_all(1)
+	style.set_corner_radius_all(8)
+	bubble.add_theme_stylebox_override("panel", style)
+	bubble.position = target_player.global_position + Vector2(-46.0, -88.0)
+	bubble.custom_minimum_size = Vector2(92.0, 28.0)
+
+	var label: Label = Label.new()
+	label.text = text
+	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	label.add_theme_font_size_override("font_size", 16)
+	label.add_theme_color_override("font_color", Color.WHITE)
+	bubble.add_child(label)
+	effect_root.add_child(bubble)
+
+	var tween: Tween = create_tween()
+	tween.set_parallel(true)
+	tween.tween_property(bubble, "position", bubble.position + Vector2(0.0, -10.0), 0.5)
+	tween.tween_property(bubble, "modulate:a", 0.0, 0.5)
+	tween.finished.connect(Callable(bubble, "queue_free"))
+
 func _enter_upgrade_select() -> void:
+	if local_player_slots.is_empty():
+		return
 	game_state = GameStateScript.UPGRADE_SELECT
+	_heal_surviving_players_after_wave()
 	_set_player_cooldowns_paused(true)
-	current_upgrades_p1 = UpgradeCatalogScript.roll(3)
-	current_upgrades_p2 = UpgradeCatalogScript.roll(3)
-	selected_upgrade_p1 = false
-	selected_upgrade_p2 = local_player_count <= 1
+	_stop_ultimate()
+	for slot in local_player_slots:
+		var target_player: PlayerController = slot.get("player") as PlayerController
+		var character_id := target_player.character_id if target_player != null else ""
+		slot["upgrades"] = UpgradeCatalogScript.roll(3, character_id)
+		slot["selected"] = false
 	_clear_upgrade_panel()
 	start_next_wave_button.visible = false
 	start_next_wave_button.disabled = true
+	waiting_for_next_wave_input = false
 	if local_player_count <= 1:
 		_build_single_player_upgrade_panel()
 	else:
@@ -926,6 +1796,11 @@ func _enter_upgrade_select() -> void:
 
 	upgrade_panel.visible = true
 	_update_status()
+
+func _heal_surviving_players_after_wave() -> void:
+	for existing_player in players:
+		if is_instance_valid(existing_player) and not existing_player.is_dead:
+			existing_player.heal(WAVE_CLEAR_HEAL_AMOUNT)
 
 func _build_single_player_upgrade_panel() -> void:
 	var panel_width: float = 1180.0
@@ -946,15 +1821,18 @@ func _build_single_player_upgrade_panel() -> void:
 	cards.add_theme_constant_override("separation", 54)
 	upgrade_panel.add_child(cards)
 
-	var key_labels: Array[String] = ["I", "O", "P"]
-	for index in range(current_upgrades_p1.size()):
-		var upgrade: Dictionary = current_upgrades_p1[index]
-		var key_label: String = key_labels[index]
+	var slot: Dictionary = _get_local_player_slot(1)
+	var upgrades: Array = slot.get("upgrades", [])
+	var key_labels: Array = slot.get("key_labels", ["I", "O", "P"])
+	var target_player: PlayerController = slot.get("player") as PlayerController
+	for index in range(upgrades.size()):
+		var upgrade: Dictionary = upgrades[index]
+		var key_label: String = str(key_labels[index])
 		var button: Button = Button.new()
 		button.text = "%s  [%s] %s" % [
 			key_label,
 			_format_rarity(str(upgrade.get("rarity", "Common"))),
-			_format_upgrade_button(upgrade, player),
+			_format_upgrade_button(upgrade, target_player),
 		]
 		button.custom_minimum_size = Vector2(card_width, card_height)
 		button.alignment = HORIZONTAL_ALIGNMENT_LEFT
@@ -975,13 +1853,18 @@ func _build_coop_upgrade_panel() -> void:
 	columns.add_theme_constant_override("separation", 32)
 	upgrade_panel.add_child(columns)
 
-	columns.add_child(_build_upgrade_column("P1 选择：I / O / P", current_upgrades_p1, player, 1, ["I", "O", "P"]))
-	if player_two != null:
-		columns.add_child(_build_upgrade_column("P2 选择：7 / 8 / 9", current_upgrades_p2, player_two, 2, ["7", "8", "9"]))
+	for slot in local_player_slots:
+		var target_player: PlayerController = slot.get("player") as PlayerController
+		if target_player == null or not is_instance_valid(target_player):
+			continue
+		var player_index: int = int(slot.get("player_index", 0))
+		var key_labels: Array = slot.get("key_labels", [])
+		var title_text: String = "P%d 选择：%s" % [player_index, _format_key_labels(key_labels)]
+		columns.add_child(_build_upgrade_column(title_text, slot.get("upgrades", []), target_player, player_index, key_labels))
 
 func _configure_upgrade_panel(width: float, height: float) -> void:
-	upgrade_panel.position = (VIEWPORT_SIZE - Vector2(width, height)) * 0.5
 	upgrade_panel.custom_minimum_size = Vector2(width, height)
+	upgrade_panel.position = (_get_viewport_size() - upgrade_panel.custom_minimum_size) * 0.5
 
 func _revive_dead_players_for_next_wave() -> void:
 	var revive_position: Vector2 = _get_alive_players_center()
@@ -991,7 +1874,7 @@ func _revive_dead_players_for_next_wave() -> void:
 			existing_player.global_position = existing_player.global_position.clamp(ARENA_BOUNDS.position, ARENA_BOUNDS.end)
 			existing_player.revive(0.5)
 
-func _build_upgrade_column(title_text: String, upgrades: Array, target_player: PlayerController, player_index: int, key_labels: Array[String]) -> VBoxContainer:
+func _build_upgrade_column(title_text: String, upgrades: Array, target_player: PlayerController, player_index: int, key_labels: Array) -> VBoxContainer:
 	var column: VBoxContainer = VBoxContainer.new()
 	column.custom_minimum_size = Vector2(460, 0.0)
 	column.add_theme_constant_override("separation", 12)
@@ -1018,26 +1901,34 @@ func _build_upgrade_column(title_text: String, upgrades: Array, target_player: P
 		column.add_child(button)
 	return column
 
+func _format_key_labels(key_labels: Array) -> String:
+	var text: String = ""
+	for key_label in key_labels:
+		if text != "":
+			text += " / "
+		text += str(key_label)
+	return text
+
 func _select_upgrade(player_index: int, upgrade: Dictionary) -> void:
-	if player_index == 1 and selected_upgrade_p1:
+	if game_state != GameStateScript.UPGRADE_SELECT:
 		return
-	if player_index == 2 and selected_upgrade_p2:
+	var slot: Dictionary = _get_local_player_slot(player_index)
+	if slot.is_empty() or bool(slot.get("selected", false)):
 		return
-	var target_player: PlayerController = player if player_index == 1 else player_two
+	var target_player: PlayerController = slot.get("player") as PlayerController
 	if target_player == null or not is_instance_valid(target_player):
 		return
 	target_player.apply_upgrade(upgrade)
-	if player_index == 1:
-		selected_upgrade_p1 = true
-	else:
-		selected_upgrade_p2 = true
+	slot["selected"] = true
 	_mark_upgrade_column_selected(player_index)
 	if not _all_required_upgrades_selected():
 		return
 	upgrade_panel.visible = false
-	start_next_wave_button.visible = true
-	start_next_wave_button.disabled = false
-	start_next_wave_button.grab_focus()
+	start_next_wave_button.visible = false
+	start_next_wave_button.disabled = true
+	waiting_for_next_wave_input = true
+	result_label.text = "按任意键开启下一波"
+	result_label.visible = true
 
 func _mark_upgrade_column_selected(player_index: int) -> void:
 	var column: VBoxContainer = upgrade_panel.find_child("UpgradeColumnP%d" % player_index, true, false) as VBoxContainer
@@ -1057,22 +1948,25 @@ func _mark_upgrade_column_selected(player_index: int) -> void:
 	column.add_child(selected_label)
 
 func _all_required_upgrades_selected() -> bool:
-	return selected_upgrade_p1 and (selected_upgrade_p2 or local_player_count <= 1)
+	if local_player_slots.is_empty():
+		return false
+	for slot in local_player_slots:
+		var target_player: PlayerController = slot.get("player") as PlayerController
+		if target_player != null and is_instance_valid(target_player) and not bool(slot.get("selected", false)):
+			return false
+	return true
 
 func _handle_upgrade_hotkeys() -> void:
 	if game_state != GameStateScript.UPGRADE_SELECT:
 		return
-	if not selected_upgrade_p1:
-		for index in range(current_upgrades_p1.size()):
-			if Input.is_action_just_pressed("upgrade_p1_%d" % (index + 1)):
-				var upgrade_p1: Dictionary = current_upgrades_p1[index]
-				_select_upgrade(1, upgrade_p1)
-				return
-	if local_player_count > 1 and not selected_upgrade_p2:
-		for index in range(current_upgrades_p2.size()):
-			if Input.is_action_just_pressed("upgrade_p2_%d" % (index + 1)):
-				var upgrade_p2: Dictionary = current_upgrades_p2[index]
-				_select_upgrade(2, upgrade_p2)
+	for slot in local_player_slots:
+		if bool(slot.get("selected", false)):
+			continue
+		var upgrades: Array = slot.get("upgrades", [])
+		var key_actions: Array = slot.get("key_actions", [])
+		for index in range(min(upgrades.size(), key_actions.size())):
+			if Input.is_action_just_pressed(str(key_actions[index])):
+				_select_upgrade(int(slot.get("player_index", 0)), upgrades[index])
 				return
 
 func _on_start_next_wave_pressed() -> void:
@@ -1083,6 +1977,7 @@ func _on_start_next_wave_pressed() -> void:
 func _enter_victory() -> void:
 	game_state = GameStateScript.VICTORY
 	_clear_remaining_enemies()
+	_clear_effects()
 	_position_result_panel()
 	result_label.text = _format_result_text("胜利")
 	result_label.visible = true
@@ -1093,6 +1988,8 @@ func _enter_defeat() -> void:
 	if game_state == GameStateScript.DEFEAT or game_state == GameStateScript.VICTORY:
 		return
 	game_state = GameStateScript.DEFEAT
+	_stop_ultimate()
+	_clear_projectiles()
 	_position_result_panel()
 	result_label.text = _format_result_text("失败")
 	result_label.visible = true
@@ -1106,8 +2003,12 @@ func _on_restart_pressed() -> void:
 	_show_main_menu()
 
 func _position_result_panel() -> void:
-	result_label.position = Vector2(520, 248)
-	restart_button.position = Vector2(548, 510)
+	var viewport_size: Vector2 = _get_viewport_size()
+	result_label.position = viewport_size * 0.5 + Vector2(-120.0, -112.0)
+	restart_button.position = Vector2(
+		(viewport_size.x - 184.0) * 0.5,
+		viewport_size.y * 0.5 + 150.0
+	)
 
 func _format_result_text(title: String) -> String:
 	return "%s\n用时：%.1f 秒\n击杀：%d\n造成伤害：%d\n受到伤害：%d" % [
@@ -1129,30 +2030,41 @@ func _clear_remaining_enemies() -> void:
 func _clear_run_state() -> void:
 	_clear_remaining_enemies()
 	_clear_upgrade_panel()
+	_clear_effects()
 	for existing_player in players:
 		if is_instance_valid(existing_player):
 			existing_player.queue_free()
 	players.clear()
 	player = null
 	player_two = null
+	_clear_ultimate_states()
+	for index in range(player_huds.size()):
+		_assign_player_hud(index, null)
+	local_player_slots.clear()
 	wave_index = -1
-	selected_upgrade_p1 = false
-	selected_upgrade_p2 = false
-	current_upgrades_p1.clear()
-	current_upgrades_p2.clear()
 	start_next_wave_button.visible = false
 	start_next_wave_button.disabled = true
 	upgrade_panel.visible = false
-	if ultimate_blade_root != null:
-		ultimate_blade_root.queue_free()
-		ultimate_blade_root = null
+	waiting_for_next_wave_input = false
 
 func _stop_ultimate() -> void:
-	ultimate_duration_left = 0.0
-	ultimate_owner = null
-	ultimate_hit_cooldowns.clear()
-	if ultimate_blade_root != null:
-		ultimate_blade_root.visible = false
+	_clear_persistent_skill_areas()
+	for key in ultimate_states.keys():
+		var state: Dictionary = ultimate_states[key]
+		state["duration_left"] = 0.0
+		var hit_cooldowns: Dictionary = state["hit_cooldowns"] as Dictionary
+		hit_cooldowns.clear()
+		var ultimate_blade_root: Node2D = state["root"] as Node2D
+		if ultimate_blade_root != null:
+			ultimate_blade_root.visible = false
+
+func _clear_ultimate_states() -> void:
+	for key in ultimate_states.keys():
+		var state: Dictionary = ultimate_states[key]
+		var ultimate_blade_root: Node2D = state["root"] as Node2D
+		if ultimate_blade_root != null and is_instance_valid(ultimate_blade_root):
+			ultimate_blade_root.queue_free()
+	ultimate_states.clear()
 
 func _clear_projectiles() -> void:
 	if projectile_root == null:
@@ -1160,26 +2072,36 @@ func _clear_projectiles() -> void:
 	for projectile in projectile_root.get_children():
 		projectile.queue_free()
 
+func _clear_effects() -> void:
+	if effect_root == null:
+		return
+	_clear_persistent_skill_areas()
+	for effect in effect_root.get_children():
+		effect.queue_free()
+
+func _clear_persistent_skill_areas() -> void:
+	for area in persistent_skill_areas.duplicate():
+		_remove_persistent_skill_area(area)
+	persistent_skill_areas.clear()
+
 func _clear_upgrade_panel() -> void:
 	for child in upgrade_panel.get_children():
 		child.queue_free()
 
 func _on_player_health_changed(current: float, maximum: float, changed_player: PlayerController) -> void:
-	if changed_player == player and health_bar != null:
-		health_bar.max_value = maximum
-		health_bar.value = current
-	elif changed_player == player_two and health_bar_two != null:
-		health_bar_two.max_value = maximum
-		health_bar_two.value = current
-	_update_player_health_labels()
+	for index in range(player_huds.size()):
+		var hud: Dictionary = player_huds[index]
+		if hud.get("player") == changed_player:
+			var health_bar_node: ProgressBar = hud["health_bar"] as ProgressBar
+			if health_bar_node != null:
+				health_bar_node.max_value = maximum
+				health_bar_node.value = current
+			_update_player_hud(index)
+			return
 
 func _update_player_health_labels() -> void:
-	if player != null:
-		health_label.text = "P1 生命：%d / %d" % [roundi(player.health), roundi(player.max_health)]
-	if player_two != null and local_player_count > 1:
-		health_label_two.text = "P2 生命：%d / %d" % [roundi(player_two.health), roundi(player_two.max_health)]
-	elif health_label_two != null:
-		health_label_two.text = ""
+	for index in range(player_huds.size()):
+		_update_player_hud(index)
 
 func _on_player_died() -> void:
 	if game_state == GameStateScript.WAVE_ACTIVE or game_state == GameStateScript.BOSS_WAVE:
@@ -1193,26 +2115,61 @@ func _update_status() -> void:
 		WAVE_DEFS.size(),
 	]
 	enemies_label.text = "剩余敌人：%d" % enemies.size()
-	if player != null:
-		_update_player_health_labels()
-		cooldown_label.text = "普攻：%s   闪避：%s (%d/%d)   Q：%s   E：%s   F：%s" % [
-			"就绪" if player.get_attack_ready() else "%.1f秒" % player.get_attack_remaining(),
-			"就绪" if player.get_dash_ready() else "%.1f秒" % player.get_dash_remaining(),
-			player.dash_charges,
-			player.dash_max_charges,
-			"就绪" if player.get_skill_ready() else "%.1f秒" % player.get_skill_remaining(),
-			"就绪" if player.get_fan_skill_ready() else "%.1f秒" % player.get_fan_skill_remaining(),
-			"就绪" if player.get_ultimate_ready() else "%.1f秒" % player.get_ultimate_remaining(),
+	_update_player_health_labels()
+
+func _update_player_hud(index: int) -> void:
+	if index < 0 or index >= player_huds.size():
+		return
+	var hud: Dictionary = player_huds[index]
+	var target_player: PlayerController = hud.get("player") as PlayerController
+	var health_label_node: Label = hud["health_label"] as Label
+	var health_bar_node: ProgressBar = hud["health_bar"] as ProgressBar
+	var cooldown_label_node: Label = hud["cooldown_label"] as Label
+	var defense_label_node: Label = hud["defense_label"] as Label
+	var player_name: String = str(hud.get("name", "P%d" % (index + 1)))
+	if target_player == null or not is_instance_valid(target_player):
+		if health_label_node != null:
+			health_label_node.text = ""
+		if health_bar_node != null:
+			health_bar_node.value = 0.0
+		if cooldown_label_node != null:
+			cooldown_label_node.text = ""
+		if defense_label_node != null:
+			defense_label_node.text = ""
+		return
+
+	if health_label_node != null:
+		var dead_text: String = "（倒地）" if target_player.is_dead else ""
+		health_label_node.text = "%s 生命：%d / %d%s" % [
+			player_name,
+			roundi(target_player.health),
+			roundi(target_player.max_health),
+			dead_text,
 		]
-		defense_label.text = "P1 防御：%s" % ("生效中" if player.is_defending else "K")
-	if player_two != null and local_player_count > 1:
-		cooldown_label_two.text = "普攻：%s   1：%s   2：%s   3：%s" % [
-			"就绪" if player_two.get_attack_ready() else "%.1f秒" % player_two.get_attack_remaining(),
-			"就绪" if player_two.get_skill_ready() else "%.1f秒" % player_two.get_skill_remaining(),
-			"就绪" if player_two.get_fan_skill_ready() else "%.1f秒" % player_two.get_fan_skill_remaining(),
-			"就绪" if player_two.get_ultimate_ready() else "%.1f秒" % player_two.get_ultimate_remaining(),
+	if health_bar_node != null:
+		health_bar_node.max_value = target_player.max_health
+		health_bar_node.value = target_player.health
+	if cooldown_label_node != null:
+		var skill_labels: Array = hud.get("skill_labels", ["普攻", "Q", "E", "F"])
+		cooldown_label_node.text = "%s：%s   闪避：%s (%d/%d)   %s：%s   %s：%s   %s：%s" % [
+			str(skill_labels[0]),
+			"就绪" if target_player.get_attack_ready() else "%.1f秒" % target_player.get_attack_remaining(),
+			"就绪" if target_player.get_dash_ready() else "%.1f秒" % target_player.get_dash_remaining(),
+			target_player.dash_charges,
+			target_player.dash_max_charges,
+			str(skill_labels[1]),
+			"就绪" if target_player.get_skill_ready() else "%.1f秒" % target_player.get_skill_remaining(),
+			str(skill_labels[2]),
+			"就绪" if target_player.get_fan_skill_ready() else "%.1f秒" % target_player.get_fan_skill_remaining(),
+			str(skill_labels[3]),
+			"就绪" if target_player.get_ultimate_ready() else "%.1f秒" % target_player.get_ultimate_remaining(),
 		]
-		defense_label_two.text = "P2 防御：%s" % ("生效中" if player_two.is_defending else "+")
+	if defense_label_node != null:
+		var defend_hint: String = str(hud.get("defend_hint", ""))
+		defense_label_node.text = "%s 防御：%s" % [
+			player_name,
+			"生效中" if target_player.is_defending else defend_hint,
+		]
 
 func _format_upgrade_button(upgrade: Dictionary, target_player: PlayerController = null) -> String:
 	var stat: String = str(upgrade.get("stat", ""))
@@ -1243,9 +2200,21 @@ func _format_player_stat(stat: String, target_player: PlayerController = null) -
 		"attack_range":
 			return "普攻范围 %.0f" % stat_player.attack_range
 		"skill_damage":
-			return "技能伤害 %.1f" % stat_player.skill_damage
+			return "Q 伤害 %.1f" % stat_player.skill_damage
 		"skill_range":
-			return "技能范围 %.0f" % stat_player.skill_length
+			return "Q 范围 %.0f" % stat_player.skill_length
+		"fan_skill_damage":
+			return "E 伤害 %.1f" % stat_player.fan_skill_damage
+		"fan_skill_range":
+			return "E 范围 %.0f" % stat_player.fan_skill_length
+		"fan_skill_cooldown":
+			return "E 冷却 %.2f秒" % stat_player.fan_skill_cooldown
+		"ultimate_damage":
+			return "F 伤害倍率 %.0f%%" % (stat_player.ultimate_damage_multiplier * 100.0)
+		"ultimate_duration":
+			return "F 持续 %.1f秒" % stat_player.ultimate_duration
+		"ultimate_cooldown":
+			return "F 冷却 %.1f秒" % stat_player.ultimate_cooldown
 		"lifesteal":
 			return "吸血 %.0f%%" % (stat_player.lifesteal_ratio * 100.0)
 		"crit_chance":
