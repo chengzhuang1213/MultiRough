@@ -1,0 +1,17 @@
+{
+  "character_id": "warrior",
+  "frame_size": [192, 192],
+  "layout": "horizontal",
+  "foot_baseline_y": 138,
+  "animations": {
+    "idle": {"file": "warrior_idle.png", "frames": 6, "frame_time": 0.14, "loop": true},
+    "run": {"file": "warrior_run.png", "frames": 6, "frame_time": 0.09, "loop": true},
+    "attack_1": {"file": "warrior_attack_1.png", "frames": 6, "frame_time": 0.06, "loop": false},
+    "attack_2": {"file": "warrior_attack_2.png", "frames": 6, "frame_time": 0.07, "loop": false},
+    "cast": {"file": "warrior_cast.png", "frames": 6, "frame_time": 0.10, "loop": false},
+    "hit": {"file": "warrior_hit.png", "frames": 3, "frame_time": 0.08, "loop": false},
+    "death": {"file": "warrior_death.png", "frames": 6, "frame_time": 0.12, "loop": false},
+    "dash": {"file": "warrior_dash.png", "frames": 4, "frame_time": 0.06, "loop": false},
+    "defend": {"file": "warrior_defend.png", "frames": 4, "frame_time": 0.10, "loop": false}
+  }
+}

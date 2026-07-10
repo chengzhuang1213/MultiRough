@@ -1,0 +1,17 @@
+{
+  "character_id": "lancer",
+  "frame_size": [192, 192],
+  "layout": "horizontal",
+  "foot_baseline_y": 138,
+  "animations": {
+    "idle": {"file": "lancer_idle.png", "frames": 6, "frame_time": 0.14, "loop": true},
+    "run": {"file": "lancer_run.png", "frames": 6, "frame_time": 0.09, "loop": true},
+    "attack_1": {"file": "lancer_attack_1.png", "frames": 6, "frame_time": 0.06, "loop": false},
+    "attack_2": {"file": "lancer_attack_2.png", "frames": 6, "frame_time": 0.07, "loop": false},
+    "cast": {"file": "lancer_cast.png", "frames": 6, "frame_time": 0.10, "loop": false},
+    "hit": {"file": "lancer_hit.png", "frames": 3, "frame_time": 0.08, "loop": false},
+    "death": {"file": "lancer_death.png", "frames": 6, "frame_time": 0.12, "loop": false},
+    "dash": {"file": "lancer_dash.png", "frames": 4, "frame_time": 0.06, "loop": false},
+    "defend": {"file": "lancer_defend.png", "frames": 4, "frame_time": 0.10, "loop": false}
+  }
+}

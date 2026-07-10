@@ -18,9 +18,18 @@ const ANIM_RUN := "run"
 const ANIM_GUARD := "guard"
 const ANIM_ATTACK_1 := "attack_1"
 const ANIM_ATTACK_2 := "attack_2"
+const ANIM_DASH := "dash"
+const ANIM_CAST := "cast"
+const ANIM_HIT := "hit"
+const ANIM_DEATH := "death"
 const CHARACTER_WARRIOR := "warrior"
 const CHARACTER_ARCHER := "archer"
 const CHARACTER_LANCER := "lancer"
+const CHARACTER_MAGE := "mage"
+const MAGE_ANIMATION_PATH := "res://assets/original/characters/mage/animations/"
+const WARRIOR_ANIMATION_PATH := "res://assets/original/characters/warrior/animations/"
+const LANCER_ANIMATION_PATH := "res://assets/original/characters/lancer/animations/"
+const ARCHER_ANIMATION_PATH := "res://assets/original/characters/archer/animations/"
 
 var max_health := 120.0
 var health := max_health
@@ -87,6 +96,10 @@ var _current_anim := ""
 var _anim_frame := 0
 var _anim_timer := 0.0
 var _attack_anim_left := 0.0
+var _hit_anim_left := 0.0
+var _death_anim_finished := false
+var _pending_combat_event: Dictionary = {}
+var _combat_event_emitted := false
 var _attack_combo_index := 0
 var _combo_window_left := 0.0
 var _external_move_direction := Vector2.ZERO
@@ -111,6 +124,10 @@ func _ready() -> void:
 func _physics_process(delta: float) -> void:
 	if is_dead:
 		velocity = Vector2.ZERO
+		if not _death_anim_finished:
+			_advance_animation(delta)
+			var death_data := _get_animation_data(ANIM_DEATH)
+			_death_anim_finished = _anim_frame >= int(death_data["frames"]) - 1
 		return
 
 	_tick_timers(delta)
@@ -124,18 +141,14 @@ func _physics_process(delta: float) -> void:
 			var attack_direction: Vector2 = _get_attack_direction()
 			_last_direction = attack_direction
 			_attack_timer = attack_cooldown
+			_queue_combat_event("basic", attack_direction, attack_damage)
 			_start_attack_animation(false)
-			var attack_roll: float = _roll_damage(attack_damage)
-			if character_id == CHARACTER_ARCHER:
-				projectile_attack_requested.emit(global_position + attack_direction * 28.0, attack_direction, attack_roll)
-			else:
-				basic_attack_requested.emit(global_position, attack_direction, attack_range, attack_half_width, attack_roll)
 		else:
 			cooldown_notice_requested.emit(0)
 
 	if not cooldowns_paused and _consume_dash_pressed() and dash_charges > 0 and input_direction != Vector2.ZERO:
 		dash_charges -= 1
-		if _dash_timer <= 0.0:
+		if dash_charges == dash_max_charges - 1:
 			_dash_timer = dash_cooldown
 		_dash_time_left = dash_time
 		_invulnerable_left = maxf(_invulnerable_left, invulnerable_time)
@@ -145,8 +158,8 @@ func _physics_process(delta: float) -> void:
 			var skill_direction: Vector2 = _get_attack_direction()
 			_last_direction = skill_direction
 			_skill_timer = skill_cooldown
-			_start_attack_animation(true)
-			active_skill_requested.emit(global_position, skill_direction, skill_length, skill_half_width, _roll_damage(skill_damage))
+			_queue_combat_event("q", skill_direction, skill_damage)
+			_start_cast_animation()
 		else:
 			cooldown_notice_requested.emit(1)
 
@@ -155,8 +168,8 @@ func _physics_process(delta: float) -> void:
 			var fan_direction: Vector2 = _get_attack_direction()
 			_last_direction = fan_direction
 			_fan_skill_timer = fan_skill_cooldown
-			_start_attack_animation(true)
-			fan_skill_requested.emit(global_position, fan_direction, fan_skill_length, fan_skill_half_width, _roll_damage(fan_skill_damage))
+			_queue_combat_event("e", fan_direction, fan_skill_damage)
+			_start_cast_animation()
 		else:
 			cooldown_notice_requested.emit(2)
 
@@ -165,7 +178,8 @@ func _physics_process(delta: float) -> void:
 			var ultimate_direction: Vector2 = _get_attack_direction()
 			_last_direction = ultimate_direction
 			_ultimate_timer = ultimate_cooldown
-			ultimate_skill_requested.emit(global_position, ultimate_direction, attack_damage * 1.5 * ultimate_damage_multiplier, ultimate_duration)
+			_queue_combat_event("f", ultimate_direction, attack_damage * 1.5 * ultimate_damage_multiplier)
+			_start_cast_animation()
 		else:
 			cooldown_notice_requested.emit(3)
 
@@ -219,9 +233,46 @@ func apply_damage(amount: float) -> bool:
 	health_changed.emit(health, max_health)
 	if health <= 0.0:
 		is_dead = true
-		visible = false
+		_reset_transient_action_state()
+		_death_anim_finished = false
+		_play_animation(ANIM_DEATH, true)
 		died.emit()
+	elif not defended:
+		_hit_anim_left = 0.18
+		_play_animation(ANIM_HIT, true)
 	return defended
+
+func get_projectile_origin(direction: Vector2) -> Vector2:
+	var forward := direction.normalized()
+	if forward == Vector2.ZERO:
+		forward = _last_direction
+	var side := Vector2(-forward.y, forward.x)
+	return global_position + forward * 25.0 - side * 9.0
+
+func _queue_combat_event(event_type: String, direction: Vector2, base_damage: float) -> void:
+	_pending_combat_event = {"type": event_type, "direction": direction, "damage": base_damage}
+	_combat_event_emitted = false
+
+func _emit_pending_combat_event() -> void:
+	if _combat_event_emitted or _pending_combat_event.is_empty() or _anim_frame < 2:
+		return
+	_combat_event_emitted = true
+	var event_type := str(_pending_combat_event.get("type", ""))
+	var direction := _pending_combat_event.get("direction", _last_direction) as Vector2
+	var damage := _roll_damage(float(_pending_combat_event.get("damage", 0.0)))
+	match event_type:
+		"basic":
+			if character_id == CHARACTER_ARCHER:
+				projectile_attack_requested.emit(get_projectile_origin(direction), direction, damage)
+			else:
+				basic_attack_requested.emit(global_position, direction, attack_range, attack_half_width, damage)
+		"q":
+			active_skill_requested.emit(global_position, direction, skill_length, skill_half_width, damage)
+		"e":
+			fan_skill_requested.emit(global_position, direction, fan_skill_length, fan_skill_half_width, damage)
+		"f":
+			ultimate_skill_requested.emit(global_position, direction, damage, ultimate_duration)
+	_pending_combat_event.clear()
 
 func _get_attack_direction() -> Vector2:
 	if external_input_enabled:
@@ -287,13 +338,31 @@ func heal(amount: float) -> void:
 func revive(health_ratio: float = 0.5) -> void:
 	is_dead = false
 	visible = true
-	is_defending = false
+	_reset_transient_action_state()
+	_death_anim_finished = false
+	_play_animation(ANIM_IDLE, true)
 	health = maxf(1.0, max_health * health_ratio)
 	_invulnerable_left = maxf(_invulnerable_left, invulnerable_time)
 	_damage_flash_left = 0.0
 	_defense_flash_left = 0.0
 	health_changed.emit(health, max_health)
-	_play_animation(ANIM_IDLE, true)
+
+func _reset_transient_action_state() -> void:
+	velocity = Vector2.ZERO
+	is_defending = false
+	_dash_time_left = 0.0
+	_attack_anim_left = 0.0
+	_hit_anim_left = 0.0
+	_pending_combat_event.clear()
+	_combat_event_emitted = false
+	_combo_window_left = 0.0
+	_external_move_direction = Vector2.ZERO
+	_external_defending = false
+	_external_basic_pressed = false
+	_external_dash_pressed = false
+	_external_skill_pressed = false
+	_external_fan_pressed = false
+	_external_ultimate_pressed = false
 
 func roll_damage(base_damage: float) -> float:
 	return _roll_damage(base_damage)
@@ -396,6 +465,7 @@ func _tick_timers(delta: float) -> void:
 	_damage_flash_left = maxf(0.0, _damage_flash_left - delta)
 	_defense_flash_left = maxf(0.0, _defense_flash_left - delta)
 	_attack_anim_left = maxf(0.0, _attack_anim_left - delta)
+	_hit_anim_left = maxf(0.0, _hit_anim_left - delta)
 	_combo_window_left = maxf(0.0, _combo_window_left - delta)
 
 func _setup_nodes() -> void:
@@ -421,6 +491,9 @@ func _setup_nodes() -> void:
 	_play_animation(ANIM_IDLE, true)
 
 func _update_animation(delta: float, input_direction: Vector2) -> void:
+	if _hit_anim_left > 0.0:
+		_advance_animation(delta)
+		return
 	if _attack_anim_left > 0.0:
 		if absf(_last_direction.x) > 0.01:
 			_sprite.flip_h = _last_direction.x < 0.0
@@ -432,7 +505,9 @@ func _update_animation(delta: float, input_direction: Vector2) -> void:
 
 	if is_defending:
 		_play_animation(ANIM_GUARD)
-	elif input_direction != Vector2.ZERO or _dash_time_left > 0.0:
+	elif _dash_time_left > 0.0:
+		_play_animation(ANIM_DASH)
+	elif input_direction != Vector2.ZERO:
 		_play_animation(ANIM_RUN)
 	else:
 		_play_animation(ANIM_IDLE)
@@ -450,6 +525,10 @@ func _start_attack_animation(use_second_attack: bool) -> void:
 		_play_animation(anim_name, true)
 	_combo_window_left = 0.72
 	_attack_anim_left = 0.26
+
+func _start_cast_animation() -> void:
+	_play_animation(ANIM_CAST, true)
+	_attack_anim_left = 0.36
 
 func _set_sprite_texture(path: String) -> void:
 	var texture: Texture2D = load(path) as Texture2D
@@ -483,46 +562,96 @@ func _apply_animation_frame() -> void:
 	var data: Dictionary = _get_animation_data(_current_anim)
 	var frame_size: Vector2 = data.get("frame_size", SPRITE_FRAME_SIZE) as Vector2
 	_sprite.region_rect = Rect2(Vector2(frame_size.x * float(_anim_frame), 0.0), frame_size)
+	_emit_pending_combat_event()
 
 func _get_animation_data(anim_name: String) -> Dictionary:
+	if anim_name in [ANIM_CAST, ANIM_HIT, ANIM_DEATH]:
+		return _get_common_state_animation_data(anim_name)
 	if character_id == CHARACTER_ARCHER:
 		return _get_archer_animation_data(anim_name)
 	if character_id == CHARACTER_LANCER:
 		return _get_lancer_animation_data(anim_name)
+	if character_id == CHARACTER_MAGE:
+		return _get_mage_animation_data(anim_name)
 	return _get_warrior_animation_data(anim_name)
+
+func _get_common_state_animation_data(anim_name: String) -> Dictionary:
+	var directory := WARRIOR_ANIMATION_PATH
+	if character_id == CHARACTER_ARCHER:
+		directory = ARCHER_ANIMATION_PATH
+	elif character_id == CHARACTER_LANCER:
+		directory = LANCER_ANIMATION_PATH
+	elif character_id == CHARACTER_MAGE:
+		directory = MAGE_ANIMATION_PATH
+	var frames := 3 if anim_name == ANIM_HIT else 6
+	var frame_time := 0.06 if anim_name == ANIM_HIT else 0.08
+	return {
+		"path": directory + character_id + "_" + anim_name + ".png",
+		"frames": frames,
+		"frame_time": frame_time,
+		"loop": false,
+		"frame_size": SPRITE_FRAME_SIZE,
+	}
 
 func _get_warrior_animation_data(anim_name: String) -> Dictionary:
 	match anim_name:
 		ANIM_RUN:
-			return {"path": _unit_sprite_path("Warrior", "Warrior_Run.png"), "frames": 6, "frame_time": 0.075, "loop": true, "frame_size": Vector2(192, 192)}
+			return {"path": WARRIOR_ANIMATION_PATH + "warrior_run.png", "frames": 6, "frame_time": 0.09, "loop": true, "frame_size": SPRITE_FRAME_SIZE}
 		ANIM_GUARD:
-			return {"path": _unit_sprite_path("Warrior", "Warrior_Guard.png"), "frames": 6, "frame_time": 0.095, "loop": true, "frame_size": Vector2(192, 192)}
+			return {"path": WARRIOR_ANIMATION_PATH + "warrior_defend.png", "frames": 4, "frame_time": 0.10, "loop": false, "frame_size": SPRITE_FRAME_SIZE}
 		ANIM_ATTACK_1:
-			return {"path": _unit_sprite_path("Warrior", "Warrior_Attack1.png"), "frames": 4, "frame_time": 0.055, "loop": false, "frame_size": Vector2(192, 192)}
+			return {"path": WARRIOR_ANIMATION_PATH + "warrior_attack_1.png", "frames": 6, "frame_time": 0.06, "loop": false, "frame_size": SPRITE_FRAME_SIZE}
 		ANIM_ATTACK_2:
-			return {"path": _unit_sprite_path("Warrior", "Warrior_Attack2.png"), "frames": 4, "frame_time": 0.055, "loop": false, "frame_size": Vector2(192, 192)}
+			return {"path": WARRIOR_ANIMATION_PATH + "warrior_attack_2.png", "frames": 6, "frame_time": 0.07, "loop": false, "frame_size": SPRITE_FRAME_SIZE}
+		ANIM_DASH:
+			return {"path": WARRIOR_ANIMATION_PATH + "warrior_dash.png", "frames": 4, "frame_time": 0.06, "loop": false, "frame_size": SPRITE_FRAME_SIZE}
 		_:
-			return {"path": _unit_sprite_path("Warrior", "Warrior_Idle.png"), "frames": 8, "frame_time": 0.12, "loop": true, "frame_size": Vector2(192, 192)}
+			return {"path": WARRIOR_ANIMATION_PATH + "warrior_idle.png", "frames": 6, "frame_time": 0.14, "loop": true, "frame_size": SPRITE_FRAME_SIZE}
 
 func _get_archer_animation_data(anim_name: String) -> Dictionary:
 	match anim_name:
 		ANIM_RUN:
-			return {"path": _unit_sprite_path("Archer", "Archer_Run.png"), "frames": 4, "frame_time": 0.075, "loop": true, "frame_size": Vector2(192, 192)}
-		ANIM_ATTACK_1, ANIM_ATTACK_2:
-			return {"path": _unit_sprite_path("Archer", "Archer_Shoot.png"), "frames": 8, "frame_time": 0.045, "loop": false, "frame_size": Vector2(192, 192)}
+			return {"path": ARCHER_ANIMATION_PATH + "archer_run.png", "frames": 6, "frame_time": 0.09, "loop": true, "frame_size": SPRITE_FRAME_SIZE}
+		ANIM_GUARD:
+			return {"path": ARCHER_ANIMATION_PATH + "archer_defend.png", "frames": 4, "frame_time": 0.10, "loop": false, "frame_size": SPRITE_FRAME_SIZE}
+		ANIM_ATTACK_1:
+			return {"path": ARCHER_ANIMATION_PATH + "archer_attack_1.png", "frames": 6, "frame_time": 0.06, "loop": false, "frame_size": SPRITE_FRAME_SIZE}
+		ANIM_ATTACK_2:
+			return {"path": ARCHER_ANIMATION_PATH + "archer_attack_2.png", "frames": 6, "frame_time": 0.07, "loop": false, "frame_size": SPRITE_FRAME_SIZE}
+		ANIM_DASH:
+			return {"path": ARCHER_ANIMATION_PATH + "archer_dash.png", "frames": 4, "frame_time": 0.06, "loop": false, "frame_size": SPRITE_FRAME_SIZE}
 		_:
-			return {"path": _unit_sprite_path("Archer", "Archer_Idle.png"), "frames": 6, "frame_time": 0.12, "loop": true, "frame_size": Vector2(192, 192)}
+			return {"path": ARCHER_ANIMATION_PATH + "archer_idle.png", "frames": 6, "frame_time": 0.14, "loop": true, "frame_size": SPRITE_FRAME_SIZE}
 
 func _get_lancer_animation_data(anim_name: String) -> Dictionary:
 	match anim_name:
 		ANIM_RUN:
-			return {"path": _unit_sprite_path("Lancer", "Lancer_Run.png"), "frames": 6, "frame_time": 0.075, "loop": true, "frame_size": Vector2(320, 320)}
+			return {"path": LANCER_ANIMATION_PATH + "lancer_run.png", "frames": 6, "frame_time": 0.09, "loop": true, "frame_size": SPRITE_FRAME_SIZE}
 		ANIM_GUARD:
-			return {"path": _unit_sprite_path("Lancer", "Lancer_Right_Defence.png"), "frames": 6, "frame_time": 0.085, "loop": true, "frame_size": Vector2(320, 320)}
-		ANIM_ATTACK_1, ANIM_ATTACK_2:
-			return {"path": _unit_sprite_path("Lancer", "Lancer_Right_Attack.png"), "frames": 3, "frame_time": 0.065, "loop": false, "frame_size": Vector2(320, 320)}
+			return {"path": LANCER_ANIMATION_PATH + "lancer_defend.png", "frames": 4, "frame_time": 0.10, "loop": false, "frame_size": SPRITE_FRAME_SIZE}
+		ANIM_ATTACK_1:
+			return {"path": LANCER_ANIMATION_PATH + "lancer_attack_1.png", "frames": 6, "frame_time": 0.06, "loop": false, "frame_size": SPRITE_FRAME_SIZE}
+		ANIM_ATTACK_2:
+			return {"path": LANCER_ANIMATION_PATH + "lancer_attack_2.png", "frames": 6, "frame_time": 0.07, "loop": false, "frame_size": SPRITE_FRAME_SIZE}
+		ANIM_DASH:
+			return {"path": LANCER_ANIMATION_PATH + "lancer_dash.png", "frames": 4, "frame_time": 0.06, "loop": false, "frame_size": SPRITE_FRAME_SIZE}
 		_:
-			return {"path": _unit_sprite_path("Lancer", "Lancer_Idle.png"), "frames": 12, "frame_time": 0.12, "loop": true, "frame_size": Vector2(320, 320)}
+			return {"path": LANCER_ANIMATION_PATH + "lancer_idle.png", "frames": 6, "frame_time": 0.14, "loop": true, "frame_size": SPRITE_FRAME_SIZE}
+
+func _get_mage_animation_data(anim_name: String) -> Dictionary:
+	match anim_name:
+		ANIM_RUN:
+			return {"path": MAGE_ANIMATION_PATH + "mage_run.png", "frames": 6, "frame_time": 0.09, "loop": true, "frame_size": SPRITE_FRAME_SIZE}
+		ANIM_GUARD:
+			return {"path": MAGE_ANIMATION_PATH + "mage_defend.png", "frames": 4, "frame_time": 0.10, "loop": false, "frame_size": SPRITE_FRAME_SIZE}
+		ANIM_ATTACK_1:
+			return {"path": MAGE_ANIMATION_PATH + "mage_attack_1.png", "frames": 6, "frame_time": 0.06, "loop": false, "frame_size": SPRITE_FRAME_SIZE}
+		ANIM_ATTACK_2:
+			return {"path": MAGE_ANIMATION_PATH + "mage_attack_2.png", "frames": 6, "frame_time": 0.07, "loop": false, "frame_size": SPRITE_FRAME_SIZE}
+		ANIM_DASH:
+			return {"path": MAGE_ANIMATION_PATH + "mage_dash.png", "frames": 4, "frame_time": 0.06, "loop": false, "frame_size": SPRITE_FRAME_SIZE}
+		_:
+			return {"path": MAGE_ANIMATION_PATH + "mage_idle.png", "frames": 6, "frame_time": 0.14, "loop": true, "frame_size": SPRITE_FRAME_SIZE}
 
 func _unit_sprite_path(unit_folder: String, file_name: String) -> String:
 	return UNIT_PATH_PREFIX + unit_color_folder + "/" + unit_folder + "/" + file_name

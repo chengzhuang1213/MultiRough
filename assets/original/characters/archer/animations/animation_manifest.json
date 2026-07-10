@@ -1,0 +1,18 @@
+{
+  "character_id": "archer",
+  "frame_size": [192, 192],
+  "layout": "horizontal",
+  "foot_baseline_y": 138,
+  "pixel_master": "../archer_pixel_master_v1.png",
+  "animations": {
+    "idle": {"file": "archer_idle.png", "frames": 6, "frame_time": 0.14, "loop": true},
+    "run": {"file": "archer_run.png", "frames": 6, "frame_time": 0.09, "loop": true},
+    "attack_1": {"file": "archer_attack_1.png", "frames": 6, "frame_time": 0.06, "loop": false},
+    "attack_2": {"file": "archer_attack_2.png", "frames": 6, "frame_time": 0.07, "loop": false},
+    "cast": {"file": "archer_cast.png", "frames": 6, "frame_time": 0.10, "loop": false},
+    "hit": {"file": "archer_hit.png", "frames": 3, "frame_time": 0.08, "loop": false},
+    "death": {"file": "archer_death.png", "frames": 6, "frame_time": 0.12, "loop": false},
+    "dash": {"file": "archer_dash.png", "frames": 4, "frame_time": 0.06, "loop": false},
+    "defend": {"file": "archer_defend.png", "frames": 4, "frame_time": 0.10, "loop": false}
+  }
+}

@@ -1,0 +1,119 @@
+extends RefCounted
+class_name GameRules
+
+const WAVE_CLEAR_HEAL_AMOUNT := 20.0
+const REVIVE_HEALTH_RATIO := 0.5
+
+const CHARACTER_ORDER := ["warrior", "archer", "lancer", "mage"]
+const REQUIRED_CHARACTER_STATS := [
+	"id",
+	"name",
+	"max_health",
+	"move_speed",
+	"attack_damage",
+	"attack_cooldown",
+	"attack_range",
+	"skill_damage",
+	"fan_skill_damage",
+]
+
+const CHARACTER_CONFIGS := {
+	"warrior": {
+		"id": "warrior",
+		"name": "战士",
+		"max_health": 120.0,
+		"move_speed": 240.0,
+		"attack_damage": 26.0,
+		"attack_cooldown": 0.34,
+		"attack_range": 76.0,
+		"attack_half_width": 34.0,
+		"attack_knockback": 150.0,
+		"skill_damage": 58.0,
+		"skill_length": 220.0,
+		"skill_half_width": 42.0,
+		"fan_skill_damage": 115.0,
+		"fan_skill_length": 250.0,
+		"fan_skill_half_width": 16.0,
+	},
+	"archer": {
+		"id": "archer",
+		"name": "弓箭手",
+		"max_health": 95.0,
+		"move_speed": 255.0,
+		"attack_damage": 21.0,
+		"attack_cooldown": 0.21,
+		"attack_range": 420.0,
+		"attack_half_width": 18.0,
+		"attack_knockback": 80.0,
+		"skill_damage": 50.0,
+		"skill_length": 260.0,
+		"skill_half_width": 36.0,
+		"fan_skill_damage": 92.0,
+		"fan_skill_length": 300.0,
+		"fan_skill_half_width": 14.0,
+	},
+	"lancer": {
+		"id": "lancer",
+		"name": "长枪",
+		"max_health": 130.0,
+		"move_speed": 225.0,
+		"attack_damage": 30.0,
+		"attack_cooldown": 0.60,
+		"attack_range": 96.0,
+		"attack_half_width": 28.0,
+		"attack_knockback": 95.0,
+		"defense_damage_multiplier": 0.60,
+		"skill_damage": 66.0,
+		"skill_length": 260.0,
+		"skill_half_width": 36.0,
+		"fan_skill_damage": 120.0,
+		"fan_skill_length": 280.0,
+		"fan_skill_half_width": 14.0,
+	},
+	"mage": {
+		"id": "mage",
+		"name": "法师",
+		# Temporary values only. Combat actions stay disabled until the skill kit is designed.
+		"max_health": 120.0,
+		"move_speed": 240.0,
+		"attack_damage": 26.0,
+		"attack_cooldown": 0.34,
+		"attack_range": 76.0,
+		"attack_half_width": 34.0,
+		"attack_knockback": 150.0,
+		"skill_damage": 58.0,
+		"skill_length": 220.0,
+		"skill_half_width": 42.0,
+		"fan_skill_damage": 115.0,
+		"fan_skill_length": 250.0,
+		"fan_skill_half_width": 16.0,
+	},
+}
+
+static func get_character_config(character_id: String) -> Dictionary:
+	var fallback: Dictionary = CHARACTER_CONFIGS["warrior"]
+	return (CHARACTER_CONFIGS.get(character_id, fallback) as Dictionary).duplicate(true)
+
+static func get_mode_scaling(player_count: int) -> Dictionary:
+	var multiplayer_run := player_count > 1
+	return {
+		"minion_count": 2.0 if multiplayer_run else 1.0,
+		"enemy_health": 1.15 if multiplayer_run else 1.0,
+		"enemy_damage": 1.08 if multiplayer_run else 1.0,
+		"boss_health": 2.0 if multiplayer_run else 1.0,
+		"boss_damage": 1.12 if multiplayer_run else 1.0,
+	}
+
+static func validate_character_configs() -> PackedStringArray:
+	var errors := PackedStringArray()
+	for character_id in CHARACTER_ORDER:
+		if not CHARACTER_CONFIGS.has(character_id):
+			errors.append("missing character: %s" % character_id)
+			continue
+		var config: Dictionary = CHARACTER_CONFIGS[character_id]
+		for stat in REQUIRED_CHARACTER_STATS:
+			if not config.has(stat):
+				errors.append("%s missing stat: %s" % [character_id, stat])
+		if str(config.get("id", "")) != character_id:
+			errors.append("%s has mismatched id" % character_id)
+	return errors

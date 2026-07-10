@@ -1,0 +1,2536 @@
+{
+  "warrior": {
+    "idle": [
+      {
+        "frame": 0,
+        "bounds": [
+          52,
+          10,
+          138,
+          138
+        ],
+        "components": [
+          5249
+        ],
+        "partial_alpha_pixels": 0
+      },
+      {
+        "frame": 1,
+        "bounds": [
+          53,
+          10,
+          138,
+          138
+        ],
+        "components": [
+          5255
+        ],
+        "partial_alpha_pixels": 0
+      },
+      {
+        "frame": 2,
+        "bounds": [
+          53,
+          10,
+          138,
+          138
+        ],
+        "components": [
+          5274
+        ],
+        "partial_alpha_pixels": 0
+      },
+      {
+        "frame": 3,
+        "bounds": [
+          55,
+          10,
+          137,
+          138
+        ],
+        "components": [
+          5197
+        ],
+        "partial_alpha_pixels": 0
+      },
+      {
+        "frame": 4,
+        "bounds": [
+          55,
+          10,
+          136,
+          138
+        ],
+        "components": [
+          5180
+        ],
+        "partial_alpha_pixels": 0
+      },
+      {
+        "frame": 5,
+        "bounds": [
+          56,
+          10,
+          137,
+          138
+        ],
+        "components": [
+          5242
+        ],
+        "partial_alpha_pixels": 0
+      }
+    ],
+    "run": [
+      {
+        "frame": 0,
+        "bounds": [
+          48,
+          10,
+          137,
+          138
+        ],
+        "components": [
+          5285
+        ],
+        "partial_alpha_pixels": 0
+      },
+      {
+        "frame": 1,
+        "bounds": [
+          44,
+          10,
+          142,
+          138
+        ],
+        "components": [
+          5602
+        ],
+        "partial_alpha_pixels": 0
+      },
+      {
+        "frame": 2,
+        "bounds": [
+          43,
+          10,
+          143,
+          138
+        ],
+        "components": [
+          5712
+        ],
+        "partial_alpha_pixels": 0
+      },
+      {
+        "frame": 3,
+        "bounds": [
+          43,
+          10,
+          143,
+          138
+        ],
+        "components": [
+          5795
+        ],
+        "partial_alpha_pixels": 0
+      },
+      {
+        "frame": 4,
+        "bounds": [
+          44,
+          10,
+          142,
+          138
+        ],
+        "components": [
+          5686
+        ],
+        "partial_alpha_pixels": 0
+      },
+      {
+        "frame": 5,
+        "bounds": [
+          47,
+          10,
+          138,
+          138
+        ],
+        "components": [
+          5452
+        ],
+        "partial_alpha_pixels": 0
+      }
+    ],
+    "attack_1": [
+      {
+        "frame": 0,
+        "bounds": [
+          40,
+          10,
+          151,
+          138
+        ],
+        "components": [
+          6471
+        ],
+        "partial_alpha_pixels": 0
+      },
+      {
+        "frame": 1,
+        "bounds": [
+          44,
+          10,
+          148,
+          138
+        ],
+        "components": [
+          5601
+        ],
+        "partial_alpha_pixels": 0
+      },
+      {
+        "frame": 2,
+        "bounds": [
+          28,
+          10,
+          164,
+          138
+        ],
+        "components": [
+          6155
+        ],
+        "partial_alpha_pixels": 0
+      },
+      {
+        "frame": 3,
+        "bounds": [
+          23,
+          10,
+          168,
+          138
+        ],
+        "components": [
+          6477
+        ],
+        "partial_alpha_pixels": 0
+      },
+      {
+        "frame": 4,
+        "bounds": [
+          45,
+          10,
+          146,
+          138
+        ],
+        "components": [
+          5970
+        ],
+        "partial_alpha_pixels": 0
+      },
+      {
+        "frame": 5,
+        "bounds": [
+          40,
+          10,
+          151,
+          138
+        ],
+        "components": [
+          6511
+        ],
+        "partial_alpha_pixels": 0
+      }
+    ],
+    "attack_2": [
+      {
+        "frame": 0,
+        "bounds": [
+          42,
+          10,
+          149,
+          138
+        ],
+        "components": [
+          5819
+        ],
+        "partial_alpha_pixels": 0
+      },
+      {
+        "frame": 1,
+        "bounds": [
+          21,
+          10,
+          171,
+          138
+        ],
+        "components": [
+          9207
+        ],
+        "partial_alpha_pixels": 0
+      },
+      {
+        "frame": 2,
+        "bounds": [
+          49,
+          10,
+          143,
+          138
+        ],
+        "components": [
+          5015
+        ],
+        "partial_alpha_pixels": 0
+      },
+      {
+        "frame": 3,
+        "bounds": [
+          38,
+          11,
+          154,
+          138
+        ],
+        "components": [
+          5971
+        ],
+        "partial_alpha_pixels": 0
+      },
+      {
+        "frame": 4,
+        "bounds": [
+          34,
+          10,
+          158,
+          138
+        ],
+        "components": [
+          8117
+        ],
+        "partial_alpha_pixels": 0
+      },
+      {
+        "frame": 5,
+        "bounds": [
+          51,
+          10,
+          141,
+          138
+        ],
+        "components": [
+          5705
+        ],
+        "partial_alpha_pixels": 0
+      }
+    ],
+    "cast": [
+      {
+        "frame": 0,
+        "bounds": [
+          46,
+          10,
+          145,
+          138
+        ],
+        "components": [
+          5947
+        ],
+        "partial_alpha_pixels": 0
+      },
+      {
+        "frame": 1,
+        "bounds": [
+          68,
+          10,
+          124,
+          138
+        ],
+        "components": [
+          3465
+        ],
+        "partial_alpha_pixels": 0
+      },
+      {
+        "frame": 2,
+        "bounds": [
+          43,
+          21,
+          116,
+          138
+        ],
+        "components": [
+          4390
+        ],
+        "partial_alpha_pixels": 0
+      },
+      {
+        "frame": 3,
+        "bounds": [
+          33,
+          10,
+          159,
+          138
+        ],
+        "components": [
+          6166
+        ],
+        "partial_alpha_pixels": 0
+      },
+      {
+        "frame": 4,
+        "bounds": [
+          32,
+          10,
+          153,
+          138
+        ],
+        "components": [
+          5867,
+          259
+        ],
+        "partial_alpha_pixels": 0
+      },
+      {
+        "frame": 5,
+        "bounds": [
+          49,
+          10,
+          143,
+          138
+        ],
+        "components": [
+          5937
+        ],
+        "partial_alpha_pixels": 0
+      }
+    ],
+    "hit": [
+      {
+        "frame": 0,
+        "bounds": [
+          41,
+          10,
+          151,
+          138
+        ],
+        "components": [
+          5660,
+          149
+        ],
+        "partial_alpha_pixels": 0
+      },
+      {
+        "frame": 1,
+        "bounds": [
+          35,
+          10,
+          156,
+          138
+        ],
+        "components": [
+          5247,
+          1120
+        ],
+        "partial_alpha_pixels": 0
+      },
+      {
+        "frame": 2,
+        "bounds": [
+          44,
+          10,
+          148,
+          138
+        ],
+        "components": [
+          6316
+        ],
+        "partial_alpha_pixels": 0
+      }
+    ],
+    "death": [
+      {
+        "frame": 0,
+        "bounds": [
+          42,
+          10,
+          150,
+          138
+        ],
+        "components": [
+          6702,
+          110
+        ],
+        "partial_alpha_pixels": 0
+      },
+      {
+        "frame": 1,
+        "bounds": [
+          37,
+          21,
+          144,
+          138
+        ],
+        "components": [
+          7175
+        ],
+        "partial_alpha_pixels": 0
+      },
+      {
+        "frame": 2,
+        "bounds": [
+          34,
+          10,
+          158,
+          138
+        ],
+        "components": [
+          7313,
+          219
+        ],
+        "partial_alpha_pixels": 0
+      },
+      {
+        "frame": 3,
+        "bounds": [
+          17,
+          35,
+          174,
+          138
+        ],
+        "components": [
+          9056,
+          314
+        ],
+        "partial_alpha_pixels": 0
+      },
+      {
+        "frame": 4,
+        "bounds": [
+          6,
+          20,
+          163,
+          138
+        ],
+        "components": [
+          10971
+        ],
+        "partial_alpha_pixels": 0
+      },
+      {
+        "frame": 5,
+        "bounds": [
+          6,
+          30,
+          186,
+          138
+        ],
+        "components": [
+          11412
+        ],
+        "partial_alpha_pixels": 0
+      }
+    ],
+    "dash": [
+      {
+        "frame": 0,
+        "bounds": [
+          15,
+          10,
+          177,
+          138
+        ],
+        "components": [
+          10032
+        ],
+        "partial_alpha_pixels": 0
+      },
+      {
+        "frame": 1,
+        "bounds": [
+          6,
+          13,
+          186,
+          138
+        ],
+        "components": [
+          10081
+        ],
+        "partial_alpha_pixels": 0
+      },
+      {
+        "frame": 2,
+        "bounds": [
+          16,
+          10,
+          175,
+          138
+        ],
+        "components": [
+          8633
+        ],
+        "partial_alpha_pixels": 0
+      },
+      {
+        "frame": 3,
+        "bounds": [
+          33,
+          10,
+          159,
+          138
+        ],
+        "components": [
+          7751
+        ],
+        "partial_alpha_pixels": 0
+      }
+    ],
+    "defend": [
+      {
+        "frame": 0,
+        "bounds": [
+          43,
+          10,
+          144,
+          138
+        ],
+        "components": [
+          5983
+        ],
+        "partial_alpha_pixels": 0
+      },
+      {
+        "frame": 1,
+        "bounds": [
+          37,
+          10,
+          141,
+          138
+        ],
+        "components": [
+          6840
+        ],
+        "partial_alpha_pixels": 0
+      },
+      {
+        "frame": 2,
+        "bounds": [
+          36,
+          10,
+          144,
+          138
+        ],
+        "components": [
+          6594
+        ],
+        "partial_alpha_pixels": 0
+      },
+      {
+        "frame": 3,
+        "bounds": [
+          48,
+          10,
+          144,
+          138
+        ],
+        "components": [
+          6554
+        ],
+        "partial_alpha_pixels": 0
+      }
+    ]
+  },
+  "archer": {
+    "idle": [
+      {
+        "frame": 0,
+        "bounds": [
+          69,
+          15,
+          124,
+          138
+        ],
+        "components": [
+          2860
+        ],
+        "partial_alpha_pixels": 0
+      },
+      {
+        "frame": 1,
+        "bounds": [
+          69,
+          12,
+          123,
+          138
+        ],
+        "components": [
+          2853
+        ],
+        "partial_alpha_pixels": 0
+      },
+      {
+        "frame": 2,
+        "bounds": [
+          69,
+          11,
+          126,
+          138
+        ],
+        "components": [
+          2856
+        ],
+        "partial_alpha_pixels": 0
+      },
+      {
+        "frame": 3,
+        "bounds": [
+          69,
+          12,
+          123,
+          138
+        ],
+        "components": [
+          2870
+        ],
+        "partial_alpha_pixels": 0
+      },
+      {
+        "frame": 4,
+        "bounds": [
+          68,
+          11,
+          124,
+          138
+        ],
+        "components": [
+          2854
+        ],
+        "partial_alpha_pixels": 0
+      },
+      {
+        "frame": 5,
+        "bounds": [
+          66,
+          11,
+          122,
+          138
+        ],
+        "components": [
+          2859
+        ],
+        "partial_alpha_pixels": 0
+      }
+    ],
+    "run": [
+      {
+        "frame": 0,
+        "bounds": [
+          56,
+          10,
+          137,
+          138
+        ],
+        "components": [
+          4300
+        ],
+        "partial_alpha_pixels": 0
+      },
+      {
+        "frame": 1,
+        "bounds": [
+          40,
+          11,
+          124,
+          138
+        ],
+        "components": [
+          4260
+        ],
+        "partial_alpha_pixels": 0
+      },
+      {
+        "frame": 2,
+        "bounds": [
+          71,
+          21,
+          138,
+          138
+        ],
+        "components": [
+          4088
+        ],
+        "partial_alpha_pixels": 0
+      },
+      {
+        "frame": 3,
+        "bounds": [
+          71,
+          20,
+          145,
+          138
+        ],
+        "components": [
+          3902
+        ],
+        "partial_alpha_pixels": 0
+      },
+      {
+        "frame": 4,
+        "bounds": [
+          71,
+          20,
+          136,
+          138
+        ],
+        "components": [
+          3841
+        ],
+        "partial_alpha_pixels": 0
+      },
+      {
+        "frame": 5,
+        "bounds": [
+          41,
+          14,
+          126,
+          138
+        ],
+        "components": [
+          4248
+        ],
+        "partial_alpha_pixels": 0
+      }
+    ],
+    "attack_1": [
+      {
+        "frame": 0,
+        "bounds": [
+          66,
+          25,
+          125,
+          138
+        ],
+        "components": [
+          3111
+        ],
+        "partial_alpha_pixels": 0
+      },
+      {
+        "frame": 1,
+        "bounds": [
+          65,
+          20,
+          121,
+          138
+        ],
+        "components": [
+          3195
+        ],
+        "partial_alpha_pixels": 0
+      },
+      {
+        "frame": 2,
+        "bounds": [
+          65,
+          10,
+          137,
+          138
+        ],
+        "components": [
+          3220
+        ],
+        "partial_alpha_pixels": 0
+      },
+      {
+        "frame": 3,
+        "bounds": [
+          63,
+          13,
+          143,
+          138
+        ],
+        "components": [
+          3244
+        ],
+        "partial_alpha_pixels": 0
+      },
+      {
+        "frame": 4,
+        "bounds": [
+          63,
+          10,
+          137,
+          138
+        ],
+        "components": [
+          3191
+        ],
+        "partial_alpha_pixels": 0
+      },
+      {
+        "frame": 5,
+        "bounds": [
+          66,
+          25,
+          120,
+          138
+        ],
+        "components": [
+          3103
+        ],
+        "partial_alpha_pixels": 0
+      }
+    ],
+    "attack_2": [
+      {
+        "frame": 0,
+        "bounds": [
+          62,
+          23,
+          129,
+          138
+        ],
+        "components": [
+          3049
+        ],
+        "partial_alpha_pixels": 0
+      },
+      {
+        "frame": 1,
+        "bounds": [
+          62,
+          22,
+          120,
+          138
+        ],
+        "components": [
+          3058
+        ],
+        "partial_alpha_pixels": 0
+      },
+      {
+        "frame": 2,
+        "bounds": [
+          61,
+          10,
+          134,
+          138
+        ],
+        "components": [
+          3198
+        ],
+        "partial_alpha_pixels": 0
+      },
+      {
+        "frame": 3,
+        "bounds": [
+          57,
+          11,
+          143,
+          138
+        ],
+        "components": [
+          3215
+        ],
+        "partial_alpha_pixels": 0
+      },
+      {
+        "frame": 4,
+        "bounds": [
+          55,
+          12,
+          133,
+          138
+        ],
+        "components": [
+          3423
+        ],
+        "partial_alpha_pixels": 0
+      },
+      {
+        "frame": 5,
+        "bounds": [
+          62,
+          22,
+          130,
+          138
+        ],
+        "components": [
+          3075
+        ],
+        "partial_alpha_pixels": 0
+      }
+    ],
+    "cast": [
+      {
+        "frame": 0,
+        "bounds": [
+          64,
+          28,
+          121,
+          138
+        ],
+        "components": [
+          2897
+        ],
+        "partial_alpha_pixels": 0
+      },
+      {
+        "frame": 1,
+        "bounds": [
+          66,
+          10,
+          126,
+          138
+        ],
+        "components": [
+          2987
+        ],
+        "partial_alpha_pixels": 0
+      },
+      {
+        "frame": 2,
+        "bounds": [
+          67,
+          17,
+          139,
+          138
+        ],
+        "components": [
+          2776
+        ],
+        "partial_alpha_pixels": 0
+      },
+      {
+        "frame": 3,
+        "bounds": [
+          65,
+          21,
+          129,
+          138
+        ],
+        "components": [
+          2759
+        ],
+        "partial_alpha_pixels": 0
+      },
+      {
+        "frame": 4,
+        "bounds": [
+          66,
+          18,
+          133,
+          138
+        ],
+        "components": [
+          2856
+        ],
+        "partial_alpha_pixels": 0
+      },
+      {
+        "frame": 5,
+        "bounds": [
+          65,
+          28,
+          122,
+          138
+        ],
+        "components": [
+          2900
+        ],
+        "partial_alpha_pixels": 0
+      }
+    ],
+    "hit": [
+      {
+        "frame": 0,
+        "bounds": [
+          64,
+          15,
+          137,
+          138
+        ],
+        "components": [
+          4488
+        ],
+        "partial_alpha_pixels": 0
+      },
+      {
+        "frame": 1,
+        "bounds": [
+          31,
+          10,
+          130,
+          138
+        ],
+        "components": [
+          5188
+        ],
+        "partial_alpha_pixels": 0
+      },
+      {
+        "frame": 2,
+        "bounds": [
+          60,
+          13,
+          131,
+          138
+        ],
+        "components": [
+          4799
+        ],
+        "partial_alpha_pixels": 0
+      }
+    ],
+    "death": [
+      {
+        "frame": 0,
+        "bounds": [
+          59,
+          10,
+          133,
+          138
+        ],
+        "components": [
+          4595
+        ],
+        "partial_alpha_pixels": 0
+      },
+      {
+        "frame": 1,
+        "bounds": [
+          60,
+          29,
+          132,
+          138
+        ],
+        "components": [
+          3992
+        ],
+        "partial_alpha_pixels": 0
+      },
+      {
+        "frame": 2,
+        "bounds": [
+          58,
+          65,
+          134,
+          138
+        ],
+        "components": [
+          3122
+        ],
+        "partial_alpha_pixels": 0
+      },
+      {
+        "frame": 3,
+        "bounds": [
+          48,
+          68,
+          144,
+          138
+        ],
+        "components": [
+          2509,
+          375
+        ],
+        "partial_alpha_pixels": 0
+      },
+      {
+        "frame": 4,
+        "bounds": [
+          45,
+          101,
+          146,
+          138
+        ],
+        "components": [
+          2344
+        ],
+        "partial_alpha_pixels": 0
+      },
+      {
+        "frame": 5,
+        "bounds": [
+          43,
+          105,
+          149,
+          138
+        ],
+        "components": [
+          2386
+        ],
+        "partial_alpha_pixels": 0
+      }
+    ],
+    "dash": [
+      {
+        "frame": 0,
+        "bounds": [
+          35,
+          37,
+          150,
+          138
+        ],
+        "components": [
+          6221
+        ],
+        "partial_alpha_pixels": 0
+      },
+      {
+        "frame": 1,
+        "bounds": [
+          35,
+          10,
+          169,
+          138
+        ],
+        "components": [
+          6351
+        ],
+        "partial_alpha_pixels": 0
+      },
+      {
+        "frame": 2,
+        "bounds": [
+          21,
+          30,
+          173,
+          138
+        ],
+        "components": [
+          6157
+        ],
+        "partial_alpha_pixels": 0
+      },
+      {
+        "frame": 3,
+        "bounds": [
+          45,
+          20,
+          147,
+          138
+        ],
+        "components": [
+          6228
+        ],
+        "partial_alpha_pixels": 0
+      }
+    ],
+    "defend": [
+      {
+        "frame": 0,
+        "bounds": [
+          50,
+          10,
+          141,
+          138
+        ],
+        "components": [
+          4136
+        ],
+        "partial_alpha_pixels": 0
+      },
+      {
+        "frame": 1,
+        "bounds": [
+          44,
+          22,
+          140,
+          138
+        ],
+        "components": [
+          4030
+        ],
+        "partial_alpha_pixels": 0
+      },
+      {
+        "frame": 2,
+        "bounds": [
+          55,
+          36,
+          142,
+          138
+        ],
+        "components": [
+          3590
+        ],
+        "partial_alpha_pixels": 0
+      },
+      {
+        "frame": 3,
+        "bounds": [
+          54,
+          44,
+          148,
+          138
+        ],
+        "components": [
+          3507
+        ],
+        "partial_alpha_pixels": 0
+      }
+    ]
+  },
+  "lancer": {
+    "idle": [
+      {
+        "frame": 0,
+        "bounds": [
+          71,
+          10,
+          120,
+          138
+        ],
+        "components": [
+          3089
+        ],
+        "partial_alpha_pixels": 0
+      },
+      {
+        "frame": 1,
+        "bounds": [
+          71,
+          10,
+          120,
+          138
+        ],
+        "components": [
+          3121
+        ],
+        "partial_alpha_pixels": 0
+      },
+      {
+        "frame": 2,
+        "bounds": [
+          71,
+          10,
+          120,
+          138
+        ],
+        "components": [
+          3141
+        ],
+        "partial_alpha_pixels": 0
+      },
+      {
+        "frame": 3,
+        "bounds": [
+          71,
+          10,
+          120,
+          138
+        ],
+        "components": [
+          3129
+        ],
+        "partial_alpha_pixels": 0
+      },
+      {
+        "frame": 4,
+        "bounds": [
+          72,
+          10,
+          120,
+          138
+        ],
+        "components": [
+          3077
+        ],
+        "partial_alpha_pixels": 0
+      },
+      {
+        "frame": 5,
+        "bounds": [
+          71,
+          10,
+          120,
+          138
+        ],
+        "components": [
+          3146
+        ],
+        "partial_alpha_pixels": 0
+      }
+    ],
+    "run": [
+      {
+        "frame": 0,
+        "bounds": [
+          62,
+          12,
+          127,
+          138
+        ],
+        "components": [
+          3057
+        ],
+        "partial_alpha_pixels": 0
+      },
+      {
+        "frame": 1,
+        "bounds": [
+          65,
+          13,
+          132,
+          138
+        ],
+        "components": [
+          2972
+        ],
+        "partial_alpha_pixels": 0
+      },
+      {
+        "frame": 2,
+        "bounds": [
+          53,
+          14,
+          127,
+          138
+        ],
+        "components": [
+          2963
+        ],
+        "partial_alpha_pixels": 0
+      },
+      {
+        "frame": 3,
+        "bounds": [
+          62,
+          10,
+          137,
+          138
+        ],
+        "components": [
+          3216
+        ],
+        "partial_alpha_pixels": 0
+      },
+      {
+        "frame": 4,
+        "bounds": [
+          59,
+          10,
+          138,
+          138
+        ],
+        "components": [
+          3257
+        ],
+        "partial_alpha_pixels": 0
+      },
+      {
+        "frame": 5,
+        "bounds": [
+          60,
+          16,
+          121,
+          138
+        ],
+        "components": [
+          2867
+        ],
+        "partial_alpha_pixels": 0
+      }
+    ],
+    "attack_1": [
+      {
+        "frame": 0,
+        "bounds": [
+          39,
+          10,
+          131,
+          138
+        ],
+        "components": [
+          4787
+        ],
+        "partial_alpha_pixels": 0
+      },
+      {
+        "frame": 1,
+        "bounds": [
+          41,
+          18,
+          169,
+          138
+        ],
+        "components": [
+          5342
+        ],
+        "partial_alpha_pixels": 0
+      },
+      {
+        "frame": 2,
+        "bounds": [
+          51,
+          24,
+          190,
+          138
+        ],
+        "components": [
+          5068
+        ],
+        "partial_alpha_pixels": 0
+      },
+      {
+        "frame": 3,
+        "bounds": [
+          36,
+          32,
+          183,
+          138
+        ],
+        "components": [
+          5010
+        ],
+        "partial_alpha_pixels": 0
+      },
+      {
+        "frame": 4,
+        "bounds": [
+          40,
+          22,
+          151,
+          138
+        ],
+        "components": [
+          5228
+        ],
+        "partial_alpha_pixels": 0
+      },
+      {
+        "frame": 5,
+        "bounds": [
+          38,
+          10,
+          131,
+          138
+        ],
+        "components": [
+          4842
+        ],
+        "partial_alpha_pixels": 0
+      }
+    ],
+    "attack_2": [
+      {
+        "frame": 0,
+        "bounds": [
+          23,
+          14,
+          155,
+          138
+        ],
+        "components": [
+          5596
+        ],
+        "partial_alpha_pixels": 0
+      },
+      {
+        "frame": 1,
+        "bounds": [
+          33,
+          10,
+          159,
+          138
+        ],
+        "components": [
+          5457
+        ],
+        "partial_alpha_pixels": 0
+      },
+      {
+        "frame": 2,
+        "bounds": [
+          39,
+          17,
+          176,
+          138
+        ],
+        "components": [
+          5344
+        ],
+        "partial_alpha_pixels": 0
+      },
+      {
+        "frame": 3,
+        "bounds": [
+          40,
+          19,
+          180,
+          138
+        ],
+        "components": [
+          5215
+        ],
+        "partial_alpha_pixels": 0
+      },
+      {
+        "frame": 4,
+        "bounds": [
+          39,
+          17,
+          162,
+          138
+        ],
+        "components": [
+          5416
+        ],
+        "partial_alpha_pixels": 0
+      },
+      {
+        "frame": 5,
+        "bounds": [
+          13,
+          18,
+          153,
+          138
+        ],
+        "components": [
+          5584
+        ],
+        "partial_alpha_pixels": 0
+      }
+    ],
+    "cast": [
+      {
+        "frame": 0,
+        "bounds": [
+          71,
+          10,
+          120,
+          138
+        ],
+        "components": [
+          3366
+        ],
+        "partial_alpha_pixels": 0
+      },
+      {
+        "frame": 1,
+        "bounds": [
+          68,
+          10,
+          121,
+          138
+        ],
+        "components": [
+          3407
+        ],
+        "partial_alpha_pixels": 0
+      },
+      {
+        "frame": 2,
+        "bounds": [
+          62,
+          39,
+          139,
+          138
+        ],
+        "components": [
+          3100
+        ],
+        "partial_alpha_pixels": 0
+      },
+      {
+        "frame": 3,
+        "bounds": [
+          55,
+          42,
+          149,
+          138
+        ],
+        "components": [
+          3405
+        ],
+        "partial_alpha_pixels": 0
+      },
+      {
+        "frame": 4,
+        "bounds": [
+          65,
+          39,
+          142,
+          138
+        ],
+        "components": [
+          3217
+        ],
+        "partial_alpha_pixels": 0
+      },
+      {
+        "frame": 5,
+        "bounds": [
+          55,
+          11,
+          124,
+          138
+        ],
+        "components": [
+          3478
+        ],
+        "partial_alpha_pixels": 0
+      }
+    ],
+    "hit": [
+      {
+        "frame": 0,
+        "bounds": [
+          51,
+          11,
+          140,
+          138
+        ],
+        "components": [
+          4456
+        ],
+        "partial_alpha_pixels": 0
+      },
+      {
+        "frame": 1,
+        "bounds": [
+          50,
+          19,
+          154,
+          138
+        ],
+        "components": [
+          4424
+        ],
+        "partial_alpha_pixels": 0
+      },
+      {
+        "frame": 2,
+        "bounds": [
+          53,
+          13,
+          138,
+          138
+        ],
+        "components": [
+          4312
+        ],
+        "partial_alpha_pixels": 0
+      }
+    ],
+    "death": [
+      {
+        "frame": 0,
+        "bounds": [
+          59,
+          12,
+          131,
+          138
+        ],
+        "components": [
+          3561
+        ],
+        "partial_alpha_pixels": 0
+      },
+      {
+        "frame": 1,
+        "bounds": [
+          57,
+          30,
+          134,
+          138
+        ],
+        "components": [
+          2970
+        ],
+        "partial_alpha_pixels": 0
+      },
+      {
+        "frame": 2,
+        "bounds": [
+          57,
+          75,
+          134,
+          138
+        ],
+        "components": [
+          2451
+        ],
+        "partial_alpha_pixels": 0
+      },
+      {
+        "frame": 3,
+        "bounds": [
+          50,
+          94,
+          141,
+          138
+        ],
+        "components": [
+          2245
+        ],
+        "partial_alpha_pixels": 0
+      },
+      {
+        "frame": 4,
+        "bounds": [
+          52,
+          104,
+          139,
+          138
+        ],
+        "components": [
+          1953
+        ],
+        "partial_alpha_pixels": 0
+      },
+      {
+        "frame": 5,
+        "bounds": [
+          51,
+          111,
+          140,
+          138
+        ],
+        "components": [
+          1555
+        ],
+        "partial_alpha_pixels": 0
+      }
+    ],
+    "dash": [
+      {
+        "frame": 0,
+        "bounds": [
+          32,
+          12,
+          160,
+          138
+        ],
+        "components": [
+          7760
+        ],
+        "partial_alpha_pixels": 0
+      },
+      {
+        "frame": 1,
+        "bounds": [
+          36,
+          10,
+          166,
+          138
+        ],
+        "components": [
+          7924
+        ],
+        "partial_alpha_pixels": 0
+      },
+      {
+        "frame": 2,
+        "bounds": [
+          22,
+          18,
+          174,
+          138
+        ],
+        "components": [
+          8386
+        ],
+        "partial_alpha_pixels": 0
+      },
+      {
+        "frame": 3,
+        "bounds": [
+          23,
+          14,
+          157,
+          138
+        ],
+        "components": [
+          7761
+        ],
+        "partial_alpha_pixels": 0
+      }
+    ],
+    "defend": [
+      {
+        "frame": 0,
+        "bounds": [
+          36,
+          10,
+          156,
+          138
+        ],
+        "components": [
+          6265
+        ],
+        "partial_alpha_pixels": 0
+      },
+      {
+        "frame": 1,
+        "bounds": [
+          36,
+          24,
+          155,
+          138
+        ],
+        "components": [
+          5781
+        ],
+        "partial_alpha_pixels": 0
+      },
+      {
+        "frame": 2,
+        "bounds": [
+          38,
+          30,
+          156,
+          138
+        ],
+        "components": [
+          5289
+        ],
+        "partial_alpha_pixels": 0
+      },
+      {
+        "frame": 3,
+        "bounds": [
+          43,
+          36,
+          161,
+          138
+        ],
+        "components": [
+          5232
+        ],
+        "partial_alpha_pixels": 0
+      }
+    ]
+  },
+  "mage": {
+    "idle": [
+      {
+        "frame": 0,
+        "bounds": [
+          62,
+          35,
+          130,
+          138
+        ],
+        "components": [
+          3663
+        ],
+        "partial_alpha_pixels": 0
+      },
+      {
+        "frame": 1,
+        "bounds": [
+          62,
+          34,
+          130,
+          138
+        ],
+        "components": [
+          3690
+        ],
+        "partial_alpha_pixels": 0
+      },
+      {
+        "frame": 2,
+        "bounds": [
+          63,
+          35,
+          128,
+          138
+        ],
+        "components": [
+          3611
+        ],
+        "partial_alpha_pixels": 0
+      },
+      {
+        "frame": 3,
+        "bounds": [
+          63,
+          35,
+          128,
+          138
+        ],
+        "components": [
+          3564
+        ],
+        "partial_alpha_pixels": 0
+      },
+      {
+        "frame": 4,
+        "bounds": [
+          62,
+          34,
+          129,
+          138
+        ],
+        "components": [
+          3657
+        ],
+        "partial_alpha_pixels": 0
+      },
+      {
+        "frame": 5,
+        "bounds": [
+          64,
+          35,
+          127,
+          138
+        ],
+        "components": [
+          3554
+        ],
+        "partial_alpha_pixels": 0
+      }
+    ],
+    "run": [
+      {
+        "frame": 0,
+        "bounds": [
+          62,
+          37,
+          133,
+          138
+        ],
+        "components": [
+          3656
+        ],
+        "partial_alpha_pixels": 0
+      },
+      {
+        "frame": 1,
+        "bounds": [
+          62,
+          34,
+          134,
+          138
+        ],
+        "components": [
+          3514
+        ],
+        "partial_alpha_pixels": 0
+      },
+      {
+        "frame": 2,
+        "bounds": [
+          60,
+          37,
+          135,
+          138
+        ],
+        "components": [
+          3386
+        ],
+        "partial_alpha_pixels": 0
+      },
+      {
+        "frame": 3,
+        "bounds": [
+          62,
+          39,
+          134,
+          138
+        ],
+        "components": [
+          3441
+        ],
+        "partial_alpha_pixels": 0
+      },
+      {
+        "frame": 4,
+        "bounds": [
+          64,
+          40,
+          132,
+          138
+        ],
+        "components": [
+          3298
+        ],
+        "partial_alpha_pixels": 0
+      },
+      {
+        "frame": 5,
+        "bounds": [
+          63,
+          40,
+          132,
+          138
+        ],
+        "components": [
+          3222
+        ],
+        "partial_alpha_pixels": 0
+      }
+    ],
+    "attack_1": [
+      {
+        "frame": 0,
+        "bounds": [
+          58,
+          36,
+          134,
+          138
+        ],
+        "components": [
+          3641
+        ],
+        "partial_alpha_pixels": 0
+      },
+      {
+        "frame": 1,
+        "bounds": [
+          57,
+          47,
+          135,
+          138
+        ],
+        "components": [
+          3457
+        ],
+        "partial_alpha_pixels": 0
+      },
+      {
+        "frame": 2,
+        "bounds": [
+          41,
+          48,
+          151,
+          138
+        ],
+        "components": [
+          3508
+        ],
+        "partial_alpha_pixels": 0
+      },
+      {
+        "frame": 3,
+        "bounds": [
+          48,
+          48,
+          145,
+          138
+        ],
+        "components": [
+          3564
+        ],
+        "partial_alpha_pixels": 0
+      },
+      {
+        "frame": 4,
+        "bounds": [
+          71,
+          45,
+          134,
+          138
+        ],
+        "components": [
+          2979
+        ],
+        "partial_alpha_pixels": 0
+      },
+      {
+        "frame": 5,
+        "bounds": [
+          60,
+          34,
+          132,
+          138
+        ],
+        "components": [
+          3423
+        ],
+        "partial_alpha_pixels": 0
+      }
+    ],
+    "attack_2": [
+      {
+        "frame": 0,
+        "bounds": [
+          65,
+          38,
+          126,
+          138
+        ],
+        "components": [
+          2914
+        ],
+        "partial_alpha_pixels": 0
+      },
+      {
+        "frame": 1,
+        "bounds": [
+          55,
+          34,
+          119,
+          138
+        ],
+        "components": [
+          2835
+        ],
+        "partial_alpha_pixels": 0
+      },
+      {
+        "frame": 2,
+        "bounds": [
+          44,
+          62,
+          147,
+          138
+        ],
+        "components": [
+          3296
+        ],
+        "partial_alpha_pixels": 0
+      },
+      {
+        "frame": 3,
+        "bounds": [
+          42,
+          57,
+          149,
+          138
+        ],
+        "components": [
+          4180
+        ],
+        "partial_alpha_pixels": 0
+      },
+      {
+        "frame": 4,
+        "bounds": [
+          49,
+          58,
+          143,
+          138
+        ],
+        "components": [
+          2850
+        ],
+        "partial_alpha_pixels": 0
+      },
+      {
+        "frame": 5,
+        "bounds": [
+          72,
+          40,
+          132,
+          138
+        ],
+        "components": [
+          2858
+        ],
+        "partial_alpha_pixels": 0
+      }
+    ],
+    "cast": [
+      {
+        "frame": 0,
+        "bounds": [
+          72,
+          58,
+          120,
+          138
+        ],
+        "components": [
+          1743
+        ],
+        "partial_alpha_pixels": 0
+      },
+      {
+        "frame": 1,
+        "bounds": [
+          69,
+          40,
+          122,
+          138
+        ],
+        "components": [
+          1976
+        ],
+        "partial_alpha_pixels": 0
+      },
+      {
+        "frame": 2,
+        "bounds": [
+          71,
+          34,
+          121,
+          138
+        ],
+        "components": [
+          2039
+        ],
+        "partial_alpha_pixels": 0
+      },
+      {
+        "frame": 3,
+        "bounds": [
+          69,
+          34,
+          123,
+          138
+        ],
+        "components": [
+          2268
+        ],
+        "partial_alpha_pixels": 0
+      },
+      {
+        "frame": 4,
+        "bounds": [
+          68,
+          38,
+          124,
+          138
+        ],
+        "components": [
+          2035
+        ],
+        "partial_alpha_pixels": 0
+      },
+      {
+        "frame": 5,
+        "bounds": [
+          73,
+          44,
+          119,
+          138
+        ],
+        "components": [
+          1817
+        ],
+        "partial_alpha_pixels": 0
+      }
+    ],
+    "hit": [
+      {
+        "frame": 0,
+        "bounds": [
+          63,
+          35,
+          129,
+          138
+        ],
+        "components": [
+          3480
+        ],
+        "partial_alpha_pixels": 0
+      },
+      {
+        "frame": 1,
+        "bounds": [
+          52,
+          34,
+          140,
+          138
+        ],
+        "components": [
+          3883
+        ],
+        "partial_alpha_pixels": 0
+      },
+      {
+        "frame": 2,
+        "bounds": [
+          62,
+          37,
+          129,
+          138
+        ],
+        "components": [
+          3502
+        ],
+        "partial_alpha_pixels": 0
+      }
+    ],
+    "death": [
+      {
+        "frame": 0,
+        "bounds": [
+          63,
+          34,
+          128,
+          138
+        ],
+        "components": [
+          2894,
+          61
+        ],
+        "partial_alpha_pixels": 0
+      },
+      {
+        "frame": 1,
+        "bounds": [
+          59,
+          49,
+          130,
+          138
+        ],
+        "components": [
+          2615,
+          69
+        ],
+        "partial_alpha_pixels": 0
+      },
+      {
+        "frame": 2,
+        "bounds": [
+          57,
+          69,
+          135,
+          138
+        ],
+        "components": [
+          2497,
+          60
+        ],
+        "partial_alpha_pixels": 0
+      },
+      {
+        "frame": 3,
+        "bounds": [
+          49,
+          70,
+          143,
+          138
+        ],
+        "components": [
+          2515
+        ],
+        "partial_alpha_pixels": 0
+      },
+      {
+        "frame": 4,
+        "bounds": [
+          51,
+          76,
+          139,
+          138
+        ],
+        "components": [
+          2358
+        ],
+        "partial_alpha_pixels": 0
+      },
+      {
+        "frame": 5,
+        "bounds": [
+          48,
+          92,
+          143,
+          138
+        ],
+        "components": [
+          1856
+        ],
+        "partial_alpha_pixels": 0
+      }
+    ],
+    "dash": [
+      {
+        "frame": 0,
+        "bounds": [
+          38,
+          46,
+          154,
+          138
+        ],
+        "components": [
+          5208
+        ],
+        "partial_alpha_pixels": 0
+      },
+      {
+        "frame": 1,
+        "bounds": [
+          36,
+          47,
+          155,
+          138
+        ],
+        "components": [
+          5255
+        ],
+        "partial_alpha_pixels": 0
+      },
+      {
+        "frame": 2,
+        "bounds": [
+          29,
+          51,
+          162,
+          138
+        ],
+        "components": [
+          4918
+        ],
+        "partial_alpha_pixels": 0
+      },
+      {
+        "frame": 3,
+        "bounds": [
+          43,
+          34,
+          149,
+          138
+        ],
+        "components": [
+          5127
+        ],
+        "partial_alpha_pixels": 0
+      }
+    ],
+    "defend": [
+      {
+        "frame": 0,
+        "bounds": [
+          62,
+          34,
+          129,
+          138
+        ],
+        "components": [
+          3399
+        ],
+        "partial_alpha_pixels": 0
+      },
+      {
+        "frame": 1,
+        "bounds": [
+          59,
+          36,
+          133,
+          138
+        ],
+        "components": [
+          3760
+        ],
+        "partial_alpha_pixels": 0
+      },
+      {
+        "frame": 2,
+        "bounds": [
+          59,
+          36,
+          133,
+          138
+        ],
+        "components": [
+          3775
+        ],
+        "partial_alpha_pixels": 0
+      },
+      {
+        "frame": 3,
+        "bounds": [
+          62,
+          37,
+          130,
+          138
+        ],
+        "components": [
+          3525
+        ],
+        "partial_alpha_pixels": 0
+      }
+    ]
+  }
+}
