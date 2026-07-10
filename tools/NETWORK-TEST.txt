@@ -1,0 +1,9 @@
+MultiRough LAN connection test
+
+1. Both computers must use the same Wi-Fi or wired local network. Turn off VPN software during the test.
+2. On the computer that creates the room, run Allow-MultiRough-Host.cmd once and approve the administrator prompt.
+3. Start MultiRough and choose Create Online. The room screen shows the host LAN IP.
+4. On the friend's computer, enter that LAN IP and choose Join. Do not enter 127.0.0.1.
+5. Only the room host needs the firewall script. UDP port 24567 is used.
+
+If connection still fails, check whether the router has client/AP isolation enabled. A phone hotspot is a quick alternative local network for testing.

@@ -47,6 +47,27 @@ const WAVE_DEFS := [
 	{"boss": true},
 ]
 const CHARACTER_ORDER := ["warrior", "archer", "lancer"]
+const CHARACTER_CARD_ART := {
+	"warrior": "res://assets/ui/character_select/warrior_card.png",
+	"archer": "res://assets/ui/character_select/archer_card.png",
+	"lancer": "res://assets/ui/character_select/lancer_card.png",
+}
+const CHARACTER_CARD_ACCENTS := {
+	"warrior": Color(0.30, 0.78, 1.0),
+	"archer": Color(1.0, 0.78, 0.20),
+	"lancer": Color(0.95, 0.52, 0.20),
+}
+const CHARACTER_STAT_ICONS := {
+	"health": "res://assets/ui/character_select/stat_health.png",
+	"attack": "res://assets/ui/character_select/stat_attack.png",
+	"speed": "res://assets/ui/character_select/stat_speed.png",
+	"cooldown": "res://assets/ui/character_select/stat_cooldown.png",
+}
+const UPGRADE_CARD_ART := {
+	"Common": "res://assets/ui/upgrades/upgrade_card_common.png",
+	"Rare": "res://assets/ui/upgrades/upgrade_card_rare.png",
+	"Epic": "res://assets/ui/upgrades/upgrade_card_epic.png",
+}
 const CHARACTER_CONFIGS := {
 	"warrior": {
 		"id": "warrior",
@@ -71,7 +92,7 @@ const CHARACTER_CONFIGS := {
 		"max_health": 95.0,
 		"move_speed": 255.0,
 		"attack_damage": 21.0,
-		"attack_cooldown": 0.42,
+		"attack_cooldown": 0.21,
 		"attack_range": 420.0,
 		"attack_half_width": 18.0,
 		"attack_knockback": 80.0,
@@ -89,9 +110,9 @@ const CHARACTER_CONFIGS := {
 		"move_speed": 225.0,
 		"attack_damage": 30.0,
 		"attack_cooldown": 0.60,
-		"attack_range": 165.0,
+		"attack_range": 96.0,
 		"attack_half_width": 28.0,
-		"attack_knockback": 190.0,
+		"attack_knockback": 95.0,
 		"defense_damage_multiplier": 0.60,
 		"skill_damage": 66.0,
 		"skill_length": 260.0,
@@ -122,6 +143,8 @@ var waiting_for_next_wave_input := false
 var pending_player_count := 1
 var selected_character_ids: Array = ["warrior", "warrior"]
 var character_select_rows: Array = []
+var character_select_slot_buttons: Array = []
+var character_select_active_slot := 0
 var network_mode := "none"
 var local_peer_player_index := 1
 var network_peer_joined := false
@@ -162,15 +185,28 @@ func _ready() -> void:
 	get_viewport().size_changed.connect(_layout_ui)
 	_show_main_menu()
 
+func _input(event: InputEvent) -> void:
+	if not _is_network_game():
+		return
+	var mouse_event := event as InputEventMouseButton
+	if mouse_event == null or mouse_event.button_index != MOUSE_BUTTON_LEFT:
+		return
+	if mouse_event.pressed:
+		Input.action_press("network_basic_attack")
+	else:
+		Input.action_release("network_basic_attack")
+
 func _unhandled_input(event: InputEvent) -> void:
 	if not waiting_for_next_wave_input:
 		return
 	if game_state != GameStateScript.UPGRADE_SELECT or not _all_required_upgrades_selected():
 		return
+	if network_mode == "client":
+		return
 	if event is InputEventKey and event.pressed and not event.echo:
-		_start_next_wave()
+		_start_next_wave_for_all_peers()
 	elif event is InputEventMouseButton and event.pressed:
-		_start_next_wave()
+		_start_next_wave_for_all_peers()
 
 func _ensure_input_map() -> void:
 	_add_key_action("move_left", [KEY_A])
@@ -179,7 +215,7 @@ func _ensure_input_map() -> void:
 	_add_key_action("move_down", [KEY_S])
 	_add_key_action("basic_attack", [KEY_J])
 	_add_mouse_action("basic_attack", MOUSE_BUTTON_LEFT)
-	_add_key_action("basic_attack_p1_keyboard", [KEY_J])
+	_add_key_action("network_basic_attack", [KEY_J])
 	_add_key_action("dash", [KEY_SPACE])
 	_remove_key_action("dash", [KEY_K])
 	_add_key_action("active_skill", [KEY_Q])
@@ -187,22 +223,6 @@ func _ensure_input_map() -> void:
 	_add_key_action("ultimate_skill", [KEY_F])
 	_add_key_action("defend", [KEY_K])
 	_add_mouse_action("defend", MOUSE_BUTTON_RIGHT)
-	_add_key_action("move_left_p2", [KEY_LEFT])
-	_add_key_action("move_right_p2", [KEY_RIGHT])
-	_add_key_action("move_up_p2", [KEY_UP])
-	_add_key_action("move_down_p2", [KEY_DOWN])
-	_add_key_action("basic_attack_p2", [KEY_ENTER, KEY_KP_ENTER])
-	_add_key_action("dash_p2", [KEY_KP_0])
-	_add_key_action("defend_p2", [KEY_EQUAL, KEY_KP_ADD])
-	_add_key_action("active_skill_p2", [KEY_1, KEY_KP_1])
-	_add_key_action("fan_skill_p2", [KEY_2, KEY_KP_2])
-	_add_key_action("ultimate_skill_p2", [KEY_3, KEY_KP_3])
-	_add_key_action("upgrade_p1_1", [KEY_I])
-	_add_key_action("upgrade_p1_2", [KEY_O])
-	_add_key_action("upgrade_p1_3", [KEY_P])
-	_add_key_action("upgrade_p2_1", [KEY_7, KEY_KP_7])
-	_add_key_action("upgrade_p2_2", [KEY_8, KEY_KP_8])
-	_add_key_action("upgrade_p2_3", [KEY_9, KEY_KP_9])
 
 func _add_key_action(action: StringName, keys: Array[int]) -> void:
 	_ensure_input_action(action)
@@ -238,14 +258,11 @@ func _process(delta: float) -> void:
 		elapsed_time += delta
 	if _is_network_game():
 		_send_network_input()
-	elif network_mode == "local_test":
-		_send_local_network_test_input()
 	_update_camera()
 	_update_enemy_targets()
 	if _is_combat_active():
 		_update_ultimate(delta)
 		_update_persistent_skill_areas(delta)
-	_handle_upgrade_hotkeys()
 	_update_status()
 	if _is_combat_active():
 		if _all_players_dead():
@@ -316,11 +333,11 @@ func _build_ui() -> void:
 	player_hud_right.add_theme_constant_override("separation", 6)
 	ui_layer.add_child(player_hud_right)
 
-	_create_player_hud(player_hud_right, "P2", "+", ["普攻", "1", "2", "3"])
+	_create_player_hud(player_hud_right, "P2", "右键 / K", ["普攻", "Q", "E", "F"])
 
 	main_menu_panel = VBoxContainer.new()
 	main_menu_panel.position = Vector2(460, 230)
-	main_menu_panel.custom_minimum_size = Vector2(360, 320)
+	main_menu_panel.custom_minimum_size = Vector2(360, 250)
 	main_menu_panel.add_theme_constant_override("separation", 16)
 	ui_layer.add_child(main_menu_panel)
 
@@ -336,25 +353,13 @@ func _build_ui() -> void:
 	single_button.pressed.connect(_start_single_player)
 	main_menu_panel.add_child(single_button)
 
-	var coop_button: Button = Button.new()
-	coop_button.text = "双人同屏"
-	coop_button.custom_minimum_size = Vector2(360, 54)
-	coop_button.pressed.connect(_start_local_coop)
-	main_menu_panel.add_child(coop_button)
-
-	var network_test_button: Button = Button.new()
-	network_test_button.text = "本机联机测试"
-	network_test_button.custom_minimum_size = Vector2(360, 48)
-	network_test_button.pressed.connect(_start_local_network_test)
-	main_menu_panel.add_child(network_test_button)
-
 	var network_row: HBoxContainer = HBoxContainer.new()
 	network_row.add_theme_constant_override("separation", 8)
 	main_menu_panel.add_child(network_row)
 
 	network_ip_edit = LineEdit.new()
-	network_ip_edit.placeholder_text = "朋友 IP"
-	network_ip_edit.text = "127.0.0.1"
+	network_ip_edit.placeholder_text = "房主 IP，如 192.168.1.78"
+	network_ip_edit.text = ""
 	network_ip_edit.custom_minimum_size = Vector2(184, 42)
 	network_row.add_child(network_ip_edit)
 
@@ -377,9 +382,9 @@ func _build_ui() -> void:
 	main_menu_panel.add_child(network_status_label)
 
 	character_select_panel = VBoxContainer.new()
-	character_select_panel.custom_minimum_size = Vector2(560, 360)
+	character_select_panel.custom_minimum_size = Vector2(1120, 680)
 	character_select_panel.visible = false
-	character_select_panel.add_theme_constant_override("separation", 14)
+	character_select_panel.add_theme_constant_override("separation", 10)
 	ui_layer.add_child(character_select_panel)
 
 	upgrade_panel = VBoxContainer.new()
@@ -522,17 +527,6 @@ func _start_single_player() -> void:
 	network_mode = "none"
 	_show_character_select(1)
 
-func _start_local_coop() -> void:
-	network_mode = "none"
-	_show_character_select(2)
-
-func _start_local_network_test() -> void:
-	network_mode = "local_test"
-	local_peer_player_index = 1
-	network_peer_joined = true
-	_set_network_status("本机联机测试：P2 使用方向键 / Enter / 1 / 2 / 3 / +")
-	_show_character_select(2)
-
 func _start_network_host() -> void:
 	_connect_network_signals()
 	var peer := ENetMultiplayerPeer.new()
@@ -545,14 +539,22 @@ func _start_network_host() -> void:
 	local_peer_player_index = 1
 	network_peer_joined = false
 	selected_character_ids = ["warrior", "warrior"]
-	_set_network_status("房间已创建，端口 %d。等待朋友加入。" % NETWORK_PORT)
+	var lan_addresses := _get_lan_ipv4_addresses()
+	if lan_addresses.is_empty():
+		_set_network_status("房间已创建，端口 %d。请把房主电脑的局域网 IPv4 发给朋友。" % NETWORK_PORT)
+	else:
+		_set_network_status(
+			"房间已创建。朋友输入：%s（端口 %d）。无法加入时，房主运行 Allow-MultiRough-Host.cmd。"
+			% [", ".join(lan_addresses), NETWORK_PORT]
+		)
 	_show_character_select(2)
 
 func _start_network_client() -> void:
 	_connect_network_signals()
 	var address := network_ip_edit.text.strip_edges() if network_ip_edit != null else ""
 	if address.is_empty():
-		address = "127.0.0.1"
+		_set_network_status("请填写房主显示的局域网 IP，不能填写 127.0.0.1")
+		return
 	var peer := ENetMultiplayerPeer.new()
 	var error := peer.create_client(address, NETWORK_PORT)
 	if error != OK:
@@ -589,10 +591,31 @@ func _on_network_connected_to_server() -> void:
 	_show_character_select(2)
 
 func _on_network_connection_failed() -> void:
-	_set_network_status("连接失败")
+	_set_network_status("连接失败。确认双方在同一网络、IP 正确，并让房主运行 Allow-MultiRough-Host.cmd。")
 	network_mode = "none"
 	network_peer_joined = false
 	multiplayer.multiplayer_peer = null
+
+func _get_lan_ipv4_addresses() -> PackedStringArray:
+	var addresses := PackedStringArray()
+	for address in IP.get_local_addresses():
+		if _is_private_ipv4(address) and not addresses.has(address):
+			addresses.append(address)
+	return addresses
+
+func _is_private_ipv4(address: String) -> bool:
+	var parts := address.split(".")
+	if parts.size() != 4:
+		return false
+	for part in parts:
+		if not part.is_valid_int():
+			return false
+		var value := part.to_int()
+		if value < 0 or value > 255:
+			return false
+	var first := parts[0].to_int()
+	var second := parts[1].to_int()
+	return first == 10 or (first == 172 and second >= 16 and second <= 31) or (first == 192 and second == 168)
 
 func _on_network_server_disconnected() -> void:
 	_set_network_status("已断开连接")
@@ -632,7 +655,7 @@ func _is_network_game() -> bool:
 	return network_mode == "host" or network_mode == "client"
 
 func _uses_external_player_input() -> bool:
-	return _is_network_game() or network_mode == "local_test"
+	return _is_network_game()
 
 func _show_character_select(player_count: int) -> void:
 	pending_player_count = player_count
@@ -649,12 +672,18 @@ func _show_character_select(player_count: int) -> void:
 
 func _rebuild_character_select_panel() -> void:
 	character_select_rows.clear()
+	character_select_slot_buttons.clear()
 	for child in character_select_panel.get_children():
 		character_select_panel.remove_child(child)
 		child.queue_free()
+	if _is_network_game():
+		character_select_active_slot = local_peer_player_index - 1
+	else:
+		character_select_active_slot = clampi(character_select_active_slot, 0, pending_player_count - 1)
 
 	var title: Label = Label.new()
 	title.text = "联机房间" if _is_network_game() else "选择角色"
+	title.custom_minimum_size = Vector2(1120, 38)
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title.add_theme_font_size_override("font_size", 32)
 	character_select_panel.add_child(title)
@@ -662,34 +691,178 @@ func _rebuild_character_select_panel() -> void:
 	if _is_network_game():
 		var room_status: Label = Label.new()
 		room_status.text = network_status_text
+		room_status.custom_minimum_size = Vector2(1120, 28)
 		room_status.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		room_status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		character_select_panel.add_child(room_status)
 
-	for slot_index in range(pending_player_count):
-		var row: HBoxContainer = HBoxContainer.new()
-		row.add_theme_constant_override("separation", 10)
-		character_select_panel.add_child(row)
+	if pending_player_count > 1:
+		var slot_row: HBoxContainer = HBoxContainer.new()
+		slot_row.custom_minimum_size = Vector2(1120, 42)
+		slot_row.alignment = BoxContainer.ALIGNMENT_CENTER
+		slot_row.add_theme_constant_override("separation", 12)
+		character_select_panel.add_child(slot_row)
+		for slot_index in range(pending_player_count):
+			var slot_button: Button = Button.new()
+			slot_button.custom_minimum_size = Vector2(240, 40)
+			slot_button.pressed.connect(_set_character_select_active_slot.bind(slot_index))
+			slot_row.add_child(slot_button)
+			character_select_slot_buttons.append(slot_button)
 
-		var label: Label = Label.new()
-		label.text = "P%d" % (slot_index + 1)
-		label.custom_minimum_size = Vector2(56, 44)
-		row.add_child(label)
-
-		var buttons: Array = []
-		for character_id in CHARACTER_ORDER:
-			var button: Button = Button.new()
-			button.custom_minimum_size = Vector2(140, 44)
-			button.pressed.connect(_select_character.bind(slot_index, character_id))
-			row.add_child(button)
-			buttons.append(button)
-		character_select_rows.append(buttons)
+	var card_row: HBoxContainer = HBoxContainer.new()
+	card_row.custom_minimum_size = Vector2(1120, 452)
+	card_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	card_row.add_theme_constant_override("separation", 18)
+	character_select_panel.add_child(card_row)
+	for character_id in CHARACTER_ORDER:
+		var card_data := _build_character_card(str(character_id))
+		card_row.add_child(card_data["button"] as Button)
+		character_select_rows.append(card_data)
 
 	character_select_start_button = Button.new()
-	character_select_start_button.custom_minimum_size = Vector2(560, 52)
+	character_select_start_button.custom_minimum_size = Vector2(1120, 50)
 	character_select_start_button.pressed.connect(_confirm_character_select)
 	character_select_panel.add_child(character_select_start_button)
 	_refresh_character_select_buttons()
+
+func _build_character_card(character_id: String) -> Dictionary:
+	var config: Dictionary = CHARACTER_CONFIGS.get(character_id, CHARACTER_CONFIGS["warrior"])
+	var button: Button = Button.new()
+	button.custom_minimum_size = Vector2(342, 452)
+	button.clip_contents = true
+	button.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	button.pressed.connect(_select_active_character.bind(character_id))
+
+	var art: TextureRect = TextureRect.new()
+	art.texture = load(str(CHARACTER_CARD_ART.get(character_id, ""))) as Texture2D
+	art.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	art.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+	art.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	art.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	button.add_child(art)
+
+	var margin: MarginContainer = MarginContainer.new()
+	margin.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	margin.add_theme_constant_override("margin_left", 12)
+	margin.add_theme_constant_override("margin_top", 12)
+	margin.add_theme_constant_override("margin_right", 12)
+	margin.add_theme_constant_override("margin_bottom", 12)
+	margin.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	button.add_child(margin)
+
+	var content: VBoxContainer = VBoxContainer.new()
+	content.add_theme_constant_override("separation", 8)
+	content.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	margin.add_child(content)
+
+	var title_panel: PanelContainer = PanelContainer.new()
+	title_panel.custom_minimum_size = Vector2(318, 42)
+	title_panel.add_theme_stylebox_override("panel", _make_character_info_style(Color(0.03, 0.05, 0.07, 0.84)))
+	title_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	content.add_child(title_panel)
+
+	var title_label: Label = Label.new()
+	title_label.text = _get_character_name(character_id)
+	title_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	title_label.add_theme_font_size_override("font_size", 24)
+	title_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	title_panel.add_child(title_label)
+
+	var art_space: Control = Control.new()
+	art_space.custom_minimum_size = Vector2(0, 224)
+	art_space.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	content.add_child(art_space)
+
+	var stats_panel: PanelContainer = PanelContainer.new()
+	stats_panel.custom_minimum_size = Vector2(318, 88)
+	stats_panel.add_theme_stylebox_override("panel", _make_character_info_style(Color(0.03, 0.05, 0.07, 0.88)))
+	stats_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	content.add_child(stats_panel)
+
+	var stats_grid: GridContainer = GridContainer.new()
+	stats_grid.columns = 2
+	stats_grid.add_theme_constant_override("h_separation", 8)
+	stats_grid.add_theme_constant_override("v_separation", 4)
+	stats_grid.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	stats_panel.add_child(stats_grid)
+	stats_grid.add_child(_build_character_stat("health", "生命 %d" % roundi(float(config.get("max_health", 0.0)))))
+	stats_grid.add_child(_build_character_stat("attack", "攻击 %d" % roundi(float(config.get("attack_damage", 0.0)))))
+	stats_grid.add_child(_build_character_stat("speed", "移速 %d" % roundi(float(config.get("move_speed", 0.0)))))
+	stats_grid.add_child(_build_character_stat("cooldown", "间隔 %.2f秒" % float(config.get("attack_cooldown", 0.0))))
+
+	var skills: HBoxContainer = HBoxContainer.new()
+	skills.custom_minimum_size = Vector2(318, 36)
+	skills.alignment = BoxContainer.ALIGNMENT_CENTER
+	skills.add_theme_constant_override("separation", 10)
+	skills.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	content.add_child(skills)
+	for skill_key in ["Q", "E", "F"]:
+		skills.add_child(_build_character_skill_key(skill_key, CHARACTER_CARD_ACCENTS.get(character_id, Color.WHITE)))
+
+	return {
+		"character_id": character_id,
+		"button": button,
+		"title_label": title_label,
+	}
+
+func _build_character_stat(icon_key: String, text: String) -> HBoxContainer:
+	var row: HBoxContainer = HBoxContainer.new()
+	row.custom_minimum_size = Vector2(151, 32)
+	row.add_theme_constant_override("separation", 6)
+	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var icon: TextureRect = TextureRect.new()
+	icon.texture = load(str(CHARACTER_STAT_ICONS.get(icon_key, ""))) as Texture2D
+	icon.custom_minimum_size = Vector2(28, 28)
+	icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	row.add_child(icon)
+	var label: Label = Label.new()
+	label.text = text
+	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	label.add_theme_font_size_override("font_size", 15)
+	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	row.add_child(label)
+	return row
+
+func _build_character_skill_key(skill_key: String, accent: Color) -> PanelContainer:
+	var panel: PanelContainer = PanelContainer.new()
+	panel.custom_minimum_size = Vector2(84, 36)
+	var style := _make_character_info_style(Color(0.03, 0.05, 0.07, 0.92))
+	style.border_color = accent
+	style.set_border_width_all(2)
+	panel.add_theme_stylebox_override("panel", style)
+	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var label: Label = Label.new()
+	label.text = skill_key
+	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	label.add_theme_font_size_override("font_size", 19)
+	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	panel.add_child(label)
+	return panel
+
+func _make_character_info_style(color: Color) -> StyleBoxFlat:
+	var style: StyleBoxFlat = StyleBoxFlat.new()
+	style.bg_color = color
+	style.set_corner_radius_all(4)
+	style.content_margin_left = 8
+	style.content_margin_top = 5
+	style.content_margin_right = 8
+	style.content_margin_bottom = 5
+	return style
+
+func _set_character_select_active_slot(slot_index: int) -> void:
+	if slot_index < 0 or slot_index >= pending_player_count:
+		return
+	if _is_network_game() and slot_index != local_peer_player_index - 1:
+		return
+	character_select_active_slot = slot_index
+	_refresh_character_select_buttons()
+
+func _select_active_character(character_id: String) -> void:
+	_select_character(character_select_active_slot, character_id)
 
 func _select_character(slot_index: int, character_id: String) -> void:
 	if slot_index < 0:
@@ -704,15 +877,21 @@ func _select_character(slot_index: int, character_id: String) -> void:
 	_refresh_character_select_buttons()
 
 func _refresh_character_select_buttons() -> void:
-	for slot_index in range(character_select_rows.size()):
-		var buttons: Array = character_select_rows[slot_index]
-		var selected_id: String = _get_selected_character_id(slot_index)
-		for character_index in range(CHARACTER_ORDER.size()):
-			var character_id: String = str(CHARACTER_ORDER[character_index])
-			var button: Button = buttons[character_index] as Button
-			var prefix := "> " if character_id == selected_id else ""
-			button.text = prefix + _get_character_name(character_id)
-			button.disabled = _is_network_game() and slot_index != local_peer_player_index - 1
+	for slot_index in range(character_select_slot_buttons.size()):
+		var slot_button: Button = character_select_slot_buttons[slot_index] as Button
+		var active := slot_index == character_select_active_slot
+		slot_button.text = "%sP%d  %s" % ["> " if active else "", slot_index + 1, _get_character_name(_get_selected_character_id(slot_index))]
+		slot_button.disabled = _is_network_game() and slot_index != local_peer_player_index - 1
+		_style_character_slot_button(slot_button, active)
+	var active_character_id := _get_selected_character_id(character_select_active_slot)
+	for card_data in character_select_rows:
+		var character_id: String = str(card_data.get("character_id", "warrior"))
+		var button: Button = card_data.get("button") as Button
+		var title_label: Label = card_data.get("title_label") as Label
+		var selected := character_id == active_character_id
+		if title_label != null:
+			title_label.text = ("> " if selected else "") + _get_character_name(character_id)
+		_style_character_card_button(button, selected, CHARACTER_CARD_ACCENTS.get(character_id, Color.WHITE))
 	if character_select_start_button != null:
 		if network_mode == "host":
 			character_select_start_button.text = "开始联机" if network_peer_joined else "等待朋友加入"
@@ -723,6 +902,36 @@ func _refresh_character_select_buttons() -> void:
 		else:
 			character_select_start_button.text = "开始"
 			character_select_start_button.disabled = false
+
+func _style_character_card_button(button: Button, selected: bool, accent: Color) -> void:
+	if button == null:
+		return
+	var normal: StyleBoxFlat = StyleBoxFlat.new()
+	normal.bg_color = Color(0.025, 0.035, 0.05, 1.0)
+	normal.border_color = accent if selected else Color(0.30, 0.34, 0.38, 0.9)
+	normal.set_border_width_all(4 if selected else 2)
+	normal.set_corner_radius_all(6)
+	var hover: StyleBoxFlat = normal.duplicate()
+	hover.border_color = accent.lightened(0.18)
+	hover.set_border_width_all(4)
+	var pressed: StyleBoxFlat = hover.duplicate()
+	pressed.bg_color = Color(0.08, 0.10, 0.13, 1.0)
+	button.add_theme_stylebox_override("normal", normal)
+	button.add_theme_stylebox_override("hover", hover)
+	button.add_theme_stylebox_override("pressed", pressed)
+	button.add_theme_stylebox_override("focus", hover)
+	button.modulate = Color.WHITE if selected else Color(0.82, 0.84, 0.86, 1.0)
+
+func _style_character_slot_button(button: Button, active: bool) -> void:
+	var style: StyleBoxFlat = StyleBoxFlat.new()
+	style.bg_color = Color(0.12, 0.16, 0.20, 0.96) if active else Color(0.06, 0.08, 0.10, 0.90)
+	style.border_color = Color(0.95, 0.76, 0.28, 1.0) if active else Color(0.30, 0.34, 0.38, 0.9)
+	style.set_border_width_all(2)
+	style.set_corner_radius_all(4)
+	button.add_theme_stylebox_override("normal", style)
+	button.add_theme_stylebox_override("hover", style)
+	button.add_theme_stylebox_override("pressed", style)
+	button.add_theme_stylebox_override("disabled", style)
 
 func _confirm_character_select() -> void:
 	if network_mode == "client":
@@ -735,11 +944,6 @@ func _confirm_character_select() -> void:
 		if character_select_panel != null:
 			character_select_panel.visible = false
 		rpc("_network_start_game", selected_character_ids)
-		_start_game(2)
-		return
-	if network_mode == "local_test":
-		if character_select_panel != null:
-			character_select_panel.visible = false
 		_start_game(2)
 		return
 	if character_select_panel != null:
@@ -772,26 +976,14 @@ func _start_game(player_count: int) -> void:
 
 func _spawn_players(player_count: int) -> void:
 	player = _create_player("Player1", Vector2(-42.0, 0.0), Color.WHITE, player_count <= 1, _build_character_config(0, "Blue Units"))
-	if player_count > 1:
-		player.basic_attack_action = "basic_attack_p1_keyboard"
 	players = [player]
-	_add_local_player_slot(1, player, 0, ["I", "O", "P"], ["upgrade_p1_1", "upgrade_p1_2", "upgrade_p1_3"])
+	_add_local_player_slot(1, player, 0)
 	_assign_player_hud(0, player)
 	_setup_ultimate_blades(player)
 	if player_count > 1:
 		player_two = _create_player("Player2", Vector2(42.0, 0.0), Color.WHITE, false, _build_character_config(1, "Red Units"))
-		player_two.move_left_action = "move_left_p2"
-		player_two.move_right_action = "move_right_p2"
-		player_two.move_up_action = "move_up_p2"
-		player_two.move_down_action = "move_down_p2"
-		player_two.basic_attack_action = "basic_attack_p2"
-		player_two.dash_action = "dash_p2"
-		player_two.defend_action = "defend_p2"
-		player_two.active_skill_action = "active_skill_p2"
-		player_two.fan_skill_action = "fan_skill_p2"
-		player_two.ultimate_skill_action = "ultimate_skill_p2"
 		players.append(player_two)
-		_add_local_player_slot(2, player_two, 1, ["7", "8", "9"], ["upgrade_p2_1", "upgrade_p2_2", "upgrade_p2_3"])
+		_add_local_player_slot(2, player_two, 1)
 		_assign_player_hud(1, player_two)
 		_setup_ultimate_blades(player_two)
 	else:
@@ -803,6 +995,8 @@ func _configure_network_players() -> void:
 	if player != null:
 		player.external_input_enabled = local_peer_player_index != 1
 		player.use_mouse_aim = local_peer_player_index == 1
+		if local_peer_player_index == 1:
+			player.basic_attack_action = "network_basic_attack"
 	if player_two != null:
 		player_two.external_input_enabled = local_peer_player_index != 2
 		player_two.use_mouse_aim = local_peer_player_index == 2
@@ -811,7 +1005,7 @@ func _configure_network_players() -> void:
 			player_two.move_right_action = "move_right"
 			player_two.move_up_action = "move_up"
 			player_two.move_down_action = "move_down"
-			player_two.basic_attack_action = "basic_attack"
+			player_two.basic_attack_action = "network_basic_attack"
 			player_two.dash_action = "dash"
 			player_two.defend_action = "defend"
 			player_two.active_skill_action = "active_skill"
@@ -849,52 +1043,6 @@ func _receive_player_input(player_index: int, packet: Dictionary) -> void:
 		return
 	target_player.apply_external_input(packet)
 
-func _send_local_network_test_input() -> void:
-	if player_two == null or not is_instance_valid(player_two):
-		return
-	player_two.apply_external_input(_make_input_packet_from_actions(
-		"move_left_p2",
-		"move_right_p2",
-		"move_up_p2",
-		"move_down_p2",
-		"basic_attack_p2",
-		"dash_p2",
-		"defend_p2",
-		"active_skill_p2",
-		"fan_skill_p2",
-		"ultimate_skill_p2",
-		player_two.global_position
-	))
-
-func _make_input_packet_from_actions(
-	move_left: StringName,
-	move_right: StringName,
-	move_up: StringName,
-	move_down: StringName,
-	basic: StringName,
-	dash: StringName,
-	defend: StringName,
-	active_skill: StringName,
-	fan_skill: StringName,
-	ultimate_skill: StringName,
-	current_position: Vector2
-) -> Dictionary:
-	var move_direction: Vector2 = Input.get_vector(move_left, move_right, move_up, move_down)
-	var aim_direction: Vector2 = move_direction.normalized()
-	if aim_direction == Vector2.ZERO:
-		aim_direction = Vector2.LEFT
-	return {
-		"move": move_direction,
-		"aim": aim_direction,
-		"defend": Input.is_action_pressed(defend),
-		"basic": Input.is_action_just_pressed(basic),
-		"dash": Input.is_action_just_pressed(dash),
-		"skill": Input.is_action_just_pressed(active_skill),
-		"fan": Input.is_action_just_pressed(fan_skill),
-		"ultimate": Input.is_action_just_pressed(ultimate_skill),
-		"position": current_position,
-	}
-
 func _get_selected_character_id(slot_index: int) -> String:
 	if slot_index >= 0 and slot_index < selected_character_ids.size():
 		var selected_id: String = str(selected_character_ids[slot_index])
@@ -909,24 +1057,24 @@ func _get_character_name(character_id: String) -> String:
 func _build_character_config(slot_index: int, unit_color_folder: String) -> Dictionary:
 	var character_id: String = _get_selected_character_id(slot_index)
 	var config: Dictionary = (CHARACTER_CONFIGS.get(character_id, CHARACTER_CONFIGS["warrior"]) as Dictionary).duplicate()
-	config["unit_color_folder"] = unit_color_folder
+	config["unit_color_folder"] = "Yellow Units" if character_id in ["archer", "lancer"] else unit_color_folder
 	return config
 
-func _add_local_player_slot(player_index: int, target_player: PlayerController, hud_index: int, key_labels: Array[String], key_actions: Array[String]) -> void:
+func _add_local_player_slot(player_index: int, target_player: PlayerController, hud_index: int) -> void:
 	local_player_slots.append({
 		"player_index": player_index,
 		"player": target_player,
 		"hud_index": hud_index,
-		"key_labels": key_labels,
-		"key_actions": key_actions,
 		"upgrades": [],
 		"selected": false,
+		"selection_pending": false,
 	})
 
 func _reset_upgrade_slots() -> void:
 	for slot in local_player_slots:
 		slot["upgrades"] = []
 		slot["selected"] = false
+		slot["selection_pending"] = false
 
 func _get_local_player_slot(player_index: int) -> Dictionary:
 	for slot in local_player_slots:
@@ -989,6 +1137,8 @@ func _start_next_wave() -> void:
 		return
 	if game_state == GameStateScript.VICTORY or game_state == GameStateScript.DEFEAT:
 		return
+	if _is_network_game():
+		seed(NETWORK_SYNC_SEED + (wave_index + 1) * 1009)
 	_set_player_cooldowns_paused(false)
 	_stop_ultimate()
 	wave_index += 1
@@ -1776,91 +1926,94 @@ func _spawn_cooldown_bubble(target_player: PlayerController, text: String) -> vo
 func _enter_upgrade_select() -> void:
 	if local_player_slots.is_empty():
 		return
+	if network_mode == "client":
+		return
+	_prepare_upgrade_select()
+	for slot in local_player_slots:
+		var target_player: PlayerController = slot.get("player") as PlayerController
+		var character_id := target_player.character_id if target_player != null else ""
+		slot["upgrades"] = UpgradeCatalogScript.roll(3, character_id)
+	if network_mode == "host":
+		var upgrade_sets: Array = []
+		for slot in local_player_slots:
+			upgrade_sets.append((slot.get("upgrades", []) as Array).duplicate(true))
+		rpc("_network_begin_upgrade_select", upgrade_sets)
+		_build_single_player_upgrade_panel(local_peer_player_index)
+	else:
+		_build_single_player_upgrade_panel()
+
+	upgrade_panel.visible = true
+	_update_status()
+
+func _prepare_upgrade_select() -> void:
 	game_state = GameStateScript.UPGRADE_SELECT
 	_heal_surviving_players_after_wave()
 	_set_player_cooldowns_paused(true)
 	_stop_ultimate()
 	for slot in local_player_slots:
-		var target_player: PlayerController = slot.get("player") as PlayerController
-		var character_id := target_player.character_id if target_player != null else ""
-		slot["upgrades"] = UpgradeCatalogScript.roll(3, character_id)
+		slot["upgrades"] = []
 		slot["selected"] = false
+		slot["selection_pending"] = false
 	_clear_upgrade_panel()
 	start_next_wave_button.visible = false
 	start_next_wave_button.disabled = true
 	waiting_for_next_wave_input = false
-	if local_player_count <= 1:
-		_build_single_player_upgrade_panel()
-	else:
-		_build_coop_upgrade_panel()
+	result_label.visible = false
 
+@rpc("authority", "reliable")
+func _network_begin_upgrade_select(upgrade_sets: Array) -> void:
+	if network_mode != "client":
+		return
+	_clear_remaining_enemies()
+	_prepare_upgrade_select()
+	for slot_index in range(mini(local_player_slots.size(), upgrade_sets.size())):
+		var upgrades: Array = upgrade_sets[slot_index] as Array
+		local_player_slots[slot_index]["upgrades"] = upgrades.duplicate(true)
+	_build_single_player_upgrade_panel(local_peer_player_index)
 	upgrade_panel.visible = true
 	_update_status()
+
+func _start_next_wave_for_all_peers() -> void:
+	if network_mode == "host":
+		rpc("_network_start_next_wave")
+	_start_next_wave()
+
+@rpc("authority", "reliable")
+func _network_start_next_wave() -> void:
+	if network_mode != "client":
+		return
+	_start_next_wave()
 
 func _heal_surviving_players_after_wave() -> void:
 	for existing_player in players:
 		if is_instance_valid(existing_player) and not existing_player.is_dead:
 			existing_player.heal(WAVE_CLEAR_HEAL_AMOUNT)
 
-func _build_single_player_upgrade_panel() -> void:
-	var panel_width: float = 1180.0
-	var panel_height: float = 540.0
-	var card_width: float = 340.0
-	var card_height: float = 420.0
+func _build_single_player_upgrade_panel(player_index: int = 1) -> void:
+	var panel_width: float = 1120.0
+	var panel_height: float = 600.0
 	_configure_upgrade_panel(panel_width, panel_height)
+	var slot: Dictionary = _get_local_player_slot(player_index)
+	var target_player: PlayerController = slot.get("player") as PlayerController
 	var title: Label = Label.new()
-	title.text = "选择升级"
+	title.text = "%s · 选择升级" % _get_character_name(target_player.character_id if target_player != null else "warrior")
 	title.custom_minimum_size = Vector2(panel_width, 0.0)
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title.add_theme_font_size_override("font_size", 28)
 	upgrade_panel.add_child(title)
 
 	var cards: HBoxContainer = HBoxContainer.new()
-	cards.custom_minimum_size = Vector2(panel_width, card_height)
+	cards.custom_minimum_size = Vector2(panel_width, 490)
 	cards.alignment = BoxContainer.ALIGNMENT_CENTER
-	cards.add_theme_constant_override("separation", 54)
+	cards.add_theme_constant_override("separation", 20)
 	upgrade_panel.add_child(cards)
 
-	var slot: Dictionary = _get_local_player_slot(1)
 	var upgrades: Array = slot.get("upgrades", [])
-	var key_labels: Array = slot.get("key_labels", ["I", "O", "P"])
-	var target_player: PlayerController = slot.get("player") as PlayerController
-	for index in range(upgrades.size()):
-		var upgrade: Dictionary = upgrades[index]
-		var key_label: String = str(key_labels[index])
-		var button: Button = Button.new()
-		button.text = "%s  [%s] %s" % [
-			key_label,
-			_format_rarity(str(upgrade.get("rarity", "Common"))),
-			_format_upgrade_button(upgrade, target_player),
-		]
-		button.custom_minimum_size = Vector2(card_width, card_height)
-		button.alignment = HORIZONTAL_ALIGNMENT_LEFT
-		button.add_theme_font_size_override("font_size", 18)
-		button.pressed.connect(_select_upgrade.bind(1, upgrade))
+	for upgrade_value in upgrades:
+		var upgrade: Dictionary = upgrade_value as Dictionary
+		var button := _build_upgrade_card(upgrade, target_player, Vector2(340, 470))
+		button.pressed.connect(_select_upgrade.bind(player_index, upgrade))
 		cards.add_child(button)
-
-func _build_coop_upgrade_panel() -> void:
-	_configure_upgrade_panel(UPGRADE_PANEL_WIDTH, UPGRADE_PANEL_HEIGHT)
-	var title: Label = Label.new()
-	title.text = "选择升级"
-	title.custom_minimum_size = Vector2(UPGRADE_PANEL_WIDTH, 0.0)
-	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	title.add_theme_font_size_override("font_size", 24)
-	upgrade_panel.add_child(title)
-
-	var columns: HBoxContainer = HBoxContainer.new()
-	columns.add_theme_constant_override("separation", 32)
-	upgrade_panel.add_child(columns)
-
-	for slot in local_player_slots:
-		var target_player: PlayerController = slot.get("player") as PlayerController
-		if target_player == null or not is_instance_valid(target_player):
-			continue
-		var player_index: int = int(slot.get("player_index", 0))
-		var key_labels: Array = slot.get("key_labels", [])
-		var title_text: String = "P%d 选择：%s" % [player_index, _format_key_labels(key_labels)]
-		columns.add_child(_build_upgrade_column(title_text, slot.get("upgrades", []), target_player, player_index, key_labels))
 
 func _configure_upgrade_panel(width: float, height: float) -> void:
 	upgrade_panel.custom_minimum_size = Vector2(width, height)
@@ -1874,53 +2027,183 @@ func _revive_dead_players_for_next_wave() -> void:
 			existing_player.global_position = existing_player.global_position.clamp(ARENA_BOUNDS.position, ARENA_BOUNDS.end)
 			existing_player.revive(0.5)
 
-func _build_upgrade_column(title_text: String, upgrades: Array, target_player: PlayerController, player_index: int, key_labels: Array) -> VBoxContainer:
-	var column: VBoxContainer = VBoxContainer.new()
-	column.custom_minimum_size = Vector2(460, 0.0)
-	column.add_theme_constant_override("separation", 12)
-	column.name = "UpgradeColumnP%d" % player_index
+func _build_upgrade_card(upgrade: Dictionary, target_player: PlayerController, card_size: Vector2) -> Button:
+	var rarity: String = str(upgrade.get("rarity", "Common"))
+	var accent := _get_upgrade_rarity_color(rarity)
+	var button: Button = Button.new()
+	button.custom_minimum_size = card_size
+	button.clip_contents = true
+	button.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	_style_upgrade_card_button(button, accent)
 
-	var column_title: Label = Label.new()
-	column_title.text = title_text
-	column_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	column_title.add_theme_font_size_override("font_size", 18)
-	column.add_child(column_title)
+	var background: TextureRect = TextureRect.new()
+	background.texture = load(str(UPGRADE_CARD_ART.get(rarity, UPGRADE_CARD_ART["Common"]))) as Texture2D
+	background.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	background.stretch_mode = TextureRect.STRETCH_SCALE
+	background.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	background.offset_left = 3
+	background.offset_top = 3
+	background.offset_right = -3
+	background.offset_bottom = -3
+	background.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	button.add_child(background)
 
-	for index in range(upgrades.size()):
-		var upgrade: Dictionary = upgrades[index]
-		var button: Button = Button.new()
-		button.text = "%s  [%s] %s" % [
-			key_labels[index],
-			_format_rarity(str(upgrade.get("rarity", "Common"))),
-			_format_upgrade_button(upgrade, target_player),
-		]
-		button.custom_minimum_size = Vector2(460, 104)
-		button.alignment = HORIZONTAL_ALIGNMENT_LEFT
-		button.add_theme_font_size_override("font_size", 16)
-		button.pressed.connect(_select_upgrade.bind(player_index, upgrade))
-		column.add_child(button)
-	return column
+	var margin: MarginContainer = MarginContainer.new()
+	margin.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	margin.add_theme_constant_override("margin_left", 28)
+	margin.add_theme_constant_override("margin_top", 24)
+	margin.add_theme_constant_override("margin_right", 28)
+	margin.add_theme_constant_override("margin_bottom", 24)
+	margin.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	button.add_child(margin)
 
-func _format_key_labels(key_labels: Array) -> String:
-	var text: String = ""
-	for key_label in key_labels:
-		if text != "":
-			text += " / "
-		text += str(key_label)
-	return text
+	var content: VBoxContainer = VBoxContainer.new()
+	content.add_theme_constant_override("separation", 9)
+	content.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	margin.add_child(content)
+
+	var rarity_label: Label = Label.new()
+	rarity_label.text = _format_rarity(rarity)
+	rarity_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	rarity_label.add_theme_font_size_override("font_size", 16)
+	rarity_label.add_theme_color_override("font_color", accent)
+	rarity_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	content.add_child(rarity_label)
+
+	var badge_center: CenterContainer = CenterContainer.new()
+	badge_center.custom_minimum_size = Vector2(0, 112)
+	badge_center.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	badge_center.add_child(_build_upgrade_card_badge(upgrade, accent))
+	content.add_child(badge_center)
+
+	var title: Label = Label.new()
+	title.text = str(upgrade.get("title", "升级"))
+	title.custom_minimum_size = Vector2(0, 54)
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	title.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	title.add_theme_font_size_override("font_size", 21)
+	title.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	content.add_child(title)
+
+	var separator: HSeparator = HSeparator.new()
+	separator.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	content.add_child(separator)
+
+	var description: Label = Label.new()
+	description.text = str(upgrade.get("description", ""))
+	description.custom_minimum_size = Vector2(0, 76)
+	description.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	description.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	description.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	description.add_theme_font_size_override("font_size", 16)
+	description.add_theme_color_override("font_color", Color(0.88, 0.90, 0.92, 1.0))
+	description.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	content.add_child(description)
+
+	var spacer: Control = Control.new()
+	spacer.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	spacer.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	content.add_child(spacer)
+
+	var current: Label = Label.new()
+	current.text = "当前：%s" % _format_player_stat(str(upgrade.get("stat", "")), target_player)
+	current.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	current.add_theme_font_size_override("font_size", 15)
+	current.add_theme_color_override("font_color", Color(0.70, 0.84, 0.78, 1.0))
+	current.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	content.add_child(current)
+	return button
+
+func _build_upgrade_card_badge(upgrade: Dictionary, accent: Color) -> Control:
+	var size := Vector2(104, 104)
+	var skill_slot: String = str(upgrade.get("skill_slot", ""))
+	if not skill_slot.is_empty():
+		var panel: PanelContainer = PanelContainer.new()
+		panel.custom_minimum_size = size
+		var style: StyleBoxFlat = StyleBoxFlat.new()
+		style.bg_color = Color(0.025, 0.035, 0.05, 0.92)
+		style.border_color = accent
+		style.set_border_width_all(3)
+		style.set_corner_radius_all(6)
+		panel.add_theme_stylebox_override("panel", style)
+		panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		var label: Label = Label.new()
+		label.text = skill_slot.to_upper()
+		label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		label.add_theme_font_size_override("font_size", 40)
+		label.add_theme_color_override("font_color", accent)
+		label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		panel.add_child(label)
+		return panel
+	var icon: TextureRect = TextureRect.new()
+	icon.texture = load(_get_upgrade_stat_icon_path(str(upgrade.get("stat", "")))) as Texture2D
+	icon.custom_minimum_size = size
+	icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	return icon
+
+func _get_upgrade_stat_icon_path(stat: String) -> String:
+	if stat in ["max_health", "heal_percent", "lifesteal"]:
+		return str(CHARACTER_STAT_ICONS["health"])
+	if stat in ["move_speed", "dash_cooldown", "dash_charges"]:
+		return str(CHARACTER_STAT_ICONS["speed"])
+	if stat.ends_with("cooldown") or stat.ends_with("duration"):
+		return str(CHARACTER_STAT_ICONS["cooldown"])
+	return str(CHARACTER_STAT_ICONS["attack"])
+
+func _get_upgrade_rarity_color(rarity: String) -> Color:
+	match rarity:
+		"Rare":
+			return Color(0.32, 0.88, 1.0, 1.0)
+		"Epic":
+			return Color(1.0, 0.34, 0.28, 1.0)
+		_:
+			return Color(0.88, 0.90, 0.92, 1.0)
+
+func _style_upgrade_card_button(button: Button, accent: Color) -> void:
+	var normal: StyleBoxFlat = StyleBoxFlat.new()
+	normal.bg_color = Color(0, 0, 0, 0)
+	normal.border_color = Color(0, 0, 0, 0)
+	normal.set_border_width_all(2)
+	normal.set_corner_radius_all(6)
+	var hover: StyleBoxFlat = normal.duplicate()
+	hover.bg_color = Color(accent.r, accent.g, accent.b, 0.05)
+	hover.border_color = accent
+	hover.set_border_width_all(4)
+	var pressed: StyleBoxFlat = hover.duplicate()
+	pressed.bg_color = Color(accent.r, accent.g, accent.b, 0.10)
+	button.add_theme_stylebox_override("normal", normal)
+	button.add_theme_stylebox_override("hover", hover)
+	button.add_theme_stylebox_override("pressed", pressed)
+	button.add_theme_stylebox_override("focus", hover)
 
 func _select_upgrade(player_index: int, upgrade: Dictionary) -> void:
 	if game_state != GameStateScript.UPGRADE_SELECT:
 		return
 	var slot: Dictionary = _get_local_player_slot(player_index)
-	if slot.is_empty() or bool(slot.get("selected", false)):
+	if slot.is_empty() or bool(slot.get("selected", false)) or bool(slot.get("selection_pending", false)):
+		return
+	if _is_network_game():
+		if player_index != local_peer_player_index:
+			return
+		var upgrades: Array = slot.get("upgrades", [])
+		var upgrade_index := upgrades.find(upgrade)
+		if upgrade_index < 0:
+			return
+		slot["selection_pending"] = true
+		if network_mode == "host":
+			_confirm_network_upgrade(player_index, upgrade_index)
+		else:
+			rpc_id(1, "_network_choose_upgrade", player_index, upgrade_index)
 		return
 	var target_player: PlayerController = slot.get("player") as PlayerController
 	if target_player == null or not is_instance_valid(target_player):
 		return
 	target_player.apply_upgrade(upgrade)
 	slot["selected"] = true
-	_mark_upgrade_column_selected(player_index)
 	if not _all_required_upgrades_selected():
 		return
 	upgrade_panel.visible = false
@@ -1930,22 +2213,63 @@ func _select_upgrade(player_index: int, upgrade: Dictionary) -> void:
 	result_label.text = "按任意键开启下一波"
 	result_label.visible = true
 
-func _mark_upgrade_column_selected(player_index: int) -> void:
-	var column: VBoxContainer = upgrade_panel.find_child("UpgradeColumnP%d" % player_index, true, false) as VBoxContainer
-	if column == null:
+@rpc("any_peer", "reliable")
+func _network_choose_upgrade(player_index: int, upgrade_index: int) -> void:
+	if network_mode != "host":
 		return
-	for child in column.get_children():
-		var item: CanvasItem = child as CanvasItem
-		if item != null:
-			item.visible = false
-		child.queue_free()
-	var selected_label: Label = Label.new()
-	selected_label.text = "P%d 已选择" % player_index
-	selected_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	selected_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	selected_label.custom_minimum_size = Vector2(460, 340)
-	selected_label.add_theme_font_size_override("font_size", 24)
-	column.add_child(selected_label)
+	var sender_id := multiplayer.get_remote_sender_id()
+	if sender_id == 1 or player_index != 2:
+		return
+	_confirm_network_upgrade(player_index, upgrade_index)
+
+func _confirm_network_upgrade(player_index: int, upgrade_index: int) -> void:
+	if network_mode != "host":
+		return
+	if not _apply_confirmed_network_upgrade(player_index, upgrade_index):
+		return
+	rpc("_network_confirm_upgrade", player_index, upgrade_index)
+	if _all_required_upgrades_selected():
+		_set_network_upgrades_ready()
+		rpc("_network_upgrades_ready")
+
+@rpc("authority", "reliable")
+func _network_confirm_upgrade(player_index: int, upgrade_index: int) -> void:
+	if network_mode != "client":
+		return
+	_apply_confirmed_network_upgrade(player_index, upgrade_index)
+
+func _apply_confirmed_network_upgrade(player_index: int, upgrade_index: int) -> bool:
+	var slot: Dictionary = _get_local_player_slot(player_index)
+	if slot.is_empty() or bool(slot.get("selected", false)):
+		return false
+	var upgrades: Array = slot.get("upgrades", [])
+	if upgrade_index < 0 or upgrade_index >= upgrades.size():
+		return false
+	var target_player: PlayerController = slot.get("player") as PlayerController
+	if target_player == null or not is_instance_valid(target_player):
+		return false
+	target_player.apply_upgrade(upgrades[upgrade_index] as Dictionary)
+	slot["selected"] = true
+	slot["selection_pending"] = false
+	if player_index == local_peer_player_index:
+		upgrade_panel.visible = false
+		result_label.text = "等待另一名玩家选择升级"
+		result_label.visible = true
+	return true
+
+func _set_network_upgrades_ready() -> void:
+	upgrade_panel.visible = false
+	start_next_wave_button.visible = false
+	start_next_wave_button.disabled = true
+	waiting_for_next_wave_input = true
+	result_label.text = "等待房主开启下一波" if network_mode == "client" else "按任意键开启下一波"
+	result_label.visible = true
+
+@rpc("authority", "reliable")
+func _network_upgrades_ready() -> void:
+	if network_mode != "client":
+		return
+	_set_network_upgrades_ready()
 
 func _all_required_upgrades_selected() -> bool:
 	if local_player_slots.is_empty():
@@ -1956,23 +2280,10 @@ func _all_required_upgrades_selected() -> bool:
 			return false
 	return true
 
-func _handle_upgrade_hotkeys() -> void:
-	if game_state != GameStateScript.UPGRADE_SELECT:
-		return
-	for slot in local_player_slots:
-		if bool(slot.get("selected", false)):
-			continue
-		var upgrades: Array = slot.get("upgrades", [])
-		var key_actions: Array = slot.get("key_actions", [])
-		for index in range(min(upgrades.size(), key_actions.size())):
-			if Input.is_action_just_pressed(str(key_actions[index])):
-				_select_upgrade(int(slot.get("player_index", 0)), upgrades[index])
-				return
-
 func _on_start_next_wave_pressed() -> void:
 	if game_state != GameStateScript.UPGRADE_SELECT or not _all_required_upgrades_selected():
 		return
-	_start_next_wave()
+	_start_next_wave_for_all_peers()
 
 func _enter_victory() -> void:
 	game_state = GameStateScript.VICTORY
