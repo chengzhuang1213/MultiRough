@@ -118,6 +118,7 @@ var upgrade_panel: VBoxContainer
 var start_next_wave_button: Button
 var result_label: Label
 var restart_button: Button
+var return_to_menu_button: Button
 var combat_manager
 var player_roster
 
@@ -366,6 +367,13 @@ func _build_ui() -> void:
 	restart_button.pressed.connect(_on_restart_pressed)
 	ui_layer.add_child(restart_button)
 
+	return_to_menu_button = Button.new()
+	return_to_menu_button.text = "返回主菜单"
+	return_to_menu_button.custom_minimum_size = Vector2(132, 40)
+	return_to_menu_button.visible = false
+	return_to_menu_button.pressed.connect(_on_return_to_menu_pressed)
+	ui_layer.add_child(return_to_menu_button)
+
 	_layout_ui()
 	_update_status()
 
@@ -399,6 +407,11 @@ func _layout_ui() -> void:
 			(viewport_size.x - NEXT_WAVE_BUTTON_WIDTH) * 0.5,
 			viewport_size.y - 92.0
 		)
+	if return_to_menu_button != null:
+		return_to_menu_button.position = Vector2(
+			maxf(16.0, viewport_size.x - return_to_menu_button.custom_minimum_size.x - 16.0),
+			16.0
+		)
 	if result_label != null and restart_button != null:
 		_position_result_panel()
 
@@ -425,6 +438,8 @@ func _show_main_menu() -> void:
 		player_hud_left.visible = false
 	if player_hud_right != null:
 		player_hud_right.visible = false
+	if return_to_menu_button != null:
+		return_to_menu_button.visible = false
 	_update_status()
 
 func _start_single_player() -> void:
@@ -884,6 +899,7 @@ func _start_game(player_count: int) -> void:
 	hud_right.visible = false
 	player_hud_left.visible = true
 	player_hud_right.visible = local_player_count > 1
+	return_to_menu_button.visible = true
 	_spawn_players(local_player_count)
 	_start_next_wave()
 
@@ -1387,6 +1403,33 @@ func _spawn_line_skill_effect(origin: Vector2, direction: Vector2, length: float
 	var timer: SceneTreeTimer = get_tree().create_timer(lifetime)
 	timer.timeout.connect(Callable(line, "queue_free"))
 
+func _spawn_ring_effect(origin: Vector2, radius: float, color: Color, lifetime: float = 0.18) -> void:
+	var ring := Line2D.new()
+	ring.position = origin
+	ring.width = 4.0
+	ring.closed = true
+	ring.default_color = color
+	var points := PackedVector2Array()
+	for index in range(37):
+		var angle := TAU * float(index) / 36.0
+		points.append(Vector2(cos(angle), sin(angle)) * radius)
+	ring.points = points
+	effect_root.add_child(ring)
+	var tween := create_tween()
+	tween.set_parallel(true)
+	tween.tween_property(ring, "scale", Vector2(1.12, 1.12), lifetime)
+	tween.tween_property(ring, "modulate:a", 0.0, lifetime)
+	tween.finished.connect(Callable(ring, "queue_free"))
+
+func _spawn_link_effect(start: Vector2, end: Vector2, color: Color, lifetime: float = 0.14) -> void:
+	var line := Line2D.new()
+	line.width = 4.0
+	line.default_color = color
+	line.points = PackedVector2Array([start, end])
+	effect_root.add_child(line)
+	var timer := get_tree().create_timer(lifetime)
+	timer.timeout.connect(Callable(line, "queue_free"))
+
 func _spawn_damage_number(origin: Vector2, amount: float, color: Color) -> void:
 	var label: Label = Label.new()
 	label.text = "%d" % roundi(amount)
@@ -1814,6 +1857,18 @@ func _enter_defeat() -> void:
 	_update_status()
 
 func _on_restart_pressed() -> void:
+	_clear_run_state()
+	result_label.visible = false
+	restart_button.visible = false
+	_show_main_menu()
+
+func _on_return_to_menu_pressed() -> void:
+	if multiplayer.multiplayer_peer != null:
+		multiplayer.multiplayer_peer = null
+	network_mode = "none"
+	network_peer_joined = false
+	local_peer_player_index = 1
+	_set_network_status("")
 	_clear_run_state()
 	result_label.visible = false
 	restart_button.visible = false

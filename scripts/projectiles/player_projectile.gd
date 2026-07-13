@@ -2,6 +2,7 @@ extends Node2D
 class_name PlayerProjectile
 
 signal hit_enemy(enemy: EnemyController, damage: float)
+signal reached_max_distance(position: Vector2)
 
 var direction := Vector2.RIGHT
 var speed := 520.0
@@ -10,6 +11,8 @@ var lifetime := 1.4
 var hit_radius := 18.0
 var enemies: Array = []
 var visual_texture_path := ""
+var max_distance := 0.0
+var _distance_traveled := 0.0
 
 func _ready() -> void:
 	_build_visual()
@@ -17,6 +20,8 @@ func _ready() -> void:
 func _process(delta: float) -> void:
 	lifetime -= delta
 	if lifetime <= 0.0:
+		if max_distance > 0.0:
+			reached_max_distance.emit(global_position)
 		queue_free()
 		return
 
@@ -24,7 +29,13 @@ func _process(delta: float) -> void:
 	if move_direction == Vector2.ZERO:
 		move_direction = Vector2.RIGHT
 	rotation = move_direction.angle()
-	global_position += move_direction * speed * delta
+	var movement := move_direction * speed * delta
+	global_position += movement
+	_distance_traveled += movement.length()
+	if max_distance > 0.0 and _distance_traveled >= max_distance:
+		reached_max_distance.emit(global_position)
+		queue_free()
+		return
 
 	for enemy in enemies.duplicate():
 		if not is_instance_valid(enemy):

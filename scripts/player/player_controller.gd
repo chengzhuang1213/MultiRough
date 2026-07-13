@@ -10,6 +10,7 @@ signal active_skill_requested(origin: Vector2, direction: Vector2, length: float
 signal fan_skill_requested(origin: Vector2, direction: Vector2, length: float, half_width: float, damage: float)
 signal ultimate_skill_requested(origin: Vector2, direction: Vector2, damage: float, duration: float)
 signal cooldown_notice_requested(skill_index: int)
+signal reflected_damage_requested(enemy: EnemyController, amount: float)
 
 const UNIT_PATH_PREFIX := "res://assets/tiny_swords_free_pack/Units/"
 const SPRITE_FRAME_SIZE := Vector2(192, 192)
@@ -22,6 +23,10 @@ const ANIM_DASH := "dash"
 const ANIM_CAST := "cast"
 const ANIM_HIT := "hit"
 const ANIM_DEATH := "death"
+const DEFEND_TAP_GRACE := 0.12
+const DEFEND_FULL_STOP_TIME := 0.45
+const ARCHER_Q_MAX_CHARGE_TIME := 1.20
+const ARCHER_Q_MIN_DAMAGE_RATIO := 0.65
 const CHARACTER_WARRIOR := "warrior"
 const CHARACTER_ARCHER := "archer"
 const CHARACTER_LANCER := "lancer"
@@ -77,6 +82,7 @@ var ultimate_skill_action: StringName = "ultimate_skill"
 var defend_action: StringName = "defend"
 var use_mouse_aim := true
 var player_tint := Color.WHITE
+var visual_scale := 0.55
 var unit_color_folder := "Blue Units"
 var character_id := CHARACTER_WARRIOR
 var cooldowns_paused := false
@@ -100,19 +106,30 @@ var _hit_anim_left := 0.0
 var _death_anim_finished := false
 var _pending_combat_event: Dictionary = {}
 var _combat_event_emitted := false
+var _defend_hold_time := 0.0
 var _attack_combo_index := 0
 var _combo_window_left := 0.0
 var _external_move_direction := Vector2.ZERO
 var _external_aim_direction := Vector2.RIGHT
+var _external_aim_target := Vector2.ZERO
+var _external_has_aim_target := false
 var _external_defending := false
 var _external_basic_pressed := false
 var _external_dash_pressed := false
 var _external_skill_pressed := false
+var _external_skill_held := false
+var _external_skill_released := false
 var _external_fan_pressed := false
 var _external_ultimate_pressed := false
+var _warrior_taunt_guard_left := 0.0
+var _warrior_counter_left := 0.0
+var _warrior_blade_guard_left := 0.0
+var _archer_q_charging := false
+var _archer_q_charge_time := 0.0
 
 var _sprite: Sprite2D
 var _collision_shape: CollisionShape2D
+var _charge_indicator: Line2D
 
 func _ready() -> void:
 	add_to_group("players")
@@ -131,7 +148,8 @@ func _physics_process(delta: float) -> void:
 		return
 
 	_tick_timers(delta)
-	is_defending = _get_defend_pressed()
+	is_defending = _get_defend_pressed() or _warrior_counter_left > 0.0
+	_defend_hold_time = _defend_hold_time + delta if is_defending else 0.0
 	var input_direction: Vector2 = _get_move_direction()
 	if input_direction != Vector2.ZERO and _attack_anim_left <= 0.0:
 		_last_direction = input_direction.normalized()
@@ -153,15 +171,18 @@ func _physics_process(delta: float) -> void:
 		_dash_time_left = dash_time
 		_invulnerable_left = maxf(_invulnerable_left, invulnerable_time)
 
-	if not cooldowns_paused and _consume_skill_pressed():
-		if _skill_timer <= 0.0:
-			var skill_direction: Vector2 = _get_attack_direction()
-			_last_direction = skill_direction
-			_skill_timer = skill_cooldown
-			_queue_combat_event("q", skill_direction, skill_damage)
-			_start_cast_animation()
-		else:
-			cooldown_notice_requested.emit(1)
+	if not cooldowns_paused:
+		if character_id == CHARACTER_ARCHER:
+			_update_archer_q_charge(delta)
+		elif _consume_skill_pressed():
+			if _skill_timer <= 0.0:
+				var skill_direction: Vector2 = _get_attack_direction()
+				_last_direction = skill_direction
+				_skill_timer = skill_cooldown
+				_queue_combat_event("q", skill_direction, skill_damage)
+				_start_cast_animation()
+			else:
+				cooldown_notice_requested.emit(1)
 
 	if not cooldowns_paused and _consume_fan_pressed():
 		if _fan_skill_timer <= 0.0:
@@ -186,6 +207,8 @@ func _physics_process(delta: float) -> void:
 	var speed: float = dash_speed if _dash_time_left > 0.0 else move_speed
 	if _dash_time_left <= 0.0 and _attack_anim_left > 0.0:
 		speed *= attack_move_multiplier
+	if _dash_time_left <= 0.0:
+		speed *= _get_defense_move_multiplier()
 	velocity = _last_direction * speed if _dash_time_left > 0.0 else input_direction * speed
 	move_and_slide()
 	global_position = global_position.clamp(arena_bounds.position, arena_bounds.end)
@@ -196,10 +219,12 @@ func make_input_packet() -> Dictionary:
 	return {
 		"move": Input.get_vector(move_left_action, move_right_action, move_up_action, move_down_action),
 		"aim": _get_attack_direction(),
+		"aim_target": get_global_mouse_position(),
 		"defend": Input.is_action_pressed(defend_action),
 		"basic": Input.is_action_just_pressed(basic_attack_action),
 		"dash": Input.is_action_just_pressed(dash_action),
 		"skill": Input.is_action_just_pressed(active_skill_action),
+		"skill_hold": Input.is_action_pressed(active_skill_action),
 		"fan": Input.is_action_just_pressed(fan_skill_action),
 		"ultimate": Input.is_action_just_pressed(ultimate_skill_action),
 		"position": global_position,
@@ -208,28 +233,40 @@ func make_input_packet() -> Dictionary:
 func apply_external_input(packet: Dictionary) -> void:
 	_external_move_direction = packet.get("move", Vector2.ZERO) as Vector2
 	_external_aim_direction = packet.get("aim", _last_direction) as Vector2
+	if packet.has("aim_target"):
+		_external_aim_target = packet["aim_target"] as Vector2
+		_external_has_aim_target = true
 	if _external_aim_direction.length_squared() <= 0.001:
 		_external_aim_direction = _last_direction
 	_external_defending = bool(packet.get("defend", false))
 	_external_basic_pressed = _external_basic_pressed or bool(packet.get("basic", false))
 	_external_dash_pressed = _external_dash_pressed or bool(packet.get("dash", false))
 	_external_skill_pressed = _external_skill_pressed or bool(packet.get("skill", false))
+	var next_skill_held := bool(packet.get("skill_hold", false))
+	_external_skill_released = _external_skill_released or (_external_skill_held and not next_skill_held)
+	_external_skill_held = next_skill_held
 	_external_fan_pressed = _external_fan_pressed or bool(packet.get("fan", false))
 	_external_ultimate_pressed = _external_ultimate_pressed or bool(packet.get("ultimate", false))
 	if packet.has("position"):
 		global_position = packet["position"] as Vector2
 
-func apply_damage(amount: float) -> bool:
+func apply_damage(amount: float, source: EnemyController = null) -> bool:
 	if is_dead or _invulnerable_left > 0.0:
 		return false
 
 	var defended: bool = is_defending
 	var final_amount: float = amount * defense_damage_multiplier if is_defending else amount
+	if _warrior_taunt_guard_left > 0.0:
+		final_amount *= 0.5
+	if _warrior_blade_guard_left > 0.0:
+		final_amount *= 0.75
 	health = maxf(0.0, health - final_amount)
 	_damage_flash_left = 0.12
 	if defended:
 		_defense_flash_left = 0.18
 	damage_taken.emit(final_amount, defended)
+	if _warrior_counter_left > 0.0 and source != null and is_instance_valid(source):
+		reflected_damage_requested.emit(source, amount * 1.30)
 	health_changed.emit(health, max_health)
 	if health <= 0.0:
 		is_dead = true
@@ -246,8 +283,20 @@ func get_projectile_origin(direction: Vector2) -> Vector2:
 	var forward := direction.normalized()
 	if forward == Vector2.ZERO:
 		forward = _last_direction
-	var side := Vector2(-forward.y, forward.x)
-	return global_position + forward * 25.0 - side * 9.0
+	return global_position + forward * 25.0 + Vector2(0.0, -12.0)
+
+func get_projectile_direction(origin: Vector2, fallback: Vector2) -> Vector2:
+	var target := Vector2.ZERO
+	var has_target := false
+	if external_input_enabled and _external_has_aim_target:
+		target = _external_aim_target
+		has_target = true
+	elif not external_input_enabled and use_mouse_aim:
+		target = get_global_mouse_position()
+		has_target = true
+	if has_target and target.distance_squared_to(origin) > 1.0:
+		return (target - origin).normalized()
+	return fallback.normalized() if fallback != Vector2.ZERO else _last_direction
 
 func _queue_combat_event(event_type: String, direction: Vector2, base_damage: float) -> void:
 	_pending_combat_event = {"type": event_type, "direction": direction, "damage": base_damage}
@@ -263,7 +312,8 @@ func _emit_pending_combat_event() -> void:
 	match event_type:
 		"basic":
 			if character_id == CHARACTER_ARCHER:
-				projectile_attack_requested.emit(get_projectile_origin(direction), direction, damage)
+				var projectile_origin := get_projectile_origin(direction)
+				projectile_attack_requested.emit(projectile_origin, get_projectile_direction(projectile_origin, direction), damage)
 			else:
 				basic_attack_requested.emit(global_position, direction, attack_range, attack_half_width, damage)
 		"q":
@@ -294,6 +344,24 @@ func _get_defend_pressed() -> bool:
 		return _external_defending
 	return Input.is_action_pressed(defend_action)
 
+func _get_defense_move_multiplier() -> float:
+	if _warrior_counter_left > 0.0:
+		return 1.0
+	if not is_defending or _defend_hold_time <= DEFEND_TAP_GRACE:
+		return 1.0
+	var slowdown_duration := DEFEND_FULL_STOP_TIME - DEFEND_TAP_GRACE
+	var slowdown_progress := (_defend_hold_time - DEFEND_TAP_GRACE) / slowdown_duration
+	return 1.0 - clampf(slowdown_progress, 0.0, 1.0)
+
+func activate_warrior_taunt_guard(duration: float) -> void:
+	_warrior_taunt_guard_left = maxf(_warrior_taunt_guard_left, duration)
+
+func activate_warrior_counter(duration: float) -> void:
+	_warrior_counter_left = maxf(_warrior_counter_left, duration)
+
+func activate_warrior_blade_guard(duration: float) -> void:
+	_warrior_blade_guard_left = maxf(_warrior_blade_guard_left, duration)
+
 func _consume_basic_pressed() -> bool:
 	if not external_input_enabled:
 		return Input.is_action_just_pressed(basic_attack_action)
@@ -314,6 +382,43 @@ func _consume_skill_pressed() -> bool:
 	var pressed := _external_skill_pressed
 	_external_skill_pressed = false
 	return pressed
+
+func _get_skill_held() -> bool:
+	return _external_skill_held if external_input_enabled else Input.is_action_pressed(active_skill_action)
+
+func _consume_skill_released() -> bool:
+	if not external_input_enabled:
+		return Input.is_action_just_released(active_skill_action)
+	var released := _external_skill_released
+	_external_skill_released = false
+	return released
+
+func _update_archer_q_charge(delta: float) -> void:
+	if _consume_skill_pressed():
+		if _skill_timer > 0.0:
+			cooldown_notice_requested.emit(1)
+		else:
+			_archer_q_charging = true
+			_archer_q_charge_time = 0.0
+	if not _archer_q_charging:
+		_consume_skill_released()
+		return
+	if _get_skill_held():
+		_archer_q_charge_time = minf(ARCHER_Q_MAX_CHARGE_TIME, _archer_q_charge_time + delta)
+	if not _consume_skill_released():
+		return
+	var charge_ratio := clampf(_archer_q_charge_time / ARCHER_Q_MAX_CHARGE_TIME, 0.0, 1.0)
+	var damage_ratio := lerpf(ARCHER_Q_MIN_DAMAGE_RATIO, 1.0, charge_ratio)
+	var skill_direction := _get_attack_direction()
+	_last_direction = skill_direction
+	_skill_timer = skill_cooldown
+	_queue_combat_event("q", skill_direction, skill_damage * damage_ratio)
+	_start_cast_animation()
+	_archer_q_charging = false
+	_archer_q_charge_time = 0.0
+	_warrior_taunt_guard_left = 0.0
+	_warrior_counter_left = 0.0
+	_warrior_blade_guard_left = 0.0
 
 func _consume_fan_pressed() -> bool:
 	if not external_input_enabled:
@@ -353,22 +458,30 @@ func _reset_transient_action_state() -> void:
 	_dash_time_left = 0.0
 	_attack_anim_left = 0.0
 	_hit_anim_left = 0.0
+	_defend_hold_time = 0.0
 	_pending_combat_event.clear()
 	_combat_event_emitted = false
 	_combo_window_left = 0.0
 	_external_move_direction = Vector2.ZERO
+	_external_aim_target = Vector2.ZERO
+	_external_has_aim_target = false
 	_external_defending = false
 	_external_basic_pressed = false
 	_external_dash_pressed = false
 	_external_skill_pressed = false
+	_external_skill_held = false
+	_external_skill_released = false
 	_external_fan_pressed = false
 	_external_ultimate_pressed = false
+	_archer_q_charging = false
+	_archer_q_charge_time = 0.0
 
 func roll_damage(base_damage: float) -> float:
 	return _roll_damage(base_damage)
 
 func apply_character_config(config: Dictionary) -> void:
 	character_id = str(config.get("id", character_id))
+	visual_scale = float(config.get("visual_scale", visual_scale))
 	unit_color_folder = str(config.get("unit_color_folder", unit_color_folder))
 	max_health = float(config.get("max_health", max_health))
 	health = max_health
@@ -379,12 +492,15 @@ func apply_character_config(config: Dictionary) -> void:
 	attack_half_width = float(config.get("attack_half_width", attack_half_width))
 	attack_knockback = float(config.get("attack_knockback", attack_knockback))
 	defense_damage_multiplier = float(config.get("defense_damage_multiplier", defense_damage_multiplier))
+	skill_cooldown = float(config.get("skill_cooldown", skill_cooldown))
 	skill_damage = float(config.get("skill_damage", skill_damage))
 	skill_length = float(config.get("skill_length", skill_length))
 	skill_half_width = float(config.get("skill_half_width", skill_half_width))
 	fan_skill_damage = float(config.get("fan_skill_damage", fan_skill_damage))
 	fan_skill_length = float(config.get("fan_skill_length", fan_skill_length))
 	fan_skill_half_width = float(config.get("fan_skill_half_width", fan_skill_half_width))
+	fan_skill_cooldown = float(config.get("fan_skill_cooldown", fan_skill_cooldown))
+	ultimate_cooldown = float(config.get("ultimate_cooldown", ultimate_cooldown))
 	health_changed.emit(health, max_health)
 	if _sprite != null:
 		_play_animation(ANIM_IDLE, true)
@@ -447,6 +563,9 @@ func apply_upgrade(upgrade: Dictionary) -> void:
 			heal(max_health * float(upgrade.get("percent", 0.15)))
 
 func _tick_timers(delta: float) -> void:
+	_warrior_taunt_guard_left = maxf(0.0, _warrior_taunt_guard_left - delta)
+	_warrior_counter_left = maxf(0.0, _warrior_counter_left - delta)
+	_warrior_blade_guard_left = maxf(0.0, _warrior_blade_guard_left - delta)
 	if not cooldowns_paused:
 		_attack_timer = maxf(0.0, _attack_timer - delta)
 		if dash_charges < dash_max_charges:
@@ -484,10 +603,17 @@ func _setup_nodes() -> void:
 		_collision_shape = get_node("CollisionShape2D") as CollisionShape2D
 
 	_sprite = get_node("Sprite2D") as Sprite2D
+	_charge_indicator = Line2D.new()
+	_charge_indicator.name = "ChargeIndicator"
+	_charge_indicator.width = 3.0
+	_charge_indicator.closed = true
+	_charge_indicator.visible = false
+	_charge_indicator.position = Vector2(0.0, -30.0)
+	add_child(_charge_indicator)
 	_sprite.centered = true
 	_sprite.region_enabled = true
 	_sprite.region_rect = Rect2(Vector2.ZERO, SPRITE_FRAME_SIZE)
-	_sprite.scale = Vector2(0.55, 0.55)
+	_sprite.scale = Vector2.ONE * visual_scale
 	_play_animation(ANIM_IDLE, true)
 
 func _update_animation(delta: float, input_direction: Vector2) -> void:
@@ -657,6 +783,7 @@ func _unit_sprite_path(unit_folder: String, file_name: String) -> String:
 	return UNIT_PATH_PREFIX + unit_color_folder + "/" + unit_folder + "/" + file_name
 
 func _update_feedback() -> void:
+	_update_charge_indicator()
 	if _defense_flash_left > 0.0:
 		_sprite.modulate = Color(0.65, 0.85, 1.0, 1.0)
 	elif _invulnerable_left > 0.0:
@@ -665,6 +792,21 @@ func _update_feedback() -> void:
 		_sprite.modulate = Color(1.0, 0.45, 0.45, 1.0)
 	else:
 		_sprite.modulate = player_tint
+
+func _update_charge_indicator() -> void:
+	if _charge_indicator == null:
+		return
+	_charge_indicator.visible = character_id == CHARACTER_ARCHER and _archer_q_charging
+	if not _charge_indicator.visible:
+		return
+	var ratio := clampf(_archer_q_charge_time / ARCHER_Q_MAX_CHARGE_TIME, 0.0, 1.0)
+	var radius := lerpf(10.0, 19.0, ratio)
+	var points := PackedVector2Array()
+	for index in range(25):
+		var angle := TAU * float(index) / 24.0
+		points.append(Vector2(cos(angle), sin(angle)) * radius)
+	_charge_indicator.points = points
+	_charge_indicator.default_color = Color(1.0, lerpf(0.72, 0.95, ratio), 0.20, 0.55 + ratio * 0.45)
 
 func get_dash_ready() -> bool:
 	return dash_charges > 0

@@ -115,6 +115,10 @@ def validate(root: Path) -> list[str]:
         run_anchor = sorted(run_centers)[len(run_centers) // 2]
         if abs(idle_anchor - run_anchor) > 2.0:
             errors.append(f"idle/run anchor mismatch: {character} idle={idle_anchor:.2f} run={run_anchor:.2f}")
+        if character == "lancer":
+            errors.extend(validate_lancer_body_scale(animation_dir))
+        elif character == "archer":
+            errors.extend(validate_archer_idle_width(animation_dir))
     (root / "tests" / "character_sprite_report.json").write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
     return errors
 
@@ -127,6 +131,55 @@ def lower_body_centers(path: Path, frame_count: int) -> list[float]:
         points = [(x, y) for y in range(96, BASELINE_EXCLUSIVE) for x in range(FRAME_SIZE) if alpha.getpixel((x, y)) > 0]
         centers.append(sum(x for x, _y in points) / len(points))
     return centers
+
+
+def estimated_body_height(frame: Image.Image) -> int:
+    alpha = frame.getchannel("A")
+    row_counts = [sum(1 for x in range(FRAME_SIZE) if alpha.getpixel((x, y)) > 0) for y in range(FRAME_SIZE)]
+    body_top = next((y for y, count in enumerate(row_counts) if count >= 16), BASELINE_EXCLUSIVE)
+    return BASELINE_EXCLUSIVE - body_top
+
+
+def validate_lancer_body_scale(animation_dir: Path) -> list[str]:
+    errors: list[str] = []
+    idle = Image.open(animation_dir / "lancer_idle.png").convert("RGBA")
+    idle_heights = [estimated_body_height(idle.crop((i * FRAME_SIZE, 0, (i + 1) * FRAME_SIZE, FRAME_SIZE))) for i in range(6)]
+    reference = sorted(idle_heights)[len(idle_heights) // 2]
+    for animation, frame_count in {"run": 6, "attack_1": 6, "attack_2": 6, "cast": 6, "hit": 3, "dash": 4, "defend": 4}.items():
+        sheet = Image.open(animation_dir / f"lancer_{animation}.png").convert("RGBA")
+        for index in range(frame_count):
+            frame = sheet.crop((index * FRAME_SIZE, 0, (index + 1) * FRAME_SIZE, FRAME_SIZE))
+            height = estimated_body_height(frame)
+            if height > reference * 1.08:
+                errors.append(f"lancer body scale too large: {animation} frame {index} height={height}, idle={reference}")
+    return errors
+
+
+def estimated_body_width(frame: Image.Image) -> int:
+    alpha = frame.getchannel("A")
+    widths: list[int] = []
+    for y in range(35, 125):
+        occupied = [x for x in range(FRAME_SIZE) if alpha.getpixel((x, y)) > 0]
+        if occupied:
+            widths.append(max(occupied) - min(occupied) + 1)
+    return sorted(widths)[len(widths) // 2] if widths else 0
+
+
+def validate_archer_idle_width(animation_dir: Path) -> list[str]:
+    sheets = {
+        name: Image.open(animation_dir / f"archer_{name}.png").convert("RGBA")
+        for name in ("idle", "run")
+    }
+    medians: dict[str, int] = {}
+    for name, sheet in sheets.items():
+        widths = [
+            estimated_body_width(sheet.crop((index * FRAME_SIZE, 0, (index + 1) * FRAME_SIZE, FRAME_SIZE)))
+            for index in range(6)
+        ]
+        medians[name] = sorted(widths)[len(widths) // 2]
+    if medians["idle"] < medians["run"] * 0.92:
+        return [f"archer idle body too narrow: idle={medians['idle']}, run={medians['run']}"]
+    return []
 
 
 def main() -> int:

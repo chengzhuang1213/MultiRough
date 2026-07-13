@@ -18,6 +18,7 @@ func _init() -> void:
 	_check_multiplayer_scaling_and_revival()
 	_check_wave_clear_healing()
 	_check_cooldown_pause_boundary()
+	_check_defense_hold_slowdown()
 	_check_common_animation_states()
 	_check_archer_projectile_origin()
 	_check_combat_event_frame()
@@ -35,6 +36,10 @@ func _check_character_configs() -> void:
 	_expect(errors.is_empty(), "character configs are incomplete: %s" % ", ".join(errors))
 	_expect(GameRulesScript.CHARACTER_ORDER.size() == 4, "expected exactly four configured characters")
 	_expect(GameRulesScript.CHARACTER_ORDER.has("mage"), "mage is missing from character order")
+	_expect(is_equal_approx(float(GameRulesScript.CHARACTER_CONFIGS["warrior"]["visual_scale"]), 0.49), "warrior visual scale changed")
+	_expect(is_equal_approx(float(GameRulesScript.CHARACTER_CONFIGS["archer"]["visual_scale"]), 0.55), "archer visual scale changed")
+	_expect(is_equal_approx(float(GameRulesScript.CHARACTER_CONFIGS["lancer"]["visual_scale"]), 0.55), "lancer visual scale changed")
+	_expect(is_equal_approx(float(GameRulesScript.CHARACTER_CONFIGS["mage"]["visual_scale"]), 0.62), "mage visual scale changed")
 	_check_mage_art_assets()
 
 func _check_mage_art_assets() -> void:
@@ -132,8 +137,7 @@ func _check_upgrade_rolls_are_unique() -> void:
 			_expect(upgrades.size() == 3, "%s upgrade roll returned the wrong count" % character_id)
 			_expect(UpgradeManagerScript.has_unique_ids(upgrades), "%s upgrade roll contains duplicate ids" % character_id)
 			if character_id == "mage":
-				for upgrade in upgrades:
-					_expect(not (upgrade as Dictionary).has("skill_slot"), "mage received a skill upgrade before its skills were designed")
+				_expect(upgrades.any(func(upgrade): return (upgrade as Dictionary).has("skill_slot")), "mage did not receive a skill upgrade after Q/E/F were implemented")
 
 func _check_wave_progression() -> void:
 	var manager = WaveManagerScript.new()
@@ -186,6 +190,20 @@ func _check_cooldown_pause_boundary() -> void:
 	player._tick_timers(0.5)
 	_expect(is_equal_approx(player._attack_timer, 0.5), "active attack cooldown did not tick")
 	_expect(is_equal_approx(player._skill_timer, 1.5), "active skill cooldown did not tick")
+	player.free()
+
+func _check_defense_hold_slowdown() -> void:
+	var player = PlayerScript.new()
+	player.is_defending = true
+	player._defend_hold_time = PlayerScript.DEFEND_TAP_GRACE
+	_expect(is_equal_approx(player._get_defense_move_multiplier(), 1.0), "tapping defend unexpectedly slowed movement")
+	player._defend_hold_time = (PlayerScript.DEFEND_TAP_GRACE + PlayerScript.DEFEND_FULL_STOP_TIME) * 0.5
+	var partial_multiplier: float = player._get_defense_move_multiplier()
+	_expect(partial_multiplier > 0.0 and partial_multiplier < 1.0, "holding defend did not gradually slow movement")
+	player._defend_hold_time = PlayerScript.DEFEND_FULL_STOP_TIME
+	_expect(is_zero_approx(player._get_defense_move_multiplier()), "holding defend did not stop movement")
+	player.is_defending = false
+	_expect(is_equal_approx(player._get_defense_move_multiplier(), 1.0), "releasing defend did not restore movement")
 	player.free()
 
 func _check_common_animation_states() -> void:

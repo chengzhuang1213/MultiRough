@@ -641,78 +641,78 @@
       {
         "frame": 0,
         "bounds": [
-          69,
+          60,
           15,
-          124,
+          134,
           138
         ],
         "components": [
-          2860
+          3829
         ],
         "partial_alpha_pixels": 0
       },
       {
         "frame": 1,
         "bounds": [
-          69,
+          60,
           12,
-          123,
+          133,
           138
         ],
         "components": [
-          2853
+          3860
         ],
         "partial_alpha_pixels": 0
       },
       {
         "frame": 2,
         "bounds": [
-          69,
+          60,
           11,
-          126,
+          137,
           138
         ],
         "components": [
-          2856
+          3854
         ],
         "partial_alpha_pixels": 0
       },
       {
         "frame": 3,
         "bounds": [
-          69,
+          60,
           12,
-          123,
+          133,
           138
         ],
         "components": [
-          2870
+          3876
         ],
         "partial_alpha_pixels": 0
       },
       {
         "frame": 4,
         "bounds": [
-          68,
+          58,
           11,
-          124,
+          133,
           138
         ],
         "components": [
-          2854
+          3811
         ],
         "partial_alpha_pixels": 0
       },
       {
         "frame": 5,
         "bounds": [
-          66,
+          56,
           11,
-          122,
+          131,
           138
         ],
         "components": [
-          2859
+          3807
         ],
         "partial_alpha_pixels": 0
       }
@@ -721,9 +721,9 @@
       {
         "frame": 0,
         "bounds": [
-          56,
+          55,
           10,
-          137,
+          136,
           138
         ],
         "components": [
@@ -734,9 +734,9 @@
       {
         "frame": 1,
         "bounds": [
-          40,
+          39,
           11,
-          124,
+          123,
           138
         ],
         "components": [
@@ -747,9 +747,9 @@
       {
         "frame": 2,
         "bounds": [
-          71,
+          70,
           21,
-          138,
+          137,
           138
         ],
         "components": [
@@ -760,9 +760,9 @@
       {
         "frame": 3,
         "bounds": [
-          71,
+          70,
           20,
-          145,
+          144,
           138
         ],
         "components": [
@@ -773,9 +773,9 @@
       {
         "frame": 4,
         "bounds": [
-          71,
+          70,
           20,
-          136,
+          135,
           138
         ],
         "components": [
@@ -786,9 +786,9 @@
       {
         "frame": 5,
         "bounds": [
-          41,
+          40,
           14,
-          126,
+          125,
           138
         ],
         "components": [
@@ -1353,78 +1353,78 @@
       {
         "frame": 0,
         "bounds": [
-          62,
-          12,
-          127,
+          77,
+          35,
+          130,
           138
         ],
         "components": [
-          3057
+          2026
         ],
         "partial_alpha_pixels": 0
       },
       {
         "frame": 1,
         "bounds": [
-          65,
-          13,
-          132,
+          74,
+          36,
+          129,
           138
         ],
         "components": [
-          2972
+          1997
         ],
         "partial_alpha_pixels": 0
       },
       {
         "frame": 2,
         "bounds": [
-          53,
-          14,
-          127,
+          77,
+          36,
+          138,
           138
         ],
         "components": [
-          2963
+          1979
         ],
         "partial_alpha_pixels": 0
       },
       {
         "frame": 3,
         "bounds": [
-          62,
-          10,
-          137,
+          72,
+          33,
+          133,
           138
         ],
         "components": [
-          3216
+          2156
         ],
         "partial_alpha_pixels": 0
       },
       {
         "frame": 4,
         "bounds": [
-          59,
-          10,
-          138,
+          70,
+          33,
+          135,
           138
         ],
         "components": [
-          3257
+          2179
         ],
         "partial_alpha_pixels": 0
       },
       {
         "frame": 5,
         "bounds": [
-          60,
-          16,
-          121,
+          81,
+          38,
+          131,
           138
         ],
         "components": [
-          2867
+          1928
         ],
         "partial_alpha_pixels": 0
       }
@@ -1433,78 +1433,78 @@
       {
         "frame": 0,
         "bounds": [
-          39,
-          10,
-          131,
+          59,
+          41,
+          129,
           138
         ],
         "components": [
-          4787
+          2745
         ],
         "partial_alpha_pixels": 0
       },
       {
         "frame": 1,
         "bounds": [
-          41,
-          18,
-          169,
+          58,
+          47,
+          152,
           138
         ],
         "components": [
-          5342
+          3077
         ],
         "partial_alpha_pixels": 0
       },
       {
         "frame": 2,
         "bounds": [
-          51,
-          24,
-          190,
+          63,
+          52,
+          168,
           138
         ],
         "components": [
-          5068
+          2850
         ],
         "partial_alpha_pixels": 0
       },
       {
         "frame": 3,
         "bounds": [
-          36,
-          32,
-          183,
+          56,
+          58,
+          167,
           138
         ],
         "components": [
-          5010
+          2896
         ],
         "partial_alpha_pixels": 0
       },
       {
         "frame": 4,
         "bounds": [
-          40,
-          22,
-          151,
+          56,
+          50,
+          140,
           138
         ],
         "components": [
-          5228
+          2998
         ],
         "partial_alpha_pixels": 0
       },
       {
         "frame": 5,
         "bounds": [
-          38,
-          10,
-          131,
+          58,
+          41,
+          129,
           138
         ],
         "components": [
-          4842
+          2798
         ],
         "partial_alpha_pixels": 0
       }
@@ -1513,78 +1513,78 @@
       {
         "frame": 0,
         "bounds": [
-          23,
-          14,
-          155,
+          53,
+          46,
+          151,
           138
         ],
         "components": [
-          5596
+          3107
         ],
         "partial_alpha_pixels": 0
       },
       {
         "frame": 1,
         "bounds": [
-          33,
-          10,
+          66,
+          43,
           159,
           138
         ],
         "components": [
-          5457
+          2990
         ],
         "partial_alpha_pixels": 0
       },
       {
         "frame": 2,
         "bounds": [
-          39,
-          17,
-          176,
+          73,
+          49,
+          172,
           138
         ],
         "components": [
-          5344
+          2866
         ],
         "partial_alpha_pixels": 0
       },
       {
         "frame": 3,
         "bounds": [
-          40,
-          19,
-          180,
+          72,
+          50,
+          175,
           138
         ],
         "components": [
-          5215
+          2842
         ],
         "partial_alpha_pixels": 0
       },
       {
         "frame": 4,
         "bounds": [
-          39,
-          17,
-          162,
+          69,
+          49,
+          160,
           138
         ],
         "components": [
-          5416
+          2915
         ],
         "partial_alpha_pixels": 0
       },
       {
         "frame": 5,
         "bounds": [
-          13,
-          18,
-          153,
+          48,
+          49,
+          151,
           138
         ],
         "components": [
-          5584
+          3057
         ],
         "partial_alpha_pixels": 0
       }
@@ -1593,78 +1593,78 @@
       {
         "frame": 0,
         "bounds": [
-          71,
-          10,
-          120,
+          77,
+          23,
+          121,
           138
         ],
         "components": [
-          3366
+          2719
         ],
         "partial_alpha_pixels": 0
       },
       {
         "frame": 1,
         "bounds": [
-          68,
-          10,
-          121,
+          74,
+          24,
+          122,
           138
         ],
         "components": [
-          3407
+          2719
         ],
         "partial_alpha_pixels": 0
       },
       {
         "frame": 2,
         "bounds": [
-          62,
-          39,
+          70,
+          49,
           139,
           138
         ],
         "components": [
-          3100
+          2492
         ],
         "partial_alpha_pixels": 0
       },
       {
         "frame": 3,
         "bounds": [
-          55,
-          42,
-          149,
+          62,
+          52,
+          147,
           138
         ],
         "components": [
-          3405
+          2758
         ],
         "partial_alpha_pixels": 0
       },
       {
         "frame": 4,
         "bounds": [
-          65,
-          39,
-          142,
+          71,
+          49,
+          140,
           138
         ],
         "components": [
-          3217
+          2583
         ],
         "partial_alpha_pixels": 0
       },
       {
         "frame": 5,
         "bounds": [
-          55,
-          11,
+          62,
+          24,
           124,
           138
         ],
         "components": [
-          3478
+          2799
         ],
         "partial_alpha_pixels": 0
       }
@@ -1673,39 +1673,39 @@
       {
         "frame": 0,
         "bounds": [
-          51,
-          11,
-          140,
+          61,
+          40,
+          129,
           138
         ],
         "components": [
-          4456
+          2642
         ],
         "partial_alpha_pixels": 0
       },
       {
         "frame": 1,
         "bounds": [
-          50,
-          19,
-          154,
+          59,
+          46,
+          140,
           138
         ],
         "components": [
-          4424
+          2655
         ],
         "partial_alpha_pixels": 0
       },
       {
         "frame": 2,
         "bounds": [
-          53,
-          13,
-          138,
+          63,
+          42,
+          128,
           138
         ],
         "components": [
-          4312
+          2511
         ],
         "partial_alpha_pixels": 0
       }
@@ -1714,78 +1714,79 @@
       {
         "frame": 0,
         "bounds": [
-          59,
-          12,
-          131,
+          79,
+          38,
+          136,
           138
         ],
         "components": [
-          3561
+          2231
         ],
         "partial_alpha_pixels": 0
       },
       {
         "frame": 1,
         "bounds": [
-          57,
-          30,
-          134,
+          76,
+          53,
+          137,
           138
         ],
         "components": [
-          2970
+          1702,
+          144
         ],
         "partial_alpha_pixels": 0
       },
       {
         "frame": 2,
         "bounds": [
-          57,
-          75,
-          134,
+          76,
+          88,
+          137,
           138
         ],
         "components": [
-          2451
+          1537
         ],
         "partial_alpha_pixels": 0
       },
       {
         "frame": 3,
         "bounds": [
-          50,
-          94,
-          141,
+          68,
+          104,
+          140,
           138
         ],
         "components": [
-          2245
+          1362
         ],
         "partial_alpha_pixels": 0
       },
       {
         "frame": 4,
         "bounds": [
-          52,
-          104,
-          139,
+          69,
+          111,
+          138,
           138
         ],
         "components": [
-          1953
+          1205
         ],
         "partial_alpha_pixels": 0
       },
       {
         "frame": 5,
         "bounds": [
-          51,
-          111,
-          140,
+          67,
+          116,
+          138,
           138
         ],
         "components": [
-          1555
+          978
         ],
         "partial_alpha_pixels": 0
       }
@@ -1794,52 +1795,52 @@
       {
         "frame": 0,
         "bounds": [
-          32,
-          12,
-          160,
+          59,
+          47,
+          152,
           138
         ],
         "components": [
-          7760
+          4048
         ],
         "partial_alpha_pixels": 0
       },
       {
         "frame": 1,
         "bounds": [
-          36,
-          10,
-          166,
+          59,
+          45,
+          153,
           138
         ],
         "components": [
-          7924
+          4139
         ],
         "partial_alpha_pixels": 0
       },
       {
         "frame": 2,
         "bounds": [
-          22,
-          18,
-          174,
+          49,
+          51,
+          159,
           138
         ],
         "components": [
-          8386
+          4414
         ],
         "partial_alpha_pixels": 0
       },
       {
         "frame": 3,
         "bounds": [
-          23,
-          14,
-          157,
+          49,
+          49,
+          146,
           138
         ],
         "components": [
-          7761
+          4018
         ],
         "partial_alpha_pixels": 0
       }
@@ -1848,52 +1849,52 @@
       {
         "frame": 0,
         "bounds": [
-          36,
-          10,
-          156,
+          45,
+          39,
+          138,
           138
         ],
         "components": [
-          6265
+          3751
         ],
         "partial_alpha_pixels": 0
       },
       {
         "frame": 1,
         "bounds": [
-          36,
-          24,
-          155,
+          45,
+          49,
+          137,
           138
         ],
         "components": [
-          5781
+          3485
         ],
         "partial_alpha_pixels": 0
       },
       {
         "frame": 2,
         "bounds": [
-          38,
-          30,
-          156,
+          46,
+          55,
+          137,
           138
         ],
         "components": [
-          5289
+          3149
         ],
         "partial_alpha_pixels": 0
       },
       {
         "frame": 3,
         "bounds": [
-          43,
-          36,
-          161,
+          50,
+          59,
+          141,
           138
         ],
         "components": [
-          5232
+          3103
         ],
         "partial_alpha_pixels": 0
       }

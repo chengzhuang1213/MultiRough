@@ -40,6 +40,11 @@ var is_boss := false
 var arena_bounds := Rect2(Vector2(-480, -270), Vector2(960, 540))
 
 var _target: Node2D
+var _forced_target: Node2D
+var _forced_target_left := 0.0
+var _marked_by: PlayerController
+var _mark_left := 0.0
+var _mark_damage_multiplier := 1.0
 var _attack_timer := 0.0
 var _attack_windup_left := 0.0
 var _attack_recovery_left := 0.0
@@ -139,13 +144,38 @@ func setup_as_boss() -> void:
 		_play_animation(ANIM_IDLE, true)
 
 func set_target(target: Node2D) -> void:
+	if _forced_target_left > 0.0 and _forced_target != null and is_instance_valid(_forced_target):
+		_target = _forced_target
+		return
 	_target = target
+
+func apply_taunt(target: PlayerController, duration: float) -> void:
+	if is_boss:
+		return
+	_forced_target = target
+	_forced_target_left = maxf(_forced_target_left, duration)
+	_target = target
+
+func apply_hunter_mark(owner: PlayerController, duration: float, damage_multiplier: float) -> void:
+	_marked_by = owner
+	_mark_left = duration
+	_mark_damage_multiplier = damage_multiplier
+
+func get_damage_multiplier(attacker: PlayerController) -> float:
+	return _mark_damage_multiplier if _mark_left > 0.0 and attacker == _marked_by else 1.0
 
 func _target_is_dead() -> bool:
 	var player_target: PlayerController = _target as PlayerController
 	return player_target != null and player_target.is_dead
 
 func _physics_process(delta: float) -> void:
+	_forced_target_left = maxf(0.0, _forced_target_left - delta)
+	_mark_left = maxf(0.0, _mark_left - delta)
+	if _forced_target_left <= 0.0:
+		_forced_target = null
+	if _mark_left <= 0.0:
+		_marked_by = null
+		_mark_damage_multiplier = 1.0
 	_attack_timer = maxf(0.0, _attack_timer - delta)
 	if is_boss:
 		_boss_area_timer = maxf(0.0, _boss_area_timer - delta)

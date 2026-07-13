@@ -2,4 +2,6 @@
 .import/
 export.cfg
 build/
+__pycache__/
+*.pyc
 

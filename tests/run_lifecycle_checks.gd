@@ -18,6 +18,7 @@ func _run() -> void:
 	await _check_complete_single_player_run()
 	await _check_restart_cleanup()
 	await _check_defeat_and_second_restart()
+	await _check_return_to_menu_cleanup()
 
 	Engine.time_scale = 1.0
 	if failures.is_empty():
@@ -88,6 +89,16 @@ func _check_defeat_and_second_restart() -> void:
 	await process_frame
 	await process_frame
 	_expect_clean_lobby("restart after defeat")
+
+func _check_return_to_menu_cleanup() -> void:
+	game._start_game(1)
+	await process_frame
+	_expect(game.return_to_menu_button.visible, "active run did not show the return-to-menu button")
+	game._on_return_to_menu_pressed()
+	await process_frame
+	await process_frame
+	_expect_clean_lobby("return-to-menu action")
+	_expect(not game.return_to_menu_button.visible, "lobby still showed the return-to-menu button")
 
 func _kill_current_wave() -> void:
 	for enemy in game.enemies.duplicate():

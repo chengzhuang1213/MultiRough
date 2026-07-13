@@ -163,9 +163,6 @@ const SKILL_POOL: Array = [
 static func roll(count: int = 3, character_id: String = "") -> Array:
 	var result: Array = []
 	var used_ids: Dictionary = {}
-	if character_id == "mage":
-		return _roll_from_pool(GENERAL_POOL, count, used_ids)
-
 	for upgrade in _roll_from_pool(SKILL_POOL, min(2, count), used_ids):
 		result.append(upgrade)
 
