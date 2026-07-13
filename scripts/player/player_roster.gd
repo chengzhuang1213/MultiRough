@@ -27,6 +27,7 @@ func create_player(player_name: String, spawn_position: Vector2, tint: Color, mo
 	player.health_changed.connect(on_player_health_changed.bind(player))
 	player.damage_taken.connect(combat.on_player_damage_taken.bind(player))
 	player.reflected_damage_requested.connect(combat.on_player_reflected_damage.bind(player))
+	player.perfect_guard_triggered.connect(combat.on_player_perfect_guard.bind(player))
 	player.died.connect(game._on_player_died)
 	game.add_child(player)
 	return player

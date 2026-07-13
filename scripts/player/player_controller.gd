@@ -11,6 +11,7 @@ signal fan_skill_requested(origin: Vector2, direction: Vector2, length: float, h
 signal ultimate_skill_requested(origin: Vector2, direction: Vector2, damage: float, duration: float)
 signal cooldown_notice_requested(skill_index: int)
 signal reflected_damage_requested(enemy: EnemyController, amount: float)
+signal perfect_guard_triggered
 
 const UNIT_PATH_PREFIX := "res://assets/tiny_swords_free_pack/Units/"
 const SPRITE_FRAME_SIZE := Vector2(192, 192)
@@ -66,6 +67,10 @@ var fan_skill_half_width := 16.0
 var ultimate_cooldown: float = 28.0
 var ultimate_duration: float = 8.0
 var ultimate_damage_multiplier := 1.0
+var upgrade_levels: Dictionary = {}
+var warrior_counter_reflect_multiplier := 1.30
+var warrior_counter_pulse_multiplier := 1.0
+var archer_charge_time_multiplier := 1.0
 
 var arena_bounds := Rect2(Vector2(-480, -270), Vector2(960, 540))
 var is_dead := false
@@ -124,6 +129,9 @@ var _external_ultimate_pressed := false
 var _warrior_taunt_guard_left := 0.0
 var _warrior_counter_left := 0.0
 var _warrior_blade_guard_left := 0.0
+var _warrior_shield_guard_left := 0.0
+var _warrior_perfect_guard_cooldown := 0.0
+var _lancer_regen_timer := 10.0
 var _archer_q_charging := false
 var _archer_q_charge_time := 0.0
 
@@ -260,13 +268,22 @@ func apply_damage(amount: float, source: EnemyController = null) -> bool:
 		final_amount *= 0.5
 	if _warrior_blade_guard_left > 0.0:
 		final_amount *= 0.75
+	if _warrior_shield_guard_left > 0.0:
+		final_amount *= 0.65
+	var perfect_guard := false
+	if _warrior_counter_left > 0.0 and get_upgrade_level("warrior_e_perfect_guard") > 0 and _warrior_perfect_guard_cooldown <= 0.0:
+		final_amount = 0.0
+		perfect_guard = true
+		_warrior_perfect_guard_cooldown = 0.75
 	health = maxf(0.0, health - final_amount)
 	_damage_flash_left = 0.12
 	if defended:
 		_defense_flash_left = 0.18
 	damage_taken.emit(final_amount, defended)
+	if perfect_guard:
+		perfect_guard_triggered.emit()
 	if _warrior_counter_left > 0.0 and source != null and is_instance_valid(source):
-		reflected_damage_requested.emit(source, amount * 1.30)
+		reflected_damage_requested.emit(source, amount * warrior_counter_reflect_multiplier)
 	health_changed.emit(health, max_health)
 	if health <= 0.0:
 		is_dead = true
@@ -362,6 +379,15 @@ func activate_warrior_counter(duration: float) -> void:
 func activate_warrior_blade_guard(duration: float) -> void:
 	_warrior_blade_guard_left = maxf(_warrior_blade_guard_left, duration)
 
+func activate_warrior_shield_guard(duration: float) -> void:
+	_warrior_shield_guard_left = maxf(_warrior_shield_guard_left, duration)
+
+func grant_skill_invulnerability(duration: float) -> void:
+	_invulnerable_left = maxf(_invulnerable_left, duration)
+
+func get_upgrade_level(upgrade_id: String) -> int:
+	return int(upgrade_levels.get(upgrade_id, 0))
+
 func _consume_basic_pressed() -> bool:
 	if not external_input_enabled:
 		return Input.is_action_just_pressed(basic_attack_action)
@@ -403,11 +429,12 @@ func _update_archer_q_charge(delta: float) -> void:
 	if not _archer_q_charging:
 		_consume_skill_released()
 		return
+	var max_charge_time := ARCHER_Q_MAX_CHARGE_TIME * archer_charge_time_multiplier
 	if _get_skill_held():
-		_archer_q_charge_time = minf(ARCHER_Q_MAX_CHARGE_TIME, _archer_q_charge_time + delta)
+		_archer_q_charge_time = minf(max_charge_time, _archer_q_charge_time + delta)
 	if not _consume_skill_released():
 		return
-	var charge_ratio := clampf(_archer_q_charge_time / ARCHER_Q_MAX_CHARGE_TIME, 0.0, 1.0)
+	var charge_ratio := clampf(_archer_q_charge_time / max_charge_time, 0.0, 1.0)
 	var damage_ratio := lerpf(ARCHER_Q_MIN_DAMAGE_RATIO, 1.0, charge_ratio)
 	var skill_direction := _get_attack_direction()
 	_last_direction = skill_direction
@@ -416,9 +443,6 @@ func _update_archer_q_charge(delta: float) -> void:
 	_start_cast_animation()
 	_archer_q_charging = false
 	_archer_q_charge_time = 0.0
-	_warrior_taunt_guard_left = 0.0
-	_warrior_counter_left = 0.0
-	_warrior_blade_guard_left = 0.0
 
 func _consume_fan_pressed() -> bool:
 	if not external_input_enabled:
@@ -475,6 +499,12 @@ func _reset_transient_action_state() -> void:
 	_external_ultimate_pressed = false
 	_archer_q_charging = false
 	_archer_q_charge_time = 0.0
+	_warrior_taunt_guard_left = 0.0
+	_warrior_counter_left = 0.0
+	_warrior_blade_guard_left = 0.0
+	_warrior_shield_guard_left = 0.0
+	_warrior_perfect_guard_cooldown = 0.0
+	_lancer_regen_timer = 10.0
 
 func roll_damage(base_damage: float) -> float:
 	return _roll_damage(base_damage)
@@ -492,6 +522,9 @@ func apply_character_config(config: Dictionary) -> void:
 	attack_half_width = float(config.get("attack_half_width", attack_half_width))
 	attack_knockback = float(config.get("attack_knockback", attack_knockback))
 	defense_damage_multiplier = float(config.get("defense_damage_multiplier", defense_damage_multiplier))
+	dash_max_charges = int(config.get("dash_max_charges", 1))
+	dash_charges = dash_max_charges
+	_lancer_regen_timer = 10.0
 	skill_cooldown = float(config.get("skill_cooldown", skill_cooldown))
 	skill_damage = float(config.get("skill_damage", skill_damage))
 	skill_length = float(config.get("skill_length", skill_length))
@@ -513,8 +546,21 @@ func _roll_damage(base_damage: float) -> float:
 func apply_upgrade(upgrade: Dictionary) -> void:
 	var stat: String = str(upgrade.get("stat", ""))
 	var multiplier: float = float(upgrade.get("multiplier", 1.0))
+	var required_upgrade := str(upgrade.get("requires", ""))
+	if not required_upgrade.is_empty() and get_upgrade_level(required_upgrade) <= 0:
+		return
+	for excluded_id in upgrade.get("excludes", []):
+		if get_upgrade_level(str(excluded_id)) > 0:
+			return
 
 	match stat:
+		"behavior_upgrade":
+			var upgrade_id := str(upgrade.get("id", ""))
+			var max_level := int(upgrade.get("max_level", 1))
+			if get_upgrade_level(upgrade_id) >= max_level:
+				return
+			upgrade_levels[upgrade_id] = get_upgrade_level(upgrade_id) + 1
+			_apply_behavior_upgrade(upgrade_id)
 		"attack_damage":
 			attack_damage *= multiplier
 		"max_health":
@@ -562,11 +608,25 @@ func apply_upgrade(upgrade: Dictionary) -> void:
 		"heal_percent":
 			heal(max_health * float(upgrade.get("percent", 0.15)))
 
+func _apply_behavior_upgrade(upgrade_id: String) -> void:
+	match upgrade_id:
+		"warrior_e_counter":
+			warrior_counter_reflect_multiplier += 0.40
+		"archer_q_quickdraw":
+			archer_charge_time_multiplier = maxf(0.60, archer_charge_time_multiplier - 0.20)
+
 func _tick_timers(delta: float) -> void:
 	_warrior_taunt_guard_left = maxf(0.0, _warrior_taunt_guard_left - delta)
 	_warrior_counter_left = maxf(0.0, _warrior_counter_left - delta)
 	_warrior_blade_guard_left = maxf(0.0, _warrior_blade_guard_left - delta)
+	_warrior_shield_guard_left = maxf(0.0, _warrior_shield_guard_left - delta)
+	_warrior_perfect_guard_cooldown = maxf(0.0, _warrior_perfect_guard_cooldown - delta)
 	if not cooldowns_paused:
+		if character_id == CHARACTER_LANCER and not is_dead:
+			_lancer_regen_timer -= delta
+			if _lancer_regen_timer <= 0.0:
+				heal(1.0)
+				_lancer_regen_timer += 10.0
 		_attack_timer = maxf(0.0, _attack_timer - delta)
 		if dash_charges < dash_max_charges:
 			_dash_timer = maxf(0.0, _dash_timer - delta)
@@ -657,6 +717,8 @@ func _start_cast_animation() -> void:
 	_attack_anim_left = 0.36
 
 func _set_sprite_texture(path: String) -> void:
+	if _sprite == null:
+		return
 	var texture: Texture2D = load(path) as Texture2D
 	if _sprite.texture != texture:
 		_sprite.texture = texture
@@ -685,6 +747,8 @@ func _advance_animation(delta: float) -> void:
 	_apply_animation_frame()
 
 func _apply_animation_frame() -> void:
+	if _sprite == null:
+		return
 	var data: Dictionary = _get_animation_data(_current_anim)
 	var frame_size: Vector2 = data.get("frame_size", SPRITE_FRAME_SIZE) as Vector2
 	_sprite.region_rect = Rect2(Vector2(frame_size.x * float(_anim_frame), 0.0), frame_size)

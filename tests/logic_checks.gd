@@ -11,9 +11,11 @@ var failures: Array[String] = []
 
 func _init() -> void:
 	_check_character_configs()
+	_check_character_passives()
 	_check_original_animation_sheets()
 	_check_upgrade_application()
 	_check_upgrade_rolls_are_unique()
+	_check_behavior_upgrade_pool()
 	_check_wave_progression()
 	_check_multiplayer_scaling_and_revival()
 	_check_wave_clear_healing()
@@ -40,7 +42,33 @@ func _check_character_configs() -> void:
 	_expect(is_equal_approx(float(GameRulesScript.CHARACTER_CONFIGS["archer"]["visual_scale"]), 0.55), "archer visual scale changed")
 	_expect(is_equal_approx(float(GameRulesScript.CHARACTER_CONFIGS["lancer"]["visual_scale"]), 0.55), "lancer visual scale changed")
 	_expect(is_equal_approx(float(GameRulesScript.CHARACTER_CONFIGS["mage"]["visual_scale"]), 0.62), "mage visual scale changed")
+	_expect(is_equal_approx(float(GameRulesScript.CHARACTER_CONFIGS["warrior"]["defense_damage_multiplier"]), 0.30), "warrior passive defense multiplier is incorrect")
+	_expect(int(GameRulesScript.CHARACTER_CONFIGS["archer"]["dash_max_charges"]) == 2, "archer passive does not grant two dash charges")
+	_expect(is_equal_approx(GameRulesScript.NORMAL_WAVE_TIME_LIMIT, 60.0), "normal wave time limit is not 60 seconds")
+	_expect(is_equal_approx(GameRulesScript.BOSS_WAVE_TIME_LIMIT, 120.0), "boss wave time limit is not 120 seconds")
 	_check_mage_art_assets()
+
+func _check_character_passives() -> void:
+	var warrior = PlayerScript.new()
+	warrior.apply_character_config(GameRulesScript.get_character_config("warrior"))
+	warrior.is_defending = true
+	var warrior_health: float = warrior.health
+	warrior.apply_damage(10.0)
+	_expect(is_equal_approx(warrior.health, warrior_health - 3.0), "warrior passive did not reduce defended damage to 30 percent")
+	warrior.free()
+	var archer = PlayerScript.new()
+	archer.apply_character_config(GameRulesScript.get_character_config("archer"))
+	_expect(archer.dash_max_charges == 2 and archer.dash_charges == 2, "archer did not start with two dash charges")
+	archer.free()
+	var lancer = PlayerScript.new()
+	lancer.apply_character_config(GameRulesScript.get_character_config("lancer"))
+	lancer.health -= 5.0
+	var lancer_health: float = lancer.health
+	lancer._tick_timers(9.9)
+	_expect(is_equal_approx(lancer.health, lancer_health), "lancer passive healed before ten seconds")
+	lancer._tick_timers(0.1)
+	_expect(is_equal_approx(lancer.health, lancer_health + 1.0), "lancer passive did not heal one health after ten seconds")
+	lancer.free()
 
 func _check_mage_art_assets() -> void:
 	var paths := [
@@ -127,7 +155,31 @@ func _check_upgrade_application() -> void:
 	player.apply_upgrade({"stat": "max_health", "multiplier": 1.20})
 	_expect(is_equal_approx(player.max_health, base_health * 1.20), "maximum health upgrade was not applied")
 	_expect(is_equal_approx(player.health, player.max_health), "maximum health upgrade did not preserve full health")
+	player.apply_upgrade({"id": "archer_q_quickdraw", "stat": "behavior_upgrade", "max_level": 1})
+	_expect(player.get_upgrade_level("archer_q_quickdraw") == 1, "behavior upgrade level was not recorded")
+	_expect(is_equal_approx(player.archer_charge_time_multiplier, 0.8), "archer quickdraw behavior was not applied")
+	player.apply_upgrade({"id": "archer_q_quickdraw", "stat": "behavior_upgrade", "max_level": 1})
+	_expect(player.get_upgrade_level("archer_q_quickdraw") == 1, "behavior upgrade exceeded its one-card limit")
 	player.free()
+	var branch_player = PlayerScript.new()
+	branch_player.apply_character_config(GameRulesScript.get_character_config("warrior"))
+	var counter_card := _find_behavior_upgrade("warrior_e_counter")
+	var shield_card := _find_behavior_upgrade("warrior_e_shield")
+	var perfect_guard_card := _find_behavior_upgrade("warrior_e_perfect_guard")
+	branch_player.apply_upgrade(perfect_guard_card)
+	_expect(branch_player.get_upgrade_level("warrior_e_perfect_guard") == 0, "rare E upgrade ignored its common prerequisite")
+	branch_player.apply_upgrade(counter_card)
+	branch_player.apply_upgrade(shield_card)
+	_expect(branch_player.get_upgrade_level("warrior_e_shield") == 0, "player acquired both mutually exclusive E branches")
+	branch_player.apply_upgrade(perfect_guard_card)
+	_expect(branch_player.get_upgrade_level("warrior_e_perfect_guard") == 1, "selected E branch could not acquire its rare follow-up")
+	branch_player.free()
+
+func _find_behavior_upgrade(upgrade_id: String) -> Dictionary:
+	for upgrade in UpgradeCatalogScript.BEHAVIOR_POOL:
+		if str((upgrade as Dictionary).get("id", "")) == upgrade_id:
+			return upgrade as Dictionary
+	return {}
 
 func _check_upgrade_rolls_are_unique() -> void:
 	seed(90710)
@@ -138,6 +190,60 @@ func _check_upgrade_rolls_are_unique() -> void:
 			_expect(UpgradeManagerScript.has_unique_ids(upgrades), "%s upgrade roll contains duplicate ids" % character_id)
 			if character_id == "mage":
 				_expect(upgrades.any(func(upgrade): return (upgrade as Dictionary).has("skill_slot")), "mage did not receive a skill upgrade after Q/E/F were implemented")
+
+func _check_behavior_upgrade_pool() -> void:
+	_expect(UpgradeCatalogScript.BEHAVIOR_POOL.size() == 36, "behavior pool does not contain eight Q cards, sixteen E cards, and twelve F cards")
+	_expect(not UpgradeCatalogScript.SKILL_POOL.any(func(upgrade): return str((upgrade as Dictionary).get("skill_slot", "")) == "Q"), "generic Q upgrades still exist beside the profession cards")
+	_expect(not UpgradeCatalogScript.SKILL_POOL.any(func(upgrade): return str((upgrade as Dictionary).get("skill_slot", "")) == "E"), "generic E upgrades still exist beside the profession cards")
+	for character_id in ["warrior", "archer", "mage", "lancer"]:
+		var owned := {}
+		var q_upgrades: Array = []
+		var e_upgrades: Array = []
+		var ultimate_upgrades: Array = []
+		for upgrade in UpgradeCatalogScript.BEHAVIOR_POOL:
+			if str((upgrade as Dictionary).get("character_id", "")) == character_id:
+				owned[str((upgrade as Dictionary).get("id", ""))] = int((upgrade as Dictionary).get("max_level", 1))
+				var skill_slot := str((upgrade as Dictionary).get("skill_slot", ""))
+				if skill_slot == "Q":
+					q_upgrades.append(upgrade)
+				elif skill_slot == "E":
+					e_upgrades.append(upgrade)
+				elif skill_slot == "F":
+					ultimate_upgrades.append(upgrade)
+		_expect(q_upgrades.size() == 2, "%s does not have exactly two Q upgrades" % character_id)
+		for upgrade in q_upgrades:
+			_expect(str((upgrade as Dictionary).get("rarity", "")) == "Common", "%s Q upgrade is not common quality" % character_id)
+			_expect(not (upgrade as Dictionary).has("requires"), "%s Q upgrade unexpectedly has a prerequisite" % character_id)
+		_expect(e_upgrades.size() == 4, "%s does not have two complete E branches" % character_id)
+		var e_rarities: Array = e_upgrades.map(func(upgrade): return str((upgrade as Dictionary).get("rarity", "")))
+		_expect(e_rarities.count("Common") == 2, "%s E does not have two common branch choices" % character_id)
+		_expect(e_rarities.count("Rare") == 2, "%s E does not have two rare follow-ups" % character_id)
+		for upgrade in e_upgrades:
+			var rarity := str((upgrade as Dictionary).get("rarity", ""))
+			_expect((upgrade as Dictionary).has("excludes"), "%s E upgrade is missing branch exclusions" % character_id)
+			if rarity == "Rare":
+				_expect(not str((upgrade as Dictionary).get("requires", "")).is_empty(), "%s rare E upgrade is missing its common prerequisite" % character_id)
+			else:
+				_expect(not (upgrade as Dictionary).has("requires"), "%s common E branch unexpectedly has a prerequisite" % character_id)
+		var common_one := e_upgrades.filter(func(upgrade): return str((upgrade as Dictionary).get("rarity", "")) == "Common")[0] as Dictionary
+		var branch_one_owned := {str(common_one.get("id", "")): 1}
+		var eligible := UpgradeCatalogScript.roll(100, character_id, branch_one_owned)
+		var eligible_ids: Array = eligible.map(func(upgrade): return str((upgrade as Dictionary).get("id", "")))
+		_expect(eligible_ids.has(str(e_upgrades.filter(func(upgrade): return str((upgrade as Dictionary).get("requires", "")) == str(common_one.get("id", "")))[0].get("id", ""))), "%s selected E branch did not unlock its rare follow-up" % character_id)
+		for excluded_id in common_one.get("excludes", []):
+			_expect(not eligible_ids.has(str(excluded_id)), "%s selected E branch still rolled the opposite branch" % character_id)
+		_expect(ultimate_upgrades.size() == 3, "%s does not have exactly three independent ultimate upgrades" % character_id)
+		var rarities: Array = ultimate_upgrades.map(func(upgrade): return str((upgrade as Dictionary).get("rarity", "")))
+		_expect(rarities.count("Common") == 1, "%s ultimate is missing its common upgrade" % character_id)
+		_expect(rarities.count("Rare") == 1, "%s ultimate is missing its rare upgrade" % character_id)
+		_expect(rarities.count("Epic") == 1, "%s ultimate is missing its epic upgrade" % character_id)
+		for upgrade in ultimate_upgrades:
+			_expect(not (upgrade as Dictionary).has("requires"), "%s ultimate upgrade unexpectedly has a prerequisite" % character_id)
+		var upgrades := UpgradeCatalogScript.roll(30, character_id, owned)
+		for upgrade in upgrades:
+			var required_character := str((upgrade as Dictionary).get("character_id", ""))
+			_expect(required_character.is_empty() or required_character == character_id, "%s rolled another character's behavior upgrade" % character_id)
+			_expect(not owned.has(str((upgrade as Dictionary).get("id", ""))), "%s rolled a behavior upgrade already at max level" % character_id)
 
 func _check_wave_progression() -> void:
 	var manager = WaveManagerScript.new()

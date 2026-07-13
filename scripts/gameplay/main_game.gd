@@ -76,6 +76,7 @@ var enemy_damage_multiplier := 1.0
 var boss_health_multiplier := 1.0
 var boss_damage_multiplier := 1.0
 var elapsed_time := 0.0
+var wave_time_left := 0.0
 var enemies_defeated := 0
 var damage_dealt := 0.0
 var damage_taken := 0.0
@@ -203,6 +204,9 @@ func _add_mouse_action(action: StringName, button_index: int) -> void:
 func _process(delta: float) -> void:
 	if _is_combat_active():
 		elapsed_time += delta
+		wave_time_left = maxf(0.0, wave_time_left - delta)
+		if wave_time_left <= 0.0:
+			_enter_defeat("时间耗尽")
 	if _is_network_game():
 		_send_network_input()
 	_update_camera()
@@ -889,6 +893,7 @@ func _start_game(player_count: int) -> void:
 	wave_manager.reset()
 	wave_index = wave_manager.wave_index
 	elapsed_time = 0.0
+	wave_time_left = 0.0
 	enemies_defeated = 0
 	damage_dealt = 0.0
 	damage_taken = 0.0
@@ -1033,9 +1038,11 @@ func _start_next_wave() -> void:
 	var wave_def: Dictionary = wave_result["definition"] as Dictionary
 	if wave_def.get("boss", false):
 		game_state = GameStateScript.BOSS_WAVE
+		wave_time_left = GameRulesScript.BOSS_WAVE_TIME_LIMIT
 		_spawn_boss()
 	else:
 		game_state = GameStateScript.WAVE_ACTIVE
+		wave_time_left = GameRulesScript.NORMAL_WAVE_TIME_LIMIT
 		_spawn_minions(roundi(float(wave_def["minions"]) * minion_count_multiplier))
 
 	_update_status()
@@ -1274,6 +1281,7 @@ func _enter_wave_clear() -> void:
 	if not _is_combat_active():
 		return
 	game_state = GameStateScript.COUNTDOWN
+	wave_time_left = 0.0
 	_set_player_cooldowns_paused(true)
 	_stop_ultimate()
 	result_label.text = "波次清理完成"
@@ -1479,10 +1487,12 @@ func _enter_upgrade_select() -> void:
 		return
 	_prepare_upgrade_select()
 	var character_ids: Array = []
+	var upgrade_players: Array = []
 	for slot in local_player_slots:
 		var target_player: PlayerController = slot.get("player") as PlayerController
 		character_ids.append(target_player.character_id if target_player != null else "")
-	var upgrade_sets: Array = UpgradeManagerScript.roll_for_characters(character_ids, 3)
+		upgrade_players.append(target_player)
+	var upgrade_sets: Array = UpgradeManagerScript.roll_for_players(upgrade_players, 3)
 	for slot_index in range(local_player_slots.size()):
 		local_player_slots[slot_index]["upgrades"] = upgrade_sets[slot_index]
 	if network_mode == "host":
@@ -1656,7 +1666,7 @@ func _build_upgrade_card(upgrade: Dictionary, target_player: PlayerController, c
 	content.add_child(spacer)
 
 	var current: Label = Label.new()
-	current.text = "当前：%s" % _format_player_stat(str(upgrade.get("stat", "")), target_player)
+	current.text = "当前：%s" % _format_upgrade_current(upgrade, target_player)
 	current.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	current.add_theme_font_size_override("font_size", 15)
 	current.add_theme_color_override("font_color", Color(0.70, 0.84, 0.78, 1.0))
@@ -1836,6 +1846,7 @@ func _on_start_next_wave_pressed() -> void:
 
 func _enter_victory() -> void:
 	game_state = GameStateScript.VICTORY
+	wave_time_left = 0.0
 	_clear_remaining_enemies()
 	_clear_effects()
 	_position_result_panel()
@@ -1844,14 +1855,15 @@ func _enter_victory() -> void:
 	restart_button.visible = true
 	_update_status()
 
-func _enter_defeat() -> void:
+func _enter_defeat(reason: String = "失败") -> void:
 	if game_state == GameStateScript.DEFEAT or game_state == GameStateScript.VICTORY:
 		return
 	game_state = GameStateScript.DEFEAT
+	wave_time_left = 0.0
 	_clear_remaining_enemies()
 	_clear_effects()
 	_position_result_panel()
-	result_label.text = _format_result_text("失败")
+	result_label.text = _format_result_text(reason)
 	result_label.visible = true
 	restart_button.visible = true
 	_update_status()
@@ -1917,6 +1929,7 @@ func _clear_run_state() -> void:
 	wave_manager.reset()
 	wave_index = wave_manager.wave_index
 	elapsed_time = 0.0
+	wave_time_left = 0.0
 	enemies_defeated = 0
 	damage_dealt = 0.0
 	damage_taken = 0.0
@@ -1968,21 +1981,35 @@ func _on_player_died() -> void:
 
 func _update_status() -> void:
 	status_label.text = "状态：%s" % _format_game_state(game_state)
-	wave_label.text = "波次：%d / %d" % [
-		clampi(wave_index + 1, 1, WAVE_DEFS.size()),
-		WAVE_DEFS.size(),
-	]
+	if _is_combat_active():
+		wave_label.text = "波次：%d / %d　剩余：%d秒" % [
+			clampi(wave_index + 1, 1, WAVE_DEFS.size()),
+			WAVE_DEFS.size(),
+			ceili(wave_time_left),
+		]
+	else:
+		wave_label.text = "波次：%d / %d" % [
+			clampi(wave_index + 1, 1, WAVE_DEFS.size()),
+			WAVE_DEFS.size(),
+		]
 	enemies_label.text = "剩余敌人：%d" % enemies.size()
 	_update_player_health_labels()
 
 func _format_upgrade_button(upgrade: Dictionary, target_player: PlayerController = null) -> String:
 	var stat: String = str(upgrade.get("stat", ""))
-	var current_value: String = _format_player_stat(stat, target_player)
+	var current_value: String = _format_upgrade_current(upgrade, target_player)
 	return "%s\n%s\n当前：%s" % [
 		upgrade["title"],
 		upgrade["description"],
 		current_value,
 	]
+
+func _format_upgrade_current(upgrade: Dictionary, target_player: PlayerController = null) -> String:
+	if str(upgrade.get("stat", "")) == "behavior_upgrade":
+		if target_player == null:
+			return "未获得"
+		return "等级 %d/%d" % [target_player.get_upgrade_level(str(upgrade.get("id", ""))), int(upgrade.get("max_level", 1))]
+	return _format_player_stat(str(upgrade.get("stat", "")), target_player)
 
 func _format_player_stat(stat: String, target_player: PlayerController = null) -> String:
 	var stat_player: PlayerController = player if target_player == null else target_player

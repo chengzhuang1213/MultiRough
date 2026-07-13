@@ -1,6 +1,7 @@
 extends SceneTree
 
 const MainScene := preload("res://scenes/main/main.tscn")
+const UpgradeCatalogScript := preload("res://scripts/upgrades/upgrade_catalog.gd")
 
 var failures: Array[String] = []
 var game: Node
@@ -15,6 +16,7 @@ func _run() -> void:
 	for character_id in ["warrior", "archer", "lancer"]:
 		await _check_character(character_id)
 	await _check_mage_combat()
+	await _check_e_upgrade_branches()
 	await _check_common_damage_accounting()
 	if failures.is_empty():
 		print("PASS: character combat checks")
@@ -49,14 +51,38 @@ func _check_character(character_id: String) -> void:
 
 	_reset_enemy(enemy)
 	game.combat_manager.on_player_active_skill(player.global_position, Vector2.RIGHT, player.skill_length, player.skill_half_width, 5.0, player)
+	var base_q_damage := enemy.max_health - enemy.health
 	if character_id == "warrior":
 		_expect(player._warrior_taunt_guard_left > 0.0, "warrior Q did not grant its two-second damage reduction")
 		_expect(enemy._forced_target == player, "warrior Q did not taunt a nearby normal enemy")
 		_expect(enemy.health < enemy.max_health, "warrior Q did not damage enemies pulled into melee range")
+		player.apply_upgrade({"id": "warrior_q_range", "stat": "behavior_upgrade"})
+		player.apply_upgrade({"id": "warrior_q_damage", "stat": "behavior_upgrade"})
+		_reset_enemy(enemy)
+		enemy.global_position = player.global_position + Vector2(240.0, 0.0)
+		game.combat_manager.on_player_active_skill(player.global_position, Vector2.RIGHT, player.skill_length, player.skill_half_width, 5.0, player)
+		_expect(enemy.health < enemy.max_health, "warrior common Q range upgrade did not reach 240 units")
+		_expect(enemy.max_health - enemy.health > base_q_damage, "warrior common Q damage upgrade did not increase damage")
 	elif character_id == "archer":
 		_expect(game.projectile_root.get_child_count() > 0, "archer Q did not create its high-damage arrow")
+		var base_arrow := game.projectile_root.get_child(game.projectile_root.get_child_count() - 1) as PlayerProjectile
+		var base_arrow_damage := base_arrow.damage
+		player.apply_upgrade({"id": "archer_q_quickdraw", "stat": "behavior_upgrade"})
+		player.apply_upgrade({"id": "archer_q_damage", "stat": "behavior_upgrade"})
+		game._clear_projectiles()
+		game.combat_manager.on_player_active_skill(player.global_position, Vector2.RIGHT, player.skill_length, player.skill_half_width, 5.0, player)
+		var upgraded_arrow := game.projectile_root.get_child(game.projectile_root.get_child_count() - 1) as PlayerProjectile
+		_expect(is_equal_approx(upgraded_arrow.damage, base_arrow_damage * 1.25), "archer common Q damage upgrade did not increase arrow damage")
+		_expect(is_equal_approx(player.archer_charge_time_multiplier, 0.8), "archer common Q charge upgrade did not shorten charging")
 	else:
 		_expect(enemy.health < enemy.max_health, "lancer Q no longer damages its frontal sweep")
+		player.apply_upgrade({"id": "lancer_q_range", "stat": "behavior_upgrade"})
+		player.apply_upgrade({"id": "lancer_q_damage", "stat": "behavior_upgrade"})
+		_reset_enemy(enemy)
+		enemy.global_position = player.global_position + Vector2(210.0, 0.0)
+		game.combat_manager.on_player_active_skill(player.global_position, Vector2.RIGHT, player.skill_length, player.skill_half_width, 5.0, player)
+		_expect(enemy.health < enemy.max_health, "lancer common Q range upgrade did not reach 210 units")
+		_expect(enemy.max_health - enemy.health > base_q_damage, "lancer common Q damage upgrade did not increase damage")
 	game._clear_projectiles()
 	await process_frame
 
@@ -75,16 +101,62 @@ func _check_character(character_id: String) -> void:
 	game._clear_projectiles()
 	await process_frame
 
-	game.combat_manager.on_player_ultimate_skill(player.global_position, Vector2.RIGHT, 5.0, 2.0, player)
+	game.combat_manager.on_player_ultimate_skill(player.global_position, Vector2.RIGHT, 5.0, 8.0, player)
 	if character_id == "warrior":
 		var state: Dictionary = game.ultimate_states[player.get_instance_id()]
 		_expect(float(state.get("duration_left", 0.0)) > 0.0, "warrior F did not activate its orbiting blades")
-		_expect((state.get("root") as Node2D).get_child_count() == 3, "warrior F did not create three orbiting blades")
-		_expect(player._warrior_blade_guard_left > 0.0, "warrior F did not grant its personal damage reduction")
+		_expect((state.get("root") as Node2D).get_child_count() == 2, "warrior base F did not create two orbiting blades")
+		_expect(player._warrior_blade_guard_left <= 0.0, "warrior base F granted the epic damage reduction")
+		player.apply_upgrade({"id": "warrior_f_extra_blade", "stat": "behavior_upgrade"})
+		player.apply_upgrade({"id": "warrior_f_attack_defense", "stat": "behavior_upgrade"})
+		game.combat_manager.on_player_ultimate_skill(player.global_position, Vector2.RIGHT, 5.0, 8.0, player)
+		_expect((state.get("root") as Node2D).get_child_count() == 3, "warrior common F upgrade did not add one blade")
+		_expect(player._warrior_blade_guard_left > 0.0, "warrior epic F upgrade did not grant damage reduction")
 	elif character_id == "archer":
 		_expect(_has_persistent_area("arrow_rain"), "archer F no longer creates arrow rain")
+		var rain: Dictionary = game.persistent_skill_areas.back()
+		_expect(is_equal_approx(float(rain.get("duration_left", 0.0)), 5.0), "archer F duration is not five seconds")
+		_expect(is_equal_approx(float(rain.get("interval", 0.0)), 0.5), "archer F does not fire one arrow every 0.5 seconds")
+		_expect(not bool(rain.get("critical_upgrade", false)), "archer base F received its rare critical effect")
+		_expect(not bool(rain.get("weakpoint_upgrade", false)), "archer base F received its epic weak-point effect")
+		game._spawn_minions(1)
+		var second_enemy: EnemyController = game.enemies.back()
+		var rain_center := rain.get("origin") as Vector2
+		_reset_enemy(enemy)
+		enemy.global_position = rain_center
+		second_enemy.global_position = rain_center + Vector2(20.0, 0.0)
+		second_enemy.health = second_enemy.max_health
+		game.combat_manager.update_persistent_skill_areas(0.0)
+		var damaged_count := int(enemy.health < enemy.max_health) + int(second_enemy.health < second_enemy.max_health)
+		_expect(damaged_count == 1, "archer F damaged more than one enemy in a single arrow tick")
+		game.combat_manager.clear_persistent_skill_areas()
+		player.apply_upgrade({"id": "archer_f_weakpoint", "stat": "behavior_upgrade"})
+		player.apply_upgrade({"id": "archer_f_damage", "stat": "behavior_upgrade"})
+		player.apply_upgrade({"id": "archer_f_critical", "stat": "behavior_upgrade"})
+		game.combat_manager.on_player_ultimate_skill(player.global_position, Vector2.RIGHT, 5.0, 8.0, player)
+		var upgraded_rain: Dictionary = game.persistent_skill_areas.back()
+		_expect(is_equal_approx(float(upgraded_rain.get("damage", 0.0)), 5.0 * 0.26 * 1.25), "archer common F upgrade did not increase arrow damage")
+		_expect(bool(upgraded_rain.get("critical_upgrade", false)), "archer rare F upgrade did not enable critical arrows")
+		_expect(bool(upgraded_rain.get("weakpoint_upgrade", false)), "archer epic F upgrade did not enable weak-point scaling")
 	else:
 		_expect(_has_persistent_area("lancer_storm"), "lancer F no longer creates its close-range storm")
+		var storm: Dictionary = game.persistent_skill_areas.back()
+		_expect(is_equal_approx(float(storm.get("radius", 0.0)), 175.0), "lancer base F radius changed")
+		_expect(not bool(storm.get("pull_upgrade", false)), "lancer base F received its rare pull effect")
+		_expect(not bool(storm.get("finisher_upgrade", false)), "lancer base F received its epic finisher")
+		game.combat_manager.clear_persistent_skill_areas()
+		player.apply_upgrade({"id": "lancer_f_finisher", "stat": "behavior_upgrade"})
+		player.apply_upgrade({"id": "lancer_f_reach", "stat": "behavior_upgrade"})
+		player.apply_upgrade({"id": "lancer_f_pull", "stat": "behavior_upgrade"})
+		game.combat_manager.on_player_ultimate_skill(player.global_position, Vector2.RIGHT, 5.0, 8.0, player)
+		var upgraded_storm: Dictionary = game.persistent_skill_areas.back()
+		_expect(is_equal_approx(float(upgraded_storm.get("radius", 0.0)), 210.0), "lancer common F upgrade did not expand the sweep")
+		_expect(bool(upgraded_storm.get("pull_upgrade", false)), "lancer rare F upgrade did not enable pulling")
+		_expect(bool(upgraded_storm.get("finisher_upgrade", false)), "lancer epic F upgrade did not enable the finishing sweep")
+		_reset_enemy(enemy)
+		enemy.global_position = player.global_position + Vector2(250.0, 0.0)
+		game.combat_manager.update_persistent_skill_areas(5.1)
+		_expect(enemy.health < enemy.max_health, "lancer epic F finishing sweep did not deal damage")
 
 	game._clear_run_state()
 	await process_frame
@@ -101,12 +173,17 @@ func _check_mage_combat() -> void:
 	_expect(player.character_id == "mage", "mage did not spawn with its character config")
 	_expect(game.combat_manager.character_modules.has("mage"), "mage combat module is not registered")
 	var projectiles_before: int = game.projectile_root.get_child_count()
+	game._spawn_minions(1)
+	var splash_enemy: EnemyController = game.enemies.back()
+	splash_enemy.global_position = enemy.global_position + Vector2(40.0, 0.0)
+	splash_enemy.health = splash_enemy.max_health
 	game.combat_manager.on_player_basic_attack(player.global_position, Vector2.RIGHT, player.attack_range, player.attack_half_width, 5.0, player)
 	_expect(game.projectile_root.get_child_count() == projectiles_before + 1, "mage basic attack did not create one magic projectile")
 	var projectile := game.projectile_root.get_child(game.projectile_root.get_child_count() - 1) as PlayerProjectile
 	projectile.global_position = enemy.global_position
 	projectile._process(0.0)
 	_expect(enemy.health < enemy.max_health, "mage basic projectile did not deal damage")
+	_expect(splash_enemy.health < splash_enemy.max_health, "mage passive basic attack did not damage nearby enemies")
 	_reset_enemy(enemy)
 	projectiles_before = game.projectile_root.get_child_count()
 	game.combat_manager.on_player_active_skill(player.global_position, Vector2.RIGHT, player.skill_length, player.skill_half_width, 5.0, player)
@@ -115,6 +192,7 @@ func _check_mage_combat() -> void:
 	fireball.global_position = enemy.global_position
 	fireball._process(0.0)
 	_expect(enemy.health < enemy.max_health, "mage Q explosion did not damage its target")
+	var base_q_damage := enemy.max_health - enemy.health
 	game._clear_projectiles()
 	await process_frame
 	_reset_enemy(enemy)
@@ -124,6 +202,22 @@ func _check_mage_combat() -> void:
 	range_fireball.enemies = []
 	range_fireball._process(1.0)
 	_expect(enemy.health < enemy.max_health, "mage Q did not explode at its maximum range")
+	game._clear_projectiles()
+	await process_frame
+	_reset_enemy(enemy)
+	enemy.global_position = player.global_position + Vector2(100.0, 0.0)
+	game._spawn_minions(1)
+	var radius_target: EnemyController = game.enemies.back()
+	radius_target.global_position = enemy.global_position + Vector2(85.0, 0.0)
+	radius_target.health = radius_target.max_health
+	player.apply_upgrade({"id": "mage_q_radius", "stat": "behavior_upgrade"})
+	player.apply_upgrade({"id": "mage_q_damage", "stat": "behavior_upgrade"})
+	game.combat_manager.on_player_active_skill(player.global_position, Vector2.RIGHT, player.skill_length, player.skill_half_width, 5.0, player)
+	var upgraded_fireball := game.projectile_root.get_child(game.projectile_root.get_child_count() - 1) as PlayerProjectile
+	upgraded_fireball.global_position = enemy.global_position
+	upgraded_fireball._process(0.0)
+	_expect(enemy.max_health - enemy.health > base_q_damage, "mage common Q damage upgrade did not increase explosion damage")
+	_expect(radius_target.health < radius_target.max_health, "mage common Q range upgrade did not expand the explosion")
 	game._clear_projectiles()
 	await process_frame
 
@@ -137,12 +231,36 @@ func _check_mage_combat() -> void:
 	game.combat_manager.clear_persistent_skill_areas()
 
 	_reset_enemy(enemy)
-	game.combat_manager.on_player_ultimate_skill(player.global_position, Vector2.RIGHT, 5.0, 2.0, player)
+	game.combat_manager.on_player_ultimate_skill(player.global_position, Vector2.RIGHT, 5.0, 8.0, player)
 	_expect(_has_persistent_area("mage_storm"), "mage F did not create an elemental storm")
 	var storm: Dictionary = game.persistent_skill_areas[0]
 	_expect((storm.get("origin") as Vector2).distance_to(player.global_position) <= 160.0, "mage F exceeded its maximum cast range")
+	_expect(is_equal_approx(float(storm.get("duration_left", 0.0)), 5.0), "mage F duration is not five seconds")
+	_expect(is_equal_approx(float(storm.get("interval", 0.0)), 1.0), "mage F does not pulse once per second")
+	_expect(is_equal_approx(float(storm.get("radius", 0.0)), 220.0), "mage base F radius changed")
+	_expect(not bool(storm.get("finisher_upgrade", false)), "mage base F received its epic finisher")
+	game._spawn_minions(1)
+	var second_enemy: EnemyController = game.enemies.back()
+	var storm_center := storm.get("origin") as Vector2
+	enemy.global_position = storm_center
+	second_enemy.global_position = storm_center + Vector2(20.0, 0.0)
+	second_enemy.health = second_enemy.max_health
 	game.combat_manager.update_persistent_skill_areas(0.0)
 	_expect(enemy.health < enemy.max_health, "mage F storm did not damage an enemy inside it")
+	_expect(second_enemy.health < second_enemy.max_health, "mage F did not damage every enemy inside its pulse")
+	game.combat_manager.clear_persistent_skill_areas()
+	player.apply_upgrade({"id": "mage_f_finisher", "stat": "behavior_upgrade"})
+	player.apply_upgrade({"id": "mage_f_expansion", "stat": "behavior_upgrade"})
+	player.apply_upgrade({"id": "mage_f_infusion", "stat": "behavior_upgrade"})
+	game.combat_manager.on_player_ultimate_skill(player.global_position, Vector2.RIGHT, 5.0, 8.0, player)
+	var upgraded_storm: Dictionary = game.persistent_skill_areas[0]
+	_expect(is_equal_approx(float(upgraded_storm.get("radius", 0.0)), 264.0), "mage common F upgrade did not expand the storm")
+	_expect(is_equal_approx(float(upgraded_storm.get("damage", 0.0)), 5.0 * 0.30 * 1.30), "mage rare F upgrade did not increase pulse damage")
+	_expect(bool(upgraded_storm.get("finisher_upgrade", false)), "mage epic F upgrade did not enable the final explosion")
+	_reset_enemy(enemy)
+	enemy.global_position = (upgraded_storm.get("origin") as Vector2) + Vector2(300.0, 0.0)
+	game.combat_manager.update_persistent_skill_areas(5.1)
+	_expect(enemy.health < enemy.max_health, "mage epic F final explosion did not deal damage")
 	game._clear_run_state()
 	await process_frame
 	await process_frame
@@ -161,6 +279,161 @@ func _check_common_damage_accounting() -> void:
 	_expect(is_equal_approx(player.health, 51.0), "combat module applied lifesteal more or less than once")
 	game._clear_run_state()
 	await process_frame
+
+func _check_e_upgrade_branches() -> void:
+	await _check_warrior_e_branches()
+	await _check_archer_e_branches()
+	await _check_mage_e_branches()
+	await _check_lancer_e_branches()
+
+func _check_warrior_e_branches() -> void:
+	game.selected_character_ids = ["warrior", "warrior"]
+	game._start_game(1)
+	await _wait_for_enemy()
+	var player: PlayerController = game.players[0]
+	var enemy: EnemyController = game.enemies[0]
+	_grant_upgrade(player, "warrior_e_counter")
+	_grant_upgrade(player, "warrior_e_perfect_guard")
+	game.combat_manager.on_player_fan_skill(player.global_position, Vector2.RIGHT, player.fan_skill_length, player.fan_skill_half_width, 10.0, player)
+	var health_before := player.health
+	var enemy_health_before := enemy.health
+	player.apply_damage(10.0, enemy)
+	_expect(is_equal_approx(player.health, health_before), "warrior rare E perfect guard did not fully block damage")
+	_expect(enemy.health < enemy_health_before, "warrior rare E perfect guard did not trigger retaliation damage")
+	game._clear_run_state()
+	await process_frame
+
+	game.selected_character_ids = ["warrior", "warrior"]
+	game._start_game(1)
+	await _wait_for_enemy()
+	player = game.players[0]
+	enemy = game.enemies[0]
+	player.global_position = Vector2.ZERO
+	enemy.global_position = Vector2(142.0, 0.0)
+	_grant_upgrade(player, "warrior_e_shield")
+	_grant_upgrade(player, "warrior_e_shield_guard")
+	game.combat_manager.on_player_fan_skill(player.global_position, Vector2.RIGHT, player.fan_skill_length, player.fan_skill_half_width, 10.0, player)
+	_expect(_has_persistent_area("warrior_shield"), "warrior alternate E did not create a shield shadow")
+	game.combat_manager.update_persistent_skill_areas(0.23)
+	_expect(enemy.health < enemy.max_health, "warrior shield shadow did not damage on its outward path")
+	game.combat_manager.update_persistent_skill_areas(0.23)
+	game.combat_manager.update_persistent_skill_areas(0.23)
+	game.combat_manager.update_persistent_skill_areas(0.23)
+	_expect(player._warrior_shield_guard_left > 0.0, "warrior rare E shield return did not grant protection")
+	game._clear_run_state()
+	await process_frame
+
+func _check_archer_e_branches() -> void:
+	game.selected_character_ids = ["archer", "archer"]
+	game._start_game(1)
+	await _wait_for_enemy()
+	var player: PlayerController = game.players[0]
+	var enemy: EnemyController = game.enemies[0]
+	player.global_position = Vector2.ZERO
+	enemy.global_position = Vector2(80.0, 0.0)
+	game._spawn_minions(1)
+	var transfer_target: EnemyController = game.enemies.back()
+	transfer_target.global_position = Vector2(120.0, 0.0)
+	_grant_upgrade(player, "archer_e_mark")
+	_grant_upgrade(player, "archer_e_mark_transfer")
+	game.combat_manager.on_player_fan_skill(player.global_position, Vector2.RIGHT, player.fan_skill_length, player.fan_skill_half_width, 10.0, player)
+	_expect(enemy.is_marked_by(player), "archer enhanced E did not mark its first target")
+	game.combat_manager.damage_enemy(enemy, enemy.health + 1.0, player)
+	_expect(transfer_target.is_marked_by(player), "archer rare E did not transfer its mark after a kill")
+	game._clear_run_state()
+	await process_frame
+
+	game.selected_character_ids = ["archer", "archer"]
+	game._start_game(1)
+	await _wait_for_enemy()
+	player = game.players[0]
+	enemy = game.enemies[0]
+	player.global_position = Vector2.ZERO
+	enemy.global_position = Vector2.ZERO
+	_grant_upgrade(player, "archer_e_trap")
+	_grant_upgrade(player, "archer_e_execution_trap")
+	game.combat_manager.on_player_fan_skill(player.global_position, Vector2.RIGHT, player.fan_skill_length, player.fan_skill_half_width, 10.0, player)
+	_expect(player.global_position.x < 0.0, "archer alternate E did not backstep")
+	game.combat_manager.update_persistent_skill_areas(0.0)
+	_expect(enemy._root_left > 0.0, "archer trap did not root its target")
+	_expect(enemy.consume_guaranteed_arrow_crit(player), "archer rare E trap did not prime a guaranteed arrow critical")
+	game._clear_run_state()
+	await process_frame
+
+func _check_mage_e_branches() -> void:
+	game.selected_character_ids = ["mage", "mage"]
+	game._start_game(1)
+	await _wait_for_enemy()
+	var player: PlayerController = game.players[0]
+	var enemy: EnemyController = game.enemies[0]
+	player.global_position = Vector2.ZERO
+	_grant_upgrade(player, "mage_e_field")
+	_grant_upgrade(player, "mage_e_accumulation")
+	game.combat_manager.on_player_fan_skill(player.global_position, Vector2.RIGHT, player.fan_skill_length, player.fan_skill_half_width, 10.0, player)
+	var field: Dictionary = game.persistent_skill_areas.back()
+	_expect(is_equal_approx(float(field.get("duration_left", 0.0)), 5.0), "mage common E field did not extend its duration")
+	_expect(bool(field.get("accumulation", false)), "mage rare E field did not enable accumulating damage")
+	game._clear_run_state()
+	await process_frame
+
+	game.selected_character_ids = ["mage", "mage"]
+	game._start_game(1)
+	await _wait_for_enemy()
+	player = game.players[0]
+	enemy = game.enemies[0]
+	player.global_position = Vector2.ZERO
+	enemy.global_position = Vector2(80.0, 0.0)
+	game._spawn_minions(1)
+	var second_enemy: EnemyController = game.enemies.back()
+	second_enemy.global_position = Vector2(180.0, 0.0)
+	_grant_upgrade(player, "mage_e_chain")
+	_grant_upgrade(player, "mage_e_conduction")
+	game.combat_manager.on_player_fan_skill(player.global_position, Vector2.RIGHT, player.fan_skill_length, player.fan_skill_half_width, 10.0, player)
+	_expect(enemy.health < enemy.max_health and second_enemy.health < second_enemy.max_health, "mage alternate E did not chain across multiple enemies")
+	_expect(not _has_persistent_area("mage_field"), "mage alternate E still created a persistent circle")
+	game._clear_run_state()
+	await process_frame
+
+func _check_lancer_e_branches() -> void:
+	game.selected_character_ids = ["lancer", "lancer"]
+	game._start_game(1)
+	await _wait_for_enemy()
+	var player: PlayerController = game.players[0]
+	player.global_position = Vector2.ZERO
+	_grant_upgrade(player, "lancer_e_charge")
+	_grant_upgrade(player, "lancer_e_double_sweep")
+	game.combat_manager.on_player_fan_skill(player.global_position, Vector2.RIGHT, player.fan_skill_length, player.fan_skill_half_width, 10.0, player)
+	_expect(player.global_position.x > 150.0, "lancer common E charge did not increase dash distance")
+	_expect(player._invulnerable_left > 0.0, "lancer common E charge did not grant brief invulnerability")
+	game._clear_run_state()
+	await process_frame
+
+	game.selected_character_ids = ["lancer", "lancer"]
+	game._start_game(1)
+	await _wait_for_enemy()
+	player = game.players[0]
+	var enemy: EnemyController = game.enemies[0]
+	player.global_position = Vector2.ZERO
+	enemy.global_position = Vector2(158.0, 0.0)
+	_grant_upgrade(player, "lancer_e_spear")
+	_grant_upgrade(player, "lancer_e_return")
+	game.combat_manager.on_player_fan_skill(player.global_position, Vector2.RIGHT, player.fan_skill_length, player.fan_skill_half_width, 10.0, player)
+	_expect(is_equal_approx(player.global_position.x, 0.0), "lancer alternate E moved the player")
+	game.combat_manager.update_persistent_skill_areas(0.22)
+	var health_after_outward := enemy.health
+	_expect(health_after_outward < enemy.max_health, "lancer spear shadow did not damage outward")
+	game.combat_manager.update_persistent_skill_areas(0.23)
+	game.combat_manager.update_persistent_skill_areas(0.22)
+	_expect(enemy.health < health_after_outward, "lancer rare E spear shadow did not damage on return")
+	game._clear_run_state()
+	await process_frame
+
+func _grant_upgrade(player: PlayerController, upgrade_id: String) -> void:
+	for upgrade in UpgradeCatalogScript.BEHAVIOR_POOL:
+		if str((upgrade as Dictionary).get("id", "")) == upgrade_id:
+			player.apply_upgrade(upgrade as Dictionary)
+			return
+	_expect(false, "missing behavior upgrade: %s" % upgrade_id)
 
 func _reset_enemy(enemy: EnemyController) -> void:
 	enemy.health = enemy.max_health

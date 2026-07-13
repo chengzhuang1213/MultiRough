@@ -9,6 +9,16 @@ static func roll_for_characters(character_ids: Array, count: int = 3) -> Array:
 		result.append(UpgradeCatalogScript.roll(count, str(character_id)))
 	return result
 
+static func roll_for_players(players: Array, count: int = 3) -> Array:
+	var result: Array = []
+	for player_value in players:
+		var player := player_value as PlayerController
+		if player == null:
+			result.append([])
+		else:
+			result.append(UpgradeCatalogScript.roll(count, player.character_id, player.upgrade_levels))
+	return result
+
 static func has_unique_ids(upgrades: Array) -> bool:
 	var seen: Dictionary = {}
 	for upgrade in upgrades:

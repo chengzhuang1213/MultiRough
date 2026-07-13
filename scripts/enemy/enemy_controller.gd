@@ -45,6 +45,8 @@ var _forced_target_left := 0.0
 var _marked_by: PlayerController
 var _mark_left := 0.0
 var _mark_damage_multiplier := 1.0
+var _root_left := 0.0
+var _guaranteed_arrow_crit_by: PlayerController
 var _attack_timer := 0.0
 var _attack_windup_left := 0.0
 var _attack_recovery_left := 0.0
@@ -164,6 +166,22 @@ func apply_hunter_mark(owner: PlayerController, duration: float, damage_multipli
 func get_damage_multiplier(attacker: PlayerController) -> float:
 	return _mark_damage_multiplier if _mark_left > 0.0 and attacker == _marked_by else 1.0
 
+func is_marked_by(owner: PlayerController) -> bool:
+	return _mark_left > 0.0 and _marked_by == owner
+
+func apply_root(duration: float) -> void:
+	if not is_boss:
+		_root_left = maxf(_root_left, duration)
+
+func apply_guaranteed_arrow_crit(owner: PlayerController) -> void:
+	_guaranteed_arrow_crit_by = owner
+
+func consume_guaranteed_arrow_crit(owner: PlayerController) -> bool:
+	if _guaranteed_arrow_crit_by != owner:
+		return false
+	_guaranteed_arrow_crit_by = null
+	return true
+
 func _target_is_dead() -> bool:
 	var player_target: PlayerController = _target as PlayerController
 	return player_target != null and player_target.is_dead
@@ -171,6 +189,7 @@ func _target_is_dead() -> bool:
 func _physics_process(delta: float) -> void:
 	_forced_target_left = maxf(0.0, _forced_target_left - delta)
 	_mark_left = maxf(0.0, _mark_left - delta)
+	_root_left = maxf(0.0, _root_left - delta)
 	if _forced_target_left <= 0.0:
 		_forced_target = null
 	if _mark_left <= 0.0:
@@ -194,6 +213,11 @@ func _physics_process(delta: float) -> void:
 		return
 
 	if _stagger_left > 0.0:
+		velocity = Vector2.ZERO
+		_update_animation(delta, false)
+		return
+
+	if _root_left > 0.0:
 		velocity = Vector2.ZERO
 		_update_animation(delta, false)
 		return

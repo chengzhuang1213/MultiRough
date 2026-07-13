@@ -3,6 +3,8 @@ class_name GameRules
 
 const WAVE_CLEAR_HEAL_AMOUNT := 20.0
 const REVIVE_HEALTH_RATIO := 0.5
+const NORMAL_WAVE_TIME_LIMIT := 60.0
+const BOSS_WAVE_TIME_LIMIT := 120.0
 
 const CHARACTER_ORDER := ["warrior", "archer", "lancer", "mage"]
 const REQUIRED_CHARACTER_STATS := [
@@ -16,6 +18,7 @@ const REQUIRED_CHARACTER_STATS := [
 	"skill_damage",
 	"fan_skill_damage",
 	"visual_scale",
+	"dash_max_charges",
 ]
 
 const CHARACTER_CONFIGS := {
@@ -30,6 +33,8 @@ const CHARACTER_CONFIGS := {
 		"attack_range": 76.0,
 		"attack_half_width": 34.0,
 		"attack_knockback": 150.0,
+		"defense_damage_multiplier": 0.30,
+		"dash_max_charges": 1,
 		"skill_damage": 58.0,
 		"skill_length": 220.0,
 		"skill_half_width": 42.0,
@@ -51,6 +56,8 @@ const CHARACTER_CONFIGS := {
 		"attack_range": 420.0,
 		"attack_half_width": 18.0,
 		"attack_knockback": 80.0,
+		"defense_damage_multiplier": 0.45,
+		"dash_max_charges": 2,
 		"skill_damage": 50.0,
 		"skill_length": 260.0,
 		"skill_half_width": 36.0,
@@ -73,6 +80,7 @@ const CHARACTER_CONFIGS := {
 		"attack_half_width": 28.0,
 		"attack_knockback": 95.0,
 		"defense_damage_multiplier": 0.60,
+		"dash_max_charges": 1,
 		"skill_damage": 66.0,
 		"skill_length": 260.0,
 		"skill_half_width": 36.0,
@@ -94,6 +102,8 @@ const CHARACTER_CONFIGS := {
 		"attack_range": 76.0,
 		"attack_half_width": 34.0,
 		"attack_knockback": 150.0,
+		"defense_damage_multiplier": 0.45,
+		"dash_max_charges": 1,
 		"skill_damage": 36.0,
 		"skill_length": 220.0,
 		"skill_half_width": 42.0,
