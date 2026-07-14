@@ -74,7 +74,7 @@ func _check_character_passives() -> void:
 
 func _check_mage_art_assets() -> void:
 	var paths := [
-		"res://assets/original/characters/warrior/warrior_card_v2.png",
+		"res://assets/original/characters/warrior/warrior_card_v4.png",
 		"res://assets/original/characters/archer/archer_card_v2.png",
 		"res://assets/original/characters/lancer/lancer_card_v2.png",
 		"res://assets/original/characters/mage/mage_card_v2.png",

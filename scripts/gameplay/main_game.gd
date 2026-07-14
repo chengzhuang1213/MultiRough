@@ -44,7 +44,7 @@ const CORNER_PROP_PATHS := [
 const WAVE_DEFS := WaveManagerScript.DEFAULT_WAVES
 const CHARACTER_ORDER := GameRulesScript.CHARACTER_ORDER
 const CHARACTER_CARD_ART := {
-	"warrior": "res://assets/original/characters/warrior/warrior_card_v2.png",
+	"warrior": "res://assets/original/characters/warrior/warrior_card_v4.png",
 	"archer": "res://assets/original/characters/archer/archer_card_v2.png",
 	"lancer": "res://assets/original/characters/lancer/lancer_card_v2.png",
 	"mage": "res://assets/original/characters/mage/mage_card_v2.png",
@@ -706,9 +706,6 @@ func _build_character_card(character_id: String) -> Dictionary:
 	art.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	art.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
 	art.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	if character_id == "warrior":
-		art.offset_top = 38.0
-		art.offset_bottom = 38.0
 	art.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	button.add_child(art)
 
