@@ -23,15 +23,16 @@ func _init(game_node: Node) -> void:
 func get_character_module(character_id: String):
 	return character_modules.get(character_id, character_modules["warrior"])
 
-func damage_enemy(enemy: EnemyController, amount: float, attacker: PlayerController, knockback_origin: Vector2 = Vector2.ZERO, knockback_force: float = 90.0) -> void:
+func damage_enemy(enemy: EnemyController, amount: float, attacker: PlayerController, knockback_origin: Vector2 = Vector2.ZERO, knockback_force: float = 90.0, allow_lifesteal: bool = true, cause_stagger: bool = true) -> void:
 	if enemy == null or not is_instance_valid(enemy):
 		return
 	var final_amount := amount * enemy.get_damage_multiplier(attacker)
-	var transfer_mark := attacker != null and attacker.get_upgrade_level("archer_e_mark_transfer") > 0 and enemy.is_marked_by(attacker) and enemy.health <= final_amount
+	var can_transfer_mark := attacker != null and attacker.get_upgrade_level("archer_e_mark_transfer") > 0 and enemy.is_marked_by(attacker)
 	var death_position := enemy.global_position
-	enemy.apply_damage(final_amount, knockback_origin, knockback_force)
-	apply_lifesteal(attacker, final_amount)
-	if transfer_mark:
+	var effective_amount: float = enemy.apply_damage(final_amount, knockback_origin, knockback_force, cause_stagger)
+	if allow_lifesteal:
+		apply_lifesteal(attacker, effective_amount)
+	if can_transfer_mark and enemy.health <= 0.0:
 		transfer_hunter_mark(death_position, attacker, enemy)
 
 func damage_enemies_in_radius(origin: Vector2, radius: float, damage: float, attacker: PlayerController) -> void:
@@ -80,22 +81,56 @@ func on_enemy_projectile_requested(enemy: EnemyController, target: Node2D, origi
 	game.projectile_root.add_child(projectile)
 	game._spawn_line_skill_effect(origin, direction, 58.0, Color(1.0, 0.74, 0.28, 0.42), 0.10)
 
-func _on_enemy_projectile_hit_player(damage: float, target: Node2D, source: EnemyController) -> void:
+func _on_enemy_projectile_hit_player(damage: float, target: Node2D, source) -> void:
 	var player := target as PlayerController
 	if player != null:
-		player.apply_damage(damage, source)
+		var valid_source: EnemyController = null
+		if source != null and is_instance_valid(source):
+			valid_source = source as EnemyController
+		player.apply_damage(damage, valid_source)
 
 func on_enemy_area_attack_requested(enemy: EnemyController, origin: Vector2, radius: float, damage: float, windup_time: float) -> void:
 	if game.SHOW_ENEMY_ATTACK_TELEGRAPH:
 		game._spawn_effect(origin, radius, Color(1.0, 0.18, 0.12, 0.22), windup_time)
+	var enemy_ref: WeakRef = weakref(enemy)
+	var game_ref: WeakRef = weakref(game)
 	var timer: SceneTreeTimer = game.get_tree().create_timer(windup_time)
 	timer.timeout.connect(func() -> void:
-		game._spawn_effect(origin, radius, Color(1.0, 0.34, 0.20, 0.30), 0.16)
-		for player in game.players:
+		var active_game: Node = game_ref.get_ref()
+		if active_game == null or not is_instance_valid(active_game):
+			return
+		active_game._spawn_effect(origin, radius, Color(1.0, 0.34, 0.20, 0.30), 0.16)
+		var source: EnemyController = null
+		var source_object: Object = enemy_ref.get_ref()
+		if source_object != null and is_instance_valid(source_object):
+			source = source_object as EnemyController
+		for player in active_game.players:
 			if is_instance_valid(player) and not player.is_dead and player.global_position.distance_to(origin) <= radius:
-				player.apply_damage(damage, enemy)
-				game._spawn_effect(player.global_position, 34.0, Color(1.0, 0.25, 0.22, 0.24), 0.10)
+				player.apply_damage(damage, source)
+				active_game._spawn_effect(player.global_position, 34.0, Color(1.0, 0.25, 0.22, 0.24), 0.10)
 	)
+
+func on_enemy_charge_started(_enemy: EnemyController, origin: Vector2, direction: Vector2, length: float, windup_time: float) -> void:
+	game._spawn_line_skill_effect(origin, direction, length, Color(1.0, 0.24, 0.16, 0.68), windup_time)
+
+func on_enemy_self_destruct_requested(enemy: EnemyController, origin: Vector2, radius: float, damage: float) -> void:
+	game._spawn_effect(origin, radius, Color(1.0, 0.28, 0.12, 0.38), 0.18)
+	game._spawn_ring_effect(origin, radius, Color(1.0, 0.58, 0.18, 0.90), 0.22)
+	for player in game.players:
+		if is_instance_valid(player) and not player.is_dead and player.global_position.distance_to(origin) <= radius:
+			player.apply_damage(damage, enemy)
+
+func on_enemy_healing_started(_enemy: EnemyController, origin: Vector2, radius: float, windup_time: float) -> void:
+	game._spawn_ring_effect(origin, radius, Color(0.35, 1.0, 0.48, 0.62), windup_time)
+
+func on_enemy_healing_requested(enemy: EnemyController, origin: Vector2, radius: float, amount: float) -> void:
+	game._spawn_effect(origin, radius, Color(0.28, 1.0, 0.46, 0.20), 0.20)
+	for ally in game.enemies.duplicate():
+		if not is_instance_valid(ally) or ally == enemy or ally.global_position.distance_to(origin) > radius:
+			continue
+		var healed_amount: float = ally.heal(amount)
+		if healed_amount > 0.0:
+			game._spawn_ring_effect(ally.global_position, 24.0, Color(0.35, 1.0, 0.48, 0.72), 0.16)
 
 func on_player_damage_taken(amount: float, defended: bool, player: PlayerController) -> void:
 	game.damage_taken += amount
@@ -105,7 +140,7 @@ func on_player_damage_taken(amount: float, defended: bool, player: PlayerControl
 
 func on_player_reflected_damage(enemy: EnemyController, amount: float, player: PlayerController) -> void:
 	game._spawn_link_effect(player.global_position, enemy.global_position, Color(0.35, 0.78, 1.0, 0.90), 0.16)
-	damage_enemy(enemy, amount, player, player.global_position, 0.0)
+	damage_enemy(enemy, amount, player, player.global_position, 0.0, false)
 
 func on_player_perfect_guard(player: PlayerController) -> void:
 	game._spawn_ring_effect(player.global_position, 115.0, Color(0.38, 0.82, 1.0, 0.85), 0.20)
@@ -224,7 +259,33 @@ func on_player_basic_attack(origin: Vector2, direction: Vector2, length: float, 
 func on_player_projectile_attack(origin: Vector2, direction: Vector2, damage: float, attacker: PlayerController) -> void:
 	get_character_module(attacker.character_id).basic_attack(self, origin, direction, attacker.attack_range, attacker.attack_half_width, damage, attacker)
 
-func fire_player_arrow(origin: Vector2, direction: Vector2, damage: float, attacker: PlayerController, speed: float = 560.0, lifetime: float = 1.2, hit_radius: float = 18.0, visual_texture_path: String = "") -> void:
+func on_player_secondary_action(origin: Vector2, direction: Vector2, damage: float, attacker: PlayerController) -> void:
+	var forward := direction.normalized() if direction != Vector2.ZERO else Vector2.RIGHT
+	match attacker.character_id:
+		"archer":
+			var projectile_origin := attacker.get_projectile_origin(forward)
+			for angle in [-0.20, 0.0, 0.20]:
+				var arrow_direction := forward.rotated(float(angle))
+				fire_player_arrow(projectile_origin, arrow_direction, damage * 0.60, attacker, 560.0, 1.2, 18.0, "", 672.0 * attacker.get_attack_range_multiplier())
+			game._spawn_line_skill_effect(projectile_origin, forward, 72.0, Color(1.0, 0.80, 0.30, 0.50), 0.10)
+		"mage":
+			fire_mage_basic_projectile(origin + forward * 24.0, forward, damage, attacker)
+		"lancer":
+			damage_enemies_on_both_sides(origin, forward, attacker.attack_range * 1.35, attacker.attack_half_width * 1.40, damage * 0.80, attacker)
+			game._spawn_lancer_sweep_effect(origin, forward, attacker.attack_range * 1.35, attacker.attack_half_width * 1.40)
+			game._spawn_lancer_sweep_effect(origin, -forward, attacker.attack_range * 1.35, attacker.attack_half_width * 1.40)
+
+func damage_enemies_on_both_sides(origin: Vector2, direction: Vector2, length: float, half_width: float, damage: float, attacker: PlayerController) -> void:
+	var forward := direction.normalized() if direction != Vector2.ZERO else Vector2.RIGHT
+	var side := Vector2(-forward.y, forward.x)
+	for enemy in game.enemies.duplicate():
+		if not is_instance_valid(enemy):
+			continue
+		var offset: Vector2 = enemy.global_position - origin
+		if absf(offset.dot(forward)) <= length and absf(offset.dot(side)) <= half_width:
+			damage_enemy(enemy, damage, attacker, origin, attacker.attack_knockback * 0.45)
+
+func fire_player_arrow(origin: Vector2, direction: Vector2, damage: float, attacker: PlayerController, speed: float = 560.0, lifetime: float = 1.2, hit_radius: float = 18.0, visual_texture_path: String = "", max_distance: float = 0.0) -> void:
 	var projectile = PlayerProjectileScript.new()
 	projectile.global_position = origin
 	projectile.direction = direction
@@ -233,6 +294,7 @@ func fire_player_arrow(origin: Vector2, direction: Vector2, damage: float, attac
 	projectile.lifetime = lifetime
 	projectile.hit_radius = hit_radius
 	projectile.visual_texture_path = visual_texture_path
+	projectile.max_distance = max_distance
 	projectile.enemies = game.enemies
 	projectile.hit_enemy.connect(_on_player_projectile_hit_enemy.bind(attacker))
 	game.projectile_root.add_child(projectile)
@@ -244,7 +306,8 @@ func fire_mage_fireball(origin: Vector2, direction: Vector2, damage: float, atta
 	projectile.damage = damage
 	projectile.speed = 420.0
 	projectile.lifetime = 1.5
-	projectile.hit_radius = 20.0
+	projectile.hit_radius = 25.0
+	projectile.scale = Vector2.ONE * 1.25
 	projectile.visual_texture_path = "res://assets/original/characters/mage/mage_basic_projectile.svg"
 	projectile.max_distance = max_range
 	projectile.enemies = game.enemies
@@ -262,9 +325,13 @@ func fire_mage_basic_projectile(origin: Vector2, direction: Vector2, damage: flo
 	projectile.lifetime = 1.35
 	projectile.hit_radius = 18.0
 	projectile.visual_texture_path = "res://assets/original/characters/mage/mage_basic_projectile.svg"
+	projectile.max_distance = 648.0 * attacker.get_attack_range_multiplier()
 	projectile.enemies = game.enemies
 	projectile.hit_enemy.connect(_on_mage_basic_projectile_hit.bind(attacker))
 	game.projectile_root.add_child(projectile)
+
+func fire_mage_single_projectile(origin: Vector2, direction: Vector2, damage: float, attacker: PlayerController) -> void:
+	fire_player_arrow(origin, direction, damage, attacker, 480.0, 1.35, 18.0, "res://assets/original/characters/mage/mage_basic_projectile.svg", 648.0 * attacker.get_attack_range_multiplier())
 
 func _on_mage_basic_projectile_hit(enemy: EnemyController, damage: float, attacker: PlayerController) -> void:
 	if enemy == null or not is_instance_valid(enemy):
@@ -547,6 +614,7 @@ func add_mage_storm(center: Vector2, damage: float, duration: float, attacker: P
 		"interval": 1.0, "origin": center, "radius": radius,
 		"damage": damage * 0.30 * (1.30 if attacker.get_upgrade_level("mage_f_infusion") > 0 else 1.0),
 		"finisher_upgrade": attacker.get_upgrade_level("mage_f_finisher") > 0,
+		"stunned_ids": {},
 	})
 
 func update_persistent_skill_areas(delta: float) -> void:
@@ -595,8 +663,8 @@ func _tick_arrow_rain(area: Dictionary, owner: PlayerController) -> void:
 		area["current_target"] = null
 		area["consecutive_hits"] = 0
 		return
-	var previous_target := area.get("current_target") as EnemyController
-	if previous_target != target:
+	var previous_target = area.get("current_target")
+	if previous_target == null or not is_instance_valid(previous_target) or previous_target != target:
 		area["current_target"] = target
 		area["consecutive_hits"] = 0
 	var count := int(area.get("consecutive_hits", 0)) + 1
@@ -745,13 +813,21 @@ func _tick_mage_area(area: Dictionary, owner: PlayerController) -> void:
 	game._spawn_ring_effect(center, radius, Color(color.r, color.g, color.b, 0.42), 0.16)
 	for enemy in game.enemies.duplicate():
 		if is_instance_valid(enemy) and enemy.global_position.distance_to(center) <= radius:
+			var area_type := str(area.get("type", ""))
+			if area_type == "mage_field":
+				enemy.apply_slow(0.60, 0.80)
+			elif area_type == "mage_storm":
+				var stunned_ids := area.get("stunned_ids") as Dictionary
+				if not stunned_ids.has(enemy.get_instance_id()):
+					enemy.apply_stun(1.0)
+					stunned_ids[enemy.get_instance_id()] = true
 			var hit_damage := damage
-			if str(area.get("type", "")) == "mage_field" and bool(area.get("accumulation", false)):
+			if area_type == "mage_field" and bool(area.get("accumulation", false)):
 				var hit_counts := area.get("hit_counts") as Dictionary
 				var count := int(hit_counts.get(enemy.get_instance_id(), 0)) + 1
 				hit_counts[enemy.get_instance_id()] = count
 				hit_damage *= minf(2.0, 1.0 + 0.15 * float(count - 1))
-			damage_enemy(enemy, hit_damage, owner, center, owner.attack_knockback * 0.16)
+			damage_enemy(enemy, hit_damage, owner, center, 0.0, true, false)
 
 func remove_persistent_skill_area(area: Dictionary) -> void:
 	game.persistent_skill_areas.erase(area)

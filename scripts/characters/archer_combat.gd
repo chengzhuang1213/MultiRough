@@ -2,7 +2,7 @@ extends CharacterCombat
 class_name ArcherCombat
 
 func basic_attack(combat, origin: Vector2, direction: Vector2, _length: float, _half_width: float, damage: float, attacker: PlayerController) -> void:
-	combat.fire_player_arrow(origin, direction, damage, attacker)
+	combat.fire_player_arrow(origin, direction, damage, attacker, 560.0, 1.2, 18.0, "", 672.0 * attacker.get_attack_range_multiplier())
 	combat.game._spawn_line_skill_effect(origin, direction, 54.0, Color(1.0, 0.88, 0.42, 0.35), 0.08)
 
 func use_q(combat, origin: Vector2, direction: Vector2, _length: float, _half_width: float, damage: float, attacker: PlayerController) -> void:

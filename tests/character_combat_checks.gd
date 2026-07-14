@@ -16,6 +16,7 @@ func _run() -> void:
 	for character_id in ["warrior", "archer", "lancer"]:
 		await _check_character(character_id)
 	await _check_mage_combat()
+	await _check_secondary_actions()
 	await _check_e_upgrade_branches()
 	await _check_common_damage_accounting()
 	if failures.is_empty():
@@ -183,12 +184,14 @@ func _check_mage_combat() -> void:
 	projectile.global_position = enemy.global_position
 	projectile._process(0.0)
 	_expect(enemy.health < enemy.max_health, "mage basic projectile did not deal damage")
-	_expect(splash_enemy.health < splash_enemy.max_health, "mage passive basic attack did not damage nearby enemies")
+	_expect(is_equal_approx(splash_enemy.health, splash_enemy.max_health), "mage left-click basic attack still dealt area damage")
 	_reset_enemy(enemy)
 	projectiles_before = game.projectile_root.get_child_count()
 	game.combat_manager.on_player_active_skill(player.global_position, Vector2.RIGHT, player.skill_length, player.skill_half_width, 5.0, player)
 	_expect(game.projectile_root.get_child_count() == projectiles_before + 1, "mage Q did not create a fireball")
 	var fireball := game.projectile_root.get_child(game.projectile_root.get_child_count() - 1) as PlayerProjectile
+	_expect(is_equal_approx(fireball.scale.x, 1.25), "mage Q fireball visual was not enlarged by 25 percent")
+	_expect(is_equal_approx(fireball.hit_radius, 25.0), "mage Q fireball hit radius did not match its enlarged body")
 	fireball.global_position = enemy.global_position
 	fireball._process(0.0)
 	_expect(enemy.health < enemy.max_health, "mage Q explosion did not damage its target")
@@ -226,8 +229,13 @@ func _check_mage_combat() -> void:
 	_expect(_has_persistent_area("mage_field"), "mage E did not create a persistent field")
 	var field: Dictionary = game.persistent_skill_areas[0]
 	_expect((field.get("origin") as Vector2).distance_to(player.global_position) <= 180.0, "mage E exceeded its maximum cast range")
+	enemy._stagger_left = 0.0
+	enemy._knockback_velocity = Vector2.ZERO
 	game.combat_manager.update_persistent_skill_areas(0.0)
 	_expect(enemy.health < enemy.max_health, "mage E field did not damage an enemy inside it")
+	_expect(is_equal_approx(enemy._slow_move_multiplier, 0.80), "mage E field did not reduce enemy movement speed by 20 percent")
+	_expect(is_zero_approx(enemy._stagger_left), "mage E field damage still caused movement-stopping hit stagger")
+	_expect(enemy._knockback_velocity == Vector2.ZERO, "mage E field damage still caused knockback")
 	game.combat_manager.clear_persistent_skill_areas()
 
 	_reset_enemy(enemy)
@@ -241,6 +249,7 @@ func _check_mage_combat() -> void:
 	_expect(not bool(storm.get("finisher_upgrade", false)), "mage base F received its epic finisher")
 	game._spawn_minions(1)
 	var second_enemy: EnemyController = game.enemies.back()
+	second_enemy.setup_as_boss()
 	var storm_center := storm.get("origin") as Vector2
 	enemy.global_position = storm_center
 	second_enemy.global_position = storm_center + Vector2(20.0, 0.0)
@@ -248,6 +257,11 @@ func _check_mage_combat() -> void:
 	game.combat_manager.update_persistent_skill_areas(0.0)
 	_expect(enemy.health < enemy.max_health, "mage F storm did not damage an enemy inside it")
 	_expect(second_enemy.health < second_enemy.max_health, "mage F did not damage every enemy inside its pulse")
+	_expect(is_equal_approx(enemy._stun_left, 1.0), "mage F did not stun a normal enemy for one second")
+	_expect(is_equal_approx(second_enemy._stun_left, 1.0), "mage F stun did not affect the boss")
+	enemy._stun_left = 0.25
+	game.combat_manager._tick_mage_area(storm, player)
+	_expect(is_equal_approx(enemy._stun_left, 0.25), "mage F refreshed stun on every damage pulse")
 	game.combat_manager.clear_persistent_skill_areas()
 	player.apply_upgrade({"id": "mage_f_finisher", "stat": "behavior_upgrade"})
 	player.apply_upgrade({"id": "mage_f_expansion", "stat": "behavior_upgrade"})
@@ -264,6 +278,103 @@ func _check_mage_combat() -> void:
 	game._clear_run_state()
 	await process_frame
 	await process_frame
+
+func _check_secondary_actions() -> void:
+	await _check_warrior_secondary()
+	await _check_archer_secondary()
+	await _check_mage_secondary()
+	await _check_lancer_secondary()
+
+func _check_warrior_secondary() -> void:
+	game.selected_character_ids = ["warrior", "warrior"]
+	game._start_game(1)
+	await _wait_for_enemy()
+	var player: PlayerController = game.players[0]
+	player.external_input_enabled = true
+	_press_secondary(player, Vector2.RIGHT)
+	_expect(player.is_defending, "warrior right-click did not start sustained guard")
+	_expect(is_equal_approx(player.get_secondary_remaining(), 3.0), "warrior guard did not start the shared three-second cooldown")
+	player._tick_timers(3.1)
+	player._physics_process(0.0)
+	_expect(player.is_defending and player.get_secondary_ready(), "warrior guard did not remain active while its cooldown completed")
+	_release_secondary(player)
+	_expect(not player.is_defending, "warrior guard did not end after releasing right-click")
+	_press_secondary(player, Vector2.RIGHT)
+	_expect(player.is_defending, "warrior could not guard again after cooldown completed during a long hold")
+	game._clear_run_state()
+	await process_frame
+
+func _check_archer_secondary() -> void:
+	game.selected_character_ids = ["archer", "archer"]
+	game._start_game(1)
+	await _wait_for_enemy()
+	var player: PlayerController = game.players[0]
+	player.external_input_enabled = true
+	var before: int = game.projectile_root.get_child_count()
+	_press_secondary(player, Vector2.RIGHT)
+	_expect(game.projectile_root.get_child_count() == before + 3, "archer right-click did not fire three arrows")
+	for index in range(before, game.projectile_root.get_child_count()):
+		var arrow := game.projectile_root.get_child(index) as PlayerProjectile
+		_expect(is_equal_approx(arrow.damage, player.attack_damage * 0.60), "archer right-click arrow did not deal 60 percent basic damage")
+	_expect(is_equal_approx(player.get_secondary_remaining(), 3.0), "archer right-click did not start the shared cooldown")
+	_release_secondary(player)
+	_press_secondary(player, Vector2.RIGHT)
+	_expect(game.projectile_root.get_child_count() == before + 3, "archer right-click fired again before the shared cooldown ended")
+	game._clear_run_state()
+	await process_frame
+
+func _check_mage_secondary() -> void:
+	game.selected_character_ids = ["mage", "mage"]
+	game._start_game(1)
+	await _wait_for_enemy()
+	var player: PlayerController = game.players[0]
+	var enemy: EnemyController = game.enemies[0]
+	game._spawn_minions(1)
+	var nearby: EnemyController = game.enemies.back()
+	player.global_position = Vector2.ZERO
+	enemy.global_position = Vector2(80.0, 0.0)
+	nearby.global_position = Vector2(120.0, 0.0)
+	enemy.health = enemy.max_health
+	nearby.health = nearby.max_health
+	player.external_input_enabled = true
+	_press_secondary(player, Vector2.RIGHT)
+	var orb := game.projectile_root.get_child(game.projectile_root.get_child_count() - 1) as PlayerProjectile
+	orb.global_position = enemy.global_position
+	orb._process(0.0)
+	_expect(enemy.health < enemy.max_health and nearby.health < nearby.max_health, "mage right-click did not preserve the former area basic attack")
+	_expect(is_equal_approx(player.get_secondary_remaining(), 3.0), "mage right-click did not start the shared cooldown")
+	game._clear_run_state()
+	await process_frame
+
+func _check_lancer_secondary() -> void:
+	game.selected_character_ids = ["lancer", "lancer"]
+	game._start_game(1)
+	await _wait_for_enemy()
+	var player: PlayerController = game.players[0]
+	var right_enemy: EnemyController = game.enemies[0]
+	game._spawn_minions(1)
+	var left_enemy: EnemyController = game.enemies.back()
+	player.global_position = Vector2.ZERO
+	right_enemy.global_position = Vector2(80.0, 0.0)
+	left_enemy.global_position = Vector2(-80.0, 0.0)
+	right_enemy.health = right_enemy.max_health
+	left_enemy.health = left_enemy.max_health
+	player.external_input_enabled = true
+	_press_secondary(player, Vector2.RIGHT)
+	_expect(right_enemy.health < right_enemy.max_health and left_enemy.health < left_enemy.max_health, "lancer right-click did not hit both opposite directions")
+	_expect(is_equal_approx(player.get_secondary_remaining(), 3.0), "lancer right-click did not start the shared cooldown")
+	game._clear_run_state()
+	await process_frame
+
+func _press_secondary(player: PlayerController, direction: Vector2) -> void:
+	player.apply_external_input({"aim": direction, "defend": false})
+	player._physics_process(0.0)
+	player.apply_external_input({"aim": direction, "aim_target": player.global_position + direction * 200.0, "defend": true})
+	player._physics_process(0.0)
+
+func _release_secondary(player: PlayerController) -> void:
+	player.apply_external_input({"defend": false})
+	player._physics_process(0.0)
 
 func _check_common_damage_accounting() -> void:
 	game.selected_character_ids = ["warrior", "warrior"]

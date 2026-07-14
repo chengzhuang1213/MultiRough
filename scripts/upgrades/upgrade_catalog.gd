@@ -2,78 +2,33 @@ extends RefCounted
 class_name UpgradeCatalog
 
 const GENERAL_POOL: Array = [
-	{
-		"id": "attack_damage",
-		"title": "普攻伤害 +16%",
-		"description": "基础攻击造成更多伤害。",
-		"stat": "attack_damage",
-		"multiplier": 1.16,
-		"rarity": "Common",
-	},
-	{
-		"id": "attack_cooldown",
-		"title": "普攻冷却 -12%",
-		"description": "基础攻击恢复得更快。",
-		"stat": "attack_cooldown",
-		"multiplier": 0.88,
-		"rarity": "Rare",
-	},
-	{
-		"id": "attack_range",
-		"title": "普攻范围 +12%",
-		"description": "基础攻击可以命中更远的敌人。",
-		"stat": "attack_range",
-		"multiplier": 1.12,
-		"rarity": "Rare",
-	},
-	{
-		"id": "max_health",
-		"title": "最大生命 +20%",
-		"description": "提高最大生命，并回复新增的生命值。",
-		"stat": "max_health",
-		"multiplier": 1.20,
-		"rarity": "Common",
-	},
-	{
-		"id": "move_speed",
-		"title": "移动速度 +9%",
-		"description": "移动更快，更容易调整站位。",
-		"stat": "move_speed",
-		"multiplier": 1.09,
-		"rarity": "Common",
-	},
-	{
-		"id": "knockback",
-		"title": "击退 +20%",
-		"description": "攻击和技能会把敌人推得更远。",
-		"stat": "knockback",
-		"multiplier": 1.20,
-		"rarity": "Rare",
-	},
-	{
-		"id": "crit_chance",
-		"title": "暴击率 +8%",
-		"description": "攻击和技能有概率造成额外伤害。",
-		"stat": "crit_chance",
-		"add": 0.08,
-		"rarity": "Rare",
-	},
-	{
-		"id": "lifesteal",
-		"title": "吸血 +4%",
-		"description": "根据造成的伤害回复少量生命。",
-		"stat": "lifesteal",
-		"add": 0.04,
-		"rarity": "Epic",
-	},
-	{
-		"id": "dash_charges",
-		"title": "闪避次数 +1",
-		"description": "获得一次额外闪避充能。",
-		"stat": "dash_charges",
-		"add": 1,
-		"rarity": "Epic",
-	},
+	{"id": "attack_damage_common", "title": "一般·力量训练", "description": "普通攻击伤害提高 10%。", "stat": "attack_damage", "amount": 0.10, "rarity": "Common", "max_level": 1},
+	{"id": "attack_damage_rare", "title": "稀有·战斗专精", "description": "普通攻击伤害提高 16%。", "stat": "attack_damage", "amount": 0.16, "rarity": "Rare", "max_level": 1},
+	{"id": "attack_damage_epic", "title": "史诗·毁灭之力", "description": "普通攻击伤害提高 25%。", "stat": "attack_damage", "amount": 0.25, "rarity": "Epic", "max_level": 1},
+	{"id": "attack_cooldown_common", "title": "一般·快速出手", "description": "普通攻击冷却缩短 7%。", "stat": "attack_cooldown", "amount": 0.07, "rarity": "Common", "max_level": 1},
+	{"id": "attack_cooldown_rare", "title": "稀有·连贯攻势", "description": "普通攻击冷却缩短 11%。", "stat": "attack_cooldown", "amount": 0.11, "rarity": "Rare", "max_level": 1},
+	{"id": "attack_cooldown_epic", "title": "史诗·无尽猛攻", "description": "普通攻击冷却缩短 17%。", "stat": "attack_cooldown", "amount": 0.17, "rarity": "Epic", "max_level": 1},
+	{"id": "attack_range_common", "title": "一般·延伸打击", "description": "普通攻击范围提高 10%。", "stat": "attack_range", "amount": 0.10, "rarity": "Common", "max_level": 1},
+	{"id": "attack_range_rare", "title": "稀有·精准距离", "description": "普通攻击范围提高 16%。", "stat": "attack_range", "amount": 0.16, "rarity": "Rare", "max_level": 1},
+	{"id": "attack_range_epic", "title": "史诗·绝对射程", "description": "普通攻击范围提高 25%。", "stat": "attack_range", "amount": 0.25, "rarity": "Epic", "max_level": 1},
+	{"id": "max_health_common", "title": "一般·强健体魄", "description": "最大生命提高 12%，并回复新增生命。", "stat": "max_health", "amount": 0.12, "rarity": "Common", "max_level": 1},
+	{"id": "max_health_rare", "title": "稀有·坚韧生命", "description": "最大生命提高 20%，并回复新增生命。", "stat": "max_health", "amount": 0.20, "rarity": "Rare", "max_level": 1},
+	{"id": "max_health_epic", "title": "史诗·不灭之躯", "description": "最大生命提高 32%，并回复新增生命。", "stat": "max_health", "amount": 0.32, "rarity": "Epic", "max_level": 1},
+	{"id": "move_speed_common", "title": "一般·轻快步伐", "description": "移动速度提高 5%。", "stat": "move_speed", "amount": 0.05, "rarity": "Common", "max_level": 1},
+	{"id": "move_speed_rare", "title": "稀有·迅捷身法", "description": "移动速度提高 8%。", "stat": "move_speed", "amount": 0.08, "rarity": "Rare", "max_level": 1},
+	{"id": "move_speed_epic", "title": "史诗·疾风行者", "description": "移动速度提高 12%。", "stat": "move_speed", "amount": 0.12, "rarity": "Epic", "max_level": 1},
+	{"id": "knockback_common", "title": "一般·冲击训练", "description": "击退力量提高 15%。", "stat": "knockback", "amount": 0.15, "rarity": "Common", "max_level": 1},
+	{"id": "knockback_rare", "title": "稀有·强力震退", "description": "击退力量提高 25%。", "stat": "knockback", "amount": 0.25, "rarity": "Rare", "max_level": 1},
+	{"id": "knockback_epic", "title": "史诗·不可阻挡", "description": "击退力量提高 40%。", "stat": "knockback", "amount": 0.40, "rarity": "Epic", "max_level": 1},
+	{"id": "crit_chance_common", "title": "一般·弱点观察", "description": "暴击率提高 5%。", "stat": "crit_chance", "amount": 0.05, "rarity": "Common", "max_level": 1},
+	{"id": "crit_chance_rare", "title": "稀有·致命精准", "description": "暴击率提高 9%。", "stat": "crit_chance", "amount": 0.09, "rarity": "Rare", "max_level": 1},
+	{"id": "crit_chance_epic", "title": "史诗·必杀本能", "description": "暴击率提高 15%。", "stat": "crit_chance", "amount": 0.15, "rarity": "Epic", "max_level": 1},
+	{"id": "lifesteal_common", "title": "一般·生命汲取", "description": "获得 1% 吸血。", "stat": "lifesteal", "amount": 0.01, "rarity": "Common", "max_level": 1},
+	{"id": "lifesteal_rare", "title": "稀有·鲜血回响", "description": "获得 2% 吸血。", "stat": "lifesteal", "amount": 0.02, "rarity": "Rare", "max_level": 1},
+	{"id": "lifesteal_epic", "title": "史诗·生命掠夺", "description": "获得 4% 吸血。", "stat": "lifesteal", "amount": 0.04, "rarity": "Epic", "max_level": 1},
+	{"id": "skill_cooldown_common", "title": "一般·技能调息", "description": "Q、E、F 冷却缩短 6%。", "stat": "skill_cooldown", "amount": 0.06, "rarity": "Common", "max_level": 1},
+	{"id": "skill_cooldown_rare", "title": "稀有·能量循环", "description": "Q、E、F 冷却缩短 10%。", "stat": "skill_cooldown", "amount": 0.10, "rarity": "Rare", "max_level": 1},
+	{"id": "skill_cooldown_epic", "title": "史诗·无限施法", "description": "Q、E、F 冷却缩短 16%。", "stat": "skill_cooldown", "amount": 0.16, "rarity": "Epic", "max_level": 1},
 ]
 
 const SKILL_POOL: Array = [
@@ -118,13 +73,13 @@ const BEHAVIOR_POOL: Array = [
 	{"id": "lancer_f_finisher", "title": "长枪 F · 破阵终击", "description": "大招结束时发动一次大范围、高伤害横扫。", "stat": "behavior_upgrade", "rarity": "Epic", "skill_slot": "F", "character_id": "lancer", "max_level": 1},
 ]
 
-static func roll(count: int = 3, character_id: String = "", upgrade_levels: Dictionary = {}) -> Array:
+static func roll(count: int = 3, character_id: String = "", upgrade_levels: Dictionary = {}, rarity: String = "", offer_misses: Dictionary = {}) -> Array:
 	var result: Array = []
 	var used_ids: Dictionary = {}
 	var profession_pool: Array = []
 	profession_pool.append_array(SKILL_POOL)
 	profession_pool.append_array(BEHAVIOR_POOL)
-	for upgrade in _roll_from_pool(profession_pool, min(2, count), used_ids, character_id, upgrade_levels):
+	for upgrade in _roll_from_pool(profession_pool, min(2, count), used_ids, character_id, upgrade_levels, rarity, offer_misses):
 		result.append(upgrade)
 
 	if result.size() < count:
@@ -132,15 +87,24 @@ static func roll(count: int = 3, character_id: String = "", upgrade_levels: Dict
 		mixed_pool.append_array(GENERAL_POOL)
 		mixed_pool.append_array(SKILL_POOL)
 		mixed_pool.append_array(BEHAVIOR_POOL)
-		for upgrade in _roll_from_pool(mixed_pool, count - result.size(), used_ids, character_id, upgrade_levels):
+		for upgrade in _roll_from_pool(mixed_pool, count - result.size(), used_ids, character_id, upgrade_levels, rarity, offer_misses):
 			result.append(upgrade)
 
 	result.shuffle()
 	return result
 
-static func _roll_from_pool(pool: Array, count: int, used_ids: Dictionary, character_id: String, upgrade_levels: Dictionary) -> Array:
+static func get_offer_weight_multiplier(miss_count: int) -> int:
+	if miss_count == 1:
+		return 2
+	if miss_count >= 2:
+		return 1
+	return 4
+
+static func _roll_from_pool(pool: Array, count: int, used_ids: Dictionary, character_id: String, upgrade_levels: Dictionary, required_rarity: String = "", offer_misses: Dictionary = {}) -> Array:
 	var weighted_choices: Array = []
 	for upgrade in pool:
+		if not required_rarity.is_empty() and str(upgrade.get("rarity", "Common")) != required_rarity:
+			continue
 		var required_character := str(upgrade.get("character_id", ""))
 		if not required_character.is_empty() and required_character != character_id:
 			continue
@@ -163,6 +127,8 @@ static func _roll_from_pool(pool: Array, count: int, used_ids: Dictionary, chara
 			weight = 3
 		elif rarity == "Epic":
 			weight = 1
+		var miss_count := int(offer_misses.get(str(upgrade.get("id", "")), 0))
+		weight *= get_offer_weight_multiplier(miss_count)
 		for _index in range(weight):
 			weighted_choices.append(upgrade)
 

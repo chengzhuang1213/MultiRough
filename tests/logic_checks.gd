@@ -15,6 +15,8 @@ func _init() -> void:
 	_check_original_animation_sheets()
 	_check_upgrade_application()
 	_check_upgrade_rolls_are_unique()
+	_check_general_upgrade_pool_and_rarity()
+	_check_general_upgrade_totals()
 	_check_behavior_upgrade_pool()
 	_check_wave_progression()
 	_check_multiplayer_scaling_and_revival()
@@ -72,6 +74,22 @@ func _check_character_passives() -> void:
 
 func _check_mage_art_assets() -> void:
 	var paths := [
+		"res://assets/original/characters/warrior/warrior_card_v2.png",
+		"res://assets/original/characters/archer/archer_card_v2.png",
+		"res://assets/original/characters/lancer/lancer_card_v2.png",
+		"res://assets/original/characters/mage/mage_card_v2.png",
+		"res://assets/ui/character_select/skills/warrior_q.png",
+		"res://assets/ui/character_select/skills/warrior_e.png",
+		"res://assets/ui/character_select/skills/warrior_f.png",
+		"res://assets/ui/character_select/skills/archer_q.png",
+		"res://assets/ui/character_select/skills/archer_e.png",
+		"res://assets/ui/character_select/skills/archer_f.png",
+		"res://assets/ui/character_select/skills/lancer_q.png",
+		"res://assets/ui/character_select/skills/lancer_e.png",
+		"res://assets/ui/character_select/skills/lancer_f.png",
+		"res://assets/ui/character_select/skills/mage_q.png",
+		"res://assets/ui/character_select/skills/mage_e.png",
+		"res://assets/ui/character_select/skills/mage_f.png",
 		"res://assets/original/characters/archer/archer_concept_v1.png",
 		"res://assets/original/characters/archer/archer_pixel_master_v1.png",
 		"res://assets/original/characters/archer/animations/archer_idle.png",
@@ -161,6 +179,35 @@ func _check_upgrade_application() -> void:
 	player.apply_upgrade({"id": "archer_q_quickdraw", "stat": "behavior_upgrade", "max_level": 1})
 	_expect(player.get_upgrade_level("archer_q_quickdraw") == 1, "behavior upgrade exceeded its one-card limit")
 	player.free()
+	var stat_player = PlayerScript.new()
+	stat_player.apply_character_config(GameRulesScript.get_character_config("warrior"))
+	var stat_base_damage: float = stat_player.attack_damage
+	var common_damage := _find_general_upgrade("attack_damage_common")
+	var rare_damage := _find_general_upgrade("attack_damage_rare")
+	stat_player.apply_upgrade(common_damage)
+	stat_player.apply_upgrade(rare_damage)
+	_expect(is_equal_approx(stat_player.attack_damage, stat_base_damage * 1.26), "general attack upgrades are not additive from the base value")
+	stat_player.apply_upgrade(common_damage)
+	_expect(is_equal_approx(stat_player.attack_damage, stat_base_damage * 1.26), "general upgrade could be acquired more than once")
+	var base_q_cooldown: float = stat_player.skill_cooldown
+	var base_e_cooldown: float = stat_player.fan_skill_cooldown
+	var base_f_cooldown: float = stat_player.ultimate_cooldown
+	stat_player.apply_upgrade(_find_general_upgrade("skill_cooldown_epic"))
+	_expect(is_equal_approx(stat_player.skill_cooldown, base_q_cooldown * 0.84), "skill cooldown card did not reduce Q cooldown")
+	_expect(is_equal_approx(stat_player.fan_skill_cooldown, base_e_cooldown * 0.84), "skill cooldown card did not reduce E cooldown")
+	_expect(is_equal_approx(stat_player.ultimate_cooldown, base_f_cooldown * 0.84), "skill cooldown card did not reduce F cooldown")
+	var offered := [
+		{"id": "offer_selected"},
+		{"id": "offer_skipped_one"},
+		{"id": "offer_skipped_two"},
+	]
+	stat_player.record_upgrade_offer_result(offered, "offer_selected")
+	_expect(not stat_player.upgrade_offer_misses.has("offer_selected"), "selected card was recorded as skipped")
+	_expect(int(stat_player.upgrade_offer_misses.get("offer_skipped_one", 0)) == 1, "first skipped card was not recorded")
+	_expect(int(stat_player.upgrade_offer_misses.get("offer_skipped_two", 0)) == 1, "second skipped card was not recorded")
+	stat_player.record_upgrade_offer_result(offered, "offer_selected")
+	_expect(int(stat_player.upgrade_offer_misses.get("offer_skipped_one", 0)) == 2, "repeated skipped card did not increment its history")
+	stat_player.free()
 	var branch_player = PlayerScript.new()
 	branch_player.apply_character_config(GameRulesScript.get_character_config("warrior"))
 	var counter_card := _find_behavior_upgrade("warrior_e_counter")
@@ -181,6 +228,12 @@ func _find_behavior_upgrade(upgrade_id: String) -> Dictionary:
 			return upgrade as Dictionary
 	return {}
 
+func _find_general_upgrade(upgrade_id: String) -> Dictionary:
+	for upgrade in UpgradeCatalogScript.GENERAL_POOL:
+		if str((upgrade as Dictionary).get("id", "")) == upgrade_id:
+			return upgrade as Dictionary
+	return {}
+
 func _check_upgrade_rolls_are_unique() -> void:
 	seed(90710)
 	for character_id in GameRulesScript.CHARACTER_ORDER:
@@ -190,6 +243,65 @@ func _check_upgrade_rolls_are_unique() -> void:
 			_expect(UpgradeManagerScript.has_unique_ids(upgrades), "%s upgrade roll contains duplicate ids" % character_id)
 			if character_id == "mage":
 				_expect(upgrades.any(func(upgrade): return (upgrade as Dictionary).has("skill_slot")), "mage did not receive a skill upgrade after Q/E/F were implemented")
+
+func _check_general_upgrade_pool_and_rarity() -> void:
+	_expect(UpgradeCatalogScript.GENERAL_POOL.size() == 27, "general pool does not contain nine stats at three rarities")
+	var expected_stats := ["attack_damage", "attack_cooldown", "attack_range", "max_health", "move_speed", "knockback", "crit_chance", "lifesteal", "skill_cooldown"]
+	for stat in expected_stats:
+		var cards := UpgradeCatalogScript.GENERAL_POOL.filter(func(upgrade): return str((upgrade as Dictionary).get("stat", "")) == stat)
+		_expect(cards.size() == 3, "%s does not have three general rarity cards" % stat)
+		var rarities := cards.map(func(upgrade): return str((upgrade as Dictionary).get("rarity", "")))
+		_expect(rarities.count("Common") == 1 and rarities.count("Rare") == 1 and rarities.count("Epic") == 1, "%s general cards do not cover all rarities" % stat)
+		for card in cards:
+			_expect(int((card as Dictionary).get("max_level", 0)) == 1, "%s general card is not limited to one acquisition" % stat)
+	_expect(is_equal_approx(UpgradeManagerScript.COMMON_RARITY_CHANCE + UpgradeManagerScript.RARE_RARITY_CHANCE + UpgradeManagerScript.EPIC_RARITY_CHANCE, 1.0), "upgrade rarity chances do not total 100 percent")
+	_expect(UpgradeManagerScript.roll_rarity(true) == "Epic", "forced final-round epic guarantee failed")
+	_expect(UpgradeManagerScript.roll_rarity(false, ["Common", "Rare"]) == "Epic", "rarity reroll did not skip exhausted pools")
+	_expect(UpgradeCatalogScript.get_offer_weight_multiplier(0) == 4, "new card offer weight is incorrect")
+	_expect(UpgradeCatalogScript.get_offer_weight_multiplier(1) == 2, "once-skipped card is not reduced to 50 percent weight")
+	_expect(UpgradeCatalogScript.get_offer_weight_multiplier(2) == 1, "twice-skipped card is not reduced to 25 percent weight")
+	_expect(UpgradeCatalogScript.get_offer_weight_multiplier(5) == 1, "skipped card weight fell below the 25 percent floor")
+	seed(260713)
+	var rarity_counts := {"Common": 0, "Rare": 0, "Epic": 0}
+	for _index in range(2000):
+		var rolled_rarity := UpgradeManagerScript.roll_rarity()
+		rarity_counts[rolled_rarity] = int(rarity_counts.get(rolled_rarity, 0)) + 1
+	_expect(absf(float(rarity_counts["Common"]) / 2000.0 - 0.50) < 0.05, "common rarity roll rate drifted too far from 50 percent")
+	_expect(absf(float(rarity_counts["Rare"]) / 2000.0 - 0.35) < 0.05, "rare rarity roll rate drifted too far from 35 percent")
+	_expect(absf(float(rarity_counts["Epic"]) / 2000.0 - 0.15) < 0.04, "epic rarity roll rate drifted too far from 15 percent")
+	for rarity in ["Common", "Rare", "Epic"]:
+		for character_id in GameRulesScript.CHARACTER_ORDER:
+			var upgrades := UpgradeCatalogScript.roll(3, character_id, {}, rarity)
+			_expect(upgrades.size() == 3, "%s %s roll did not return three cards" % [character_id, rarity])
+			for upgrade in upgrades:
+				_expect(str((upgrade as Dictionary).get("rarity", "")) == rarity, "%s roll mixed upgrade rarities" % rarity)
+
+func _check_general_upgrade_totals() -> void:
+	var player = PlayerScript.new()
+	player.apply_character_config(GameRulesScript.get_character_config("warrior"))
+	var base_damage: float = player.attack_damage
+	var base_attack_cooldown: float = player.attack_cooldown
+	var base_range: float = player.attack_range
+	var base_health: float = player.max_health
+	var base_speed: float = player.move_speed
+	var base_knockback: float = player.attack_knockback
+	var base_q_cooldown: float = player.skill_cooldown
+	var base_e_cooldown: float = player.fan_skill_cooldown
+	var base_f_cooldown: float = player.ultimate_cooldown
+	for upgrade in UpgradeCatalogScript.GENERAL_POOL:
+		player.apply_upgrade(upgrade as Dictionary)
+	_expect(is_equal_approx(player.attack_damage, base_damage * 1.51), "all attack damage rarities do not total 51 percent")
+	_expect(is_equal_approx(player.attack_cooldown, base_attack_cooldown * 0.65), "all attack cooldown rarities do not total 35 percent")
+	_expect(is_equal_approx(player.attack_range, base_range * 1.51), "all attack range rarities do not total 51 percent")
+	_expect(is_equal_approx(player.max_health, base_health * 1.64), "all maximum health rarities do not total 64 percent")
+	_expect(is_equal_approx(player.move_speed, base_speed * 1.25), "all movement speed rarities do not total 25 percent")
+	_expect(is_equal_approx(player.attack_knockback, base_knockback * 1.80), "all knockback rarities do not total 80 percent")
+	_expect(is_equal_approx(player.crit_chance, 0.29), "all critical chance rarities do not total 29 percent")
+	_expect(is_equal_approx(player.lifesteal_ratio, 0.07), "all lifesteal rarities do not total 7 percent")
+	_expect(is_equal_approx(player.skill_cooldown, base_q_cooldown * 0.68), "all skill cooldown rarities do not reduce Q by 32 percent")
+	_expect(is_equal_approx(player.fan_skill_cooldown, base_e_cooldown * 0.68), "all skill cooldown rarities do not reduce E by 32 percent")
+	_expect(is_equal_approx(player.ultimate_cooldown, base_f_cooldown * 0.68), "all skill cooldown rarities do not reduce F by 32 percent")
+	player.free()
 
 func _check_behavior_upgrade_pool() -> void:
 	_expect(UpgradeCatalogScript.BEHAVIOR_POOL.size() == 36, "behavior pool does not contain eight Q cards, sixteen E cards, and twelve F cards")

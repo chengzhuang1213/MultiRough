@@ -7,7 +7,7 @@ const F_MAX_CAST_RANGE := 160.0
 
 func basic_attack(combat, origin: Vector2, direction: Vector2, _length: float, _half_width: float, damage: float, attacker: PlayerController) -> void:
 	var forward := direction.normalized() if direction != Vector2.ZERO else Vector2.RIGHT
-	combat.fire_mage_basic_projectile(origin + forward * 24.0, forward, damage, attacker)
+	combat.fire_mage_single_projectile(origin + forward * 24.0, forward, damage, attacker)
 	combat.game._spawn_line_skill_effect(origin, forward, 42.0, Color(0.72, 0.38, 1.0, 0.32), 0.08)
 
 func use_q(combat, origin: Vector2, direction: Vector2, _length: float, half_width: float, damage: float, attacker: PlayerController) -> void:

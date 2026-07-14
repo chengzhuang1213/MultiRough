@@ -9,6 +9,7 @@ signal projectile_attack_requested(origin: Vector2, direction: Vector2, damage: 
 signal active_skill_requested(origin: Vector2, direction: Vector2, length: float, half_width: float, damage: float)
 signal fan_skill_requested(origin: Vector2, direction: Vector2, length: float, half_width: float, damage: float)
 signal ultimate_skill_requested(origin: Vector2, direction: Vector2, damage: float, duration: float)
+signal secondary_action_requested(origin: Vector2, direction: Vector2, damage: float)
 signal cooldown_notice_requested(skill_index: int)
 signal reflected_damage_requested(enemy: EnemyController, amount: float)
 signal perfect_guard_triggered
@@ -26,6 +27,7 @@ const ANIM_HIT := "hit"
 const ANIM_DEATH := "death"
 const DEFEND_TAP_GRACE := 0.12
 const DEFEND_FULL_STOP_TIME := 0.45
+const SECONDARY_COOLDOWN := 3.0
 const ARCHER_Q_MAX_CHARGE_TIME := 1.20
 const ARCHER_Q_MIN_DAMAGE_RATIO := 0.65
 const CHARACTER_WARRIOR := "warrior"
@@ -68,9 +70,20 @@ var ultimate_cooldown: float = 28.0
 var ultimate_duration: float = 8.0
 var ultimate_damage_multiplier := 1.0
 var upgrade_levels: Dictionary = {}
+var upgrade_offer_misses: Dictionary = {}
 var warrior_counter_reflect_multiplier := 1.30
 var warrior_counter_pulse_multiplier := 1.0
 var archer_charge_time_multiplier := 1.0
+
+var _base_max_health := 120.0
+var _base_move_speed := 240.0
+var _base_attack_damage := 26.0
+var _base_attack_cooldown := 0.34
+var _base_attack_range := 76.0
+var _base_attack_knockback := 150.0
+var _base_skill_cooldown := 4.0
+var _base_fan_skill_cooldown := 9.0
+var _base_ultimate_cooldown := 28.0
 
 var arena_bounds := Rect2(Vector2(-480, -270), Vector2(960, 540))
 var is_dead := false
@@ -98,6 +111,7 @@ var _dash_timer := 0.0
 var _skill_timer := 0.0
 var _fan_skill_timer := 0.0
 var _ultimate_timer: float = 0.0
+var _secondary_timer := 0.0
 var _dash_time_left := 0.0
 var _invulnerable_left := 0.0
 var _damage_flash_left := 0.0
@@ -112,6 +126,8 @@ var _death_anim_finished := false
 var _pending_combat_event: Dictionary = {}
 var _combat_event_emitted := false
 var _defend_hold_time := 0.0
+var _secondary_was_held := false
+var _warrior_manual_guard_active := false
 var _attack_combo_index := 0
 var _combo_window_left := 0.0
 var _external_move_direction := Vector2.ZERO
@@ -156,7 +172,8 @@ func _physics_process(delta: float) -> void:
 		return
 
 	_tick_timers(delta)
-	is_defending = _get_defend_pressed() or _warrior_counter_left > 0.0
+	_update_secondary_action()
+	is_defending = (character_id == CHARACTER_WARRIOR and _warrior_manual_guard_active) or _warrior_counter_left > 0.0
 	_defend_hold_time = _defend_hold_time + delta if is_defending else 0.0
 	var input_direction: Vector2 = _get_move_direction()
 	if input_direction != Vector2.ZERO and _attack_anim_left <= 0.0:
@@ -361,6 +378,29 @@ func _get_defend_pressed() -> bool:
 		return _external_defending
 	return Input.is_action_pressed(defend_action)
 
+func _update_secondary_action() -> void:
+	var secondary_held := _get_defend_pressed()
+	var secondary_pressed := secondary_held and not _secondary_was_held
+	if character_id == CHARACTER_WARRIOR and not secondary_held:
+		_warrior_manual_guard_active = false
+	if secondary_pressed and not cooldowns_paused:
+		if _secondary_timer <= 0.0:
+			_secondary_timer = SECONDARY_COOLDOWN
+			if character_id == CHARACTER_WARRIOR:
+				_warrior_manual_guard_active = true
+			else:
+				var direction := _get_attack_direction()
+				_last_direction = direction
+				secondary_action_requested.emit(global_position, direction, _roll_damage(attack_damage))
+				if _attack_anim_left <= 0.0:
+					if character_id == CHARACTER_MAGE:
+						_start_cast_animation()
+					else:
+						_start_attack_animation(true)
+		else:
+			cooldown_notice_requested.emit(4)
+	_secondary_was_held = secondary_held
+
 func _get_defense_move_multiplier() -> float:
 	if _warrior_counter_left > 0.0:
 		return 1.0
@@ -387,6 +427,16 @@ func grant_skill_invulnerability(duration: float) -> void:
 
 func get_upgrade_level(upgrade_id: String) -> int:
 	return int(upgrade_levels.get(upgrade_id, 0))
+
+func record_upgrade_offer_result(offered_upgrades: Array, selected_id: String) -> void:
+	for upgrade_value in offered_upgrades:
+		var offered_id := str((upgrade_value as Dictionary).get("id", ""))
+		if offered_id.is_empty() or offered_id == selected_id:
+			continue
+		upgrade_offer_misses[offered_id] = int(upgrade_offer_misses.get(offered_id, 0)) + 1
+
+func get_attack_range_multiplier() -> float:
+	return attack_range / maxf(_base_attack_range, 0.001)
 
 func _consume_basic_pressed() -> bool:
 	if not external_input_enabled:
@@ -490,6 +540,8 @@ func _reset_transient_action_state() -> void:
 	_external_aim_target = Vector2.ZERO
 	_external_has_aim_target = false
 	_external_defending = false
+	_secondary_was_held = false
+	_warrior_manual_guard_active = false
 	_external_basic_pressed = false
 	_external_dash_pressed = false
 	_external_skill_pressed = false
@@ -534,6 +586,15 @@ func apply_character_config(config: Dictionary) -> void:
 	fan_skill_half_width = float(config.get("fan_skill_half_width", fan_skill_half_width))
 	fan_skill_cooldown = float(config.get("fan_skill_cooldown", fan_skill_cooldown))
 	ultimate_cooldown = float(config.get("ultimate_cooldown", ultimate_cooldown))
+	_base_max_health = max_health
+	_base_move_speed = move_speed
+	_base_attack_damage = attack_damage
+	_base_attack_cooldown = attack_cooldown
+	_base_attack_range = attack_range
+	_base_attack_knockback = attack_knockback
+	_base_skill_cooldown = skill_cooldown
+	_base_fan_skill_cooldown = fan_skill_cooldown
+	_base_ultimate_cooldown = ultimate_cooldown
 	health_changed.emit(health, max_health)
 	if _sprite != null:
 		_play_animation(ANIM_IDLE, true)
@@ -546,38 +607,45 @@ func _roll_damage(base_damage: float) -> float:
 func apply_upgrade(upgrade: Dictionary) -> void:
 	var stat: String = str(upgrade.get("stat", ""))
 	var multiplier: float = float(upgrade.get("multiplier", 1.0))
+	var amount: float = float(upgrade.get("amount", 0.0))
+	var upgrade_id := str(upgrade.get("id", ""))
+	var max_level := int(upgrade.get("max_level", 1))
 	var required_upgrade := str(upgrade.get("requires", ""))
 	if not required_upgrade.is_empty() and get_upgrade_level(required_upgrade) <= 0:
 		return
 	for excluded_id in upgrade.get("excludes", []):
 		if get_upgrade_level(str(excluded_id)) > 0:
 			return
+	if not upgrade_id.is_empty() and get_upgrade_level(upgrade_id) >= max_level:
+		return
+	if not upgrade_id.is_empty():
+		upgrade_levels[upgrade_id] = get_upgrade_level(upgrade_id) + 1
 
 	match stat:
 		"behavior_upgrade":
-			var upgrade_id := str(upgrade.get("id", ""))
-			var max_level := int(upgrade.get("max_level", 1))
-			if get_upgrade_level(upgrade_id) >= max_level:
-				return
-			upgrade_levels[upgrade_id] = get_upgrade_level(upgrade_id) + 1
 			_apply_behavior_upgrade(upgrade_id)
 		"attack_damage":
-			attack_damage *= multiplier
+			attack_damage += _base_attack_damage * amount if upgrade.has("amount") else attack_damage * (multiplier - 1.0)
 		"max_health":
 			var old_max: float = max_health
-			max_health *= multiplier
+			max_health += _base_max_health * amount if upgrade.has("amount") else max_health * (multiplier - 1.0)
 			health += max_health - old_max
 			health_changed.emit(health, max_health)
 		"move_speed":
-			move_speed *= multiplier
+			move_speed += _base_move_speed * amount if upgrade.has("amount") else move_speed * (multiplier - 1.0)
 		"attack_cooldown":
-			attack_cooldown = maxf(0.15, attack_cooldown * multiplier)
+			attack_cooldown = maxf(0.15, attack_cooldown - _base_attack_cooldown * amount) if upgrade.has("amount") else maxf(0.15, attack_cooldown * multiplier)
 		"dash_cooldown":
 			dash_cooldown = maxf(0.35, dash_cooldown * multiplier)
 		"skill_cooldown":
-			skill_cooldown = maxf(1.0, skill_cooldown * multiplier)
+			if upgrade.has("amount"):
+				skill_cooldown = maxf(1.0, skill_cooldown - _base_skill_cooldown * amount)
+				fan_skill_cooldown = maxf(1.2, fan_skill_cooldown - _base_fan_skill_cooldown * amount)
+				ultimate_cooldown = maxf(6.0, ultimate_cooldown - _base_ultimate_cooldown * amount)
+			else:
+				skill_cooldown = maxf(1.0, skill_cooldown * multiplier)
 		"attack_range":
-			attack_range *= multiplier
+			attack_range += _base_attack_range * amount if upgrade.has("amount") else attack_range * (multiplier - 1.0)
 		"skill_damage":
 			skill_damage *= multiplier
 		"skill_range":
@@ -597,11 +665,11 @@ func apply_upgrade(upgrade: Dictionary) -> void:
 		"ultimate_cooldown":
 			ultimate_cooldown = maxf(6.0, ultimate_cooldown * multiplier)
 		"lifesteal":
-			lifesteal_ratio += float(upgrade.get("add", 0.04))
+			lifesteal_ratio += amount if upgrade.has("amount") else float(upgrade.get("add", 0.04))
 		"crit_chance":
-			crit_chance += float(upgrade.get("add", 0.08))
+			crit_chance = minf(1.0, crit_chance + (amount if upgrade.has("amount") else float(upgrade.get("add", 0.08))))
 		"knockback":
-			attack_knockback *= multiplier
+			attack_knockback += _base_attack_knockback * amount if upgrade.has("amount") else attack_knockback * (multiplier - 1.0)
 		"dash_charges":
 			dash_max_charges += int(upgrade.get("add", 1))
 			dash_charges = dash_max_charges
@@ -639,6 +707,7 @@ func _tick_timers(delta: float) -> void:
 		_skill_timer = maxf(0.0, _skill_timer - delta)
 		_fan_skill_timer = maxf(0.0, _fan_skill_timer - delta)
 		_ultimate_timer = maxf(0.0, _ultimate_timer - delta)
+		_secondary_timer = maxf(0.0, _secondary_timer - delta)
 	_dash_time_left = maxf(0.0, _dash_time_left - delta)
 	_invulnerable_left = maxf(0.0, _invulnerable_left - delta)
 	_damage_flash_left = maxf(0.0, _damage_flash_left - delta)
@@ -901,3 +970,9 @@ func get_ultimate_ready() -> bool:
 
 func get_ultimate_remaining() -> float:
 	return _ultimate_timer
+
+func get_secondary_ready() -> bool:
+	return _secondary_timer <= 0.0
+
+func get_secondary_remaining() -> float:
+	return _secondary_timer

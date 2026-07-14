@@ -2,13 +2,16 @@ extends RefCounted
 class_name WaveManager
 
 const DEFAULT_WAVES := [
-	{"minions": 4},
-	{"minions": 7},
-	{"minions": 10},
-	{"minions": 13},
-	{"minions": 16},
-	{"minions": 20},
-	{"minions": 24},
+	{"melee": 4},
+	{"melee": 5, "ranged": 2},
+	{"melee": 6, "heavy": 2, "ranged": 2},
+	{"melee": 6, "shield": 3, "ranged": 2},
+	{"melee": 8, "heavy": 2, "charger": 1},
+	{"melee": 8, "ranged": 4, "bomber": 1},
+	{"melee": 8, "heavy": 3, "shield": 3, "charger": 1},
+	{"melee": 8, "ranged": 5, "shield": 3, "priest": 1},
+	{"melee": 9, "heavy": 4, "ranged": 4, "charger": 1, "bomber": 1},
+	{"melee": 10, "heavy": 4, "ranged": 5, "shield": 4, "charger": 1, "bomber": 1, "priest": 1},
 	{"boss": true},
 ]
 

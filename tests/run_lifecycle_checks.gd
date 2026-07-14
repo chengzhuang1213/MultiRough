@@ -2,6 +2,7 @@ extends SceneTree
 
 const MainScene := preload("res://scenes/main/main.tscn")
 const GameStateScript := preload("res://scripts/core/game_state.gd")
+const UpgradeCatalogScript := preload("res://scripts/upgrades/upgrade_catalog.gd")
 
 var failures: Array[String] = []
 var game: Node
@@ -38,6 +39,22 @@ func _check_complete_single_player_run() -> void:
 	_expect(game.game_state == GameStateScript.WAVE_ACTIVE, "first wave is not active")
 	_expect(game.wave_time_left > 0.0 and game.wave_time_left <= 60.0, "normal wave did not start with a 60-second limit")
 	_expect(game.player_huds[0].get("player") == game.players[0], "player HUD was not bound to the created player")
+	var hud: Dictionary = game.player_huds[0]
+	var skill_icons: Array = hud.get("skill_icons", [])
+	var cooldown_overlays: Array = hud.get("cooldown_overlays", [])
+	_expect(skill_icons.size() == 3 and skill_icons.all(func(icon): return (icon as TextureRect).texture != null), "player HUD did not load all three profession skill icons")
+	_expect(cooldown_overlays.size() == 3, "player HUD did not create three vertical cooldown overlays")
+	var player = game.players[0]
+	player._skill_timer = player.skill_cooldown
+	game.player_roster.update_hud(0)
+	_expect(is_equal_approx((cooldown_overlays[0] as ColorRect).anchor_bottom, 1.0), "Q cooldown did not fully cover its icon when activated")
+	player._skill_timer = player.skill_cooldown * 0.5
+	game.player_roster.update_hud(0)
+	_expect(is_equal_approx((cooldown_overlays[0] as ColorRect).anchor_bottom, 0.5), "Q cooldown overlay did not rise with remaining time")
+	player._skill_timer = 0.0
+	var skill_badge: Control = game._build_upgrade_card_badge(UpgradeCatalogScript.BEHAVIOR_POOL[0], Color.WHITE)
+	_expect(skill_badge.get_child_count() >= 1 and (skill_badge.get_child(0) as TextureRect).texture != null, "skill upgrade card did not load its profession icon")
+	skill_badge.queue_free()
 	_check_combat_manager_connections()
 
 	for expected_wave_index in range(game.wave_manager.wave_count()):
@@ -46,7 +63,7 @@ func _check_complete_single_player_run() -> void:
 		var boss_wave: bool = game.game_state == GameStateScript.BOSS_WAVE
 		if boss_wave:
 			_expect(game.wave_time_left > 60.0 and game.wave_time_left <= 120.0, "boss wave did not start with a 120-second limit")
-		_kill_current_wave()
+		await _kill_current_wave()
 		await process_frame
 		if boss_wave:
 			_expect(game.game_state == GameStateScript.VICTORY, "defeating the boss did not enter victory")
@@ -118,9 +135,13 @@ func _check_wave_timeout() -> void:
 	_expect_clean_lobby("restart after wave timeout")
 
 func _kill_current_wave() -> void:
-	for enemy in game.enemies.duplicate():
-		if is_instance_valid(enemy):
-			enemy.apply_damage(enemy.health + 1.0)
+	var cleanup_passes := 0
+	while not game.enemies.is_empty() and cleanup_passes < 4:
+		for enemy in game.enemies.duplicate():
+			if is_instance_valid(enemy):
+				enemy.apply_damage(enemy.max_health * 10.0, enemy.global_position, 0.0)
+		cleanup_passes += 1
+		await process_frame
 
 func _check_combat_manager_connections() -> void:
 	var player = game.players[0]
@@ -146,6 +167,7 @@ func _expect_clean_lobby(context: String) -> void:
 	_expect(game.wave_index == -1, "%s did not reset the wave index" % context)
 	_expect(is_zero_approx(game.elapsed_time), "%s did not reset elapsed time" % context)
 	_expect(is_zero_approx(game.wave_time_left), "%s did not reset wave time" % context)
+	_expect(not game.epic_upgrade_seen, "%s did not reset the epic upgrade guarantee" % context)
 	_expect(game.enemies_defeated == 0, "%s did not reset the defeated-enemy count" % context)
 	_expect(is_zero_approx(game.damage_dealt), "%s did not reset dealt damage" % context)
 	_expect(is_zero_approx(game.damage_taken), "%s did not reset taken damage" % context)

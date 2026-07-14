@@ -14,7 +14,11 @@ const UPGRADE_PANEL_WIDTH := 980.0
 const UPGRADE_PANEL_HEIGHT := 460.0
 const NEXT_WAVE_BUTTON_WIDTH := 220.0
 const NEXT_WAVE_BUTTON_HEIGHT := 44.0
-const LOCAL_PLAYER_HUD_WIDTH := 520.0
+const PLAYER_HUD_WIDTH := 560.0
+const PLAYER_HUD_OCCLUDED_ALPHA := 0.20
+const PLAYER_HUD_FADE_OUT_TIME := 0.12
+const PLAYER_HUD_FADE_IN_TIME := 0.20
+const PLAYER_HUD_FADE_RELEASE_DELAY := 0.08
 const SHOW_ENEMY_ATTACK_TELEGRAPH := true
 const NETWORK_PORT := 24567
 const NETWORK_SYNC_SEED := 260708
@@ -40,16 +44,38 @@ const CORNER_PROP_PATHS := [
 const WAVE_DEFS := WaveManagerScript.DEFAULT_WAVES
 const CHARACTER_ORDER := GameRulesScript.CHARACTER_ORDER
 const CHARACTER_CARD_ART := {
-	"warrior": "res://assets/original/characters/warrior/warrior_concept_v1.png",
-	"archer": "res://assets/original/characters/archer/archer_concept_v1.png",
-	"lancer": "res://assets/original/characters/lancer/lancer_concept_v1.png",
-	"mage": "res://assets/original/characters/mage/mage_concept_v1.png",
+	"warrior": "res://assets/original/characters/warrior/warrior_card_v2.png",
+	"archer": "res://assets/original/characters/archer/archer_card_v2.png",
+	"lancer": "res://assets/original/characters/lancer/lancer_card_v2.png",
+	"mage": "res://assets/original/characters/mage/mage_card_v2.png",
 }
 const CHARACTER_CARD_ACCENTS := {
-	"warrior": Color(0.30, 0.78, 1.0),
-	"archer": Color(1.0, 0.78, 0.20),
-	"lancer": Color(0.95, 0.52, 0.20),
-	"mage": Color(0.72, 0.38, 1.0),
+	"warrior": Color(0.95, 0.38, 0.42),
+	"archer": Color(0.78, 0.32, 0.62),
+	"lancer": Color(0.36, 0.76, 0.63),
+	"mage": Color(0.66, 0.42, 0.90),
+}
+const CHARACTER_SKILL_ICONS := {
+	"warrior": {
+		"Q": "res://assets/ui/character_select/skills/warrior_q.png",
+		"E": "res://assets/ui/character_select/skills/warrior_e.png",
+		"F": "res://assets/ui/character_select/skills/warrior_f.png",
+	},
+	"archer": {
+		"Q": "res://assets/ui/character_select/skills/archer_q.png",
+		"E": "res://assets/ui/character_select/skills/archer_e.png",
+		"F": "res://assets/ui/character_select/skills/archer_f.png",
+	},
+	"lancer": {
+		"Q": "res://assets/ui/character_select/skills/lancer_q.png",
+		"E": "res://assets/ui/character_select/skills/lancer_e.png",
+		"F": "res://assets/ui/character_select/skills/lancer_f.png",
+	},
+	"mage": {
+		"Q": "res://assets/ui/character_select/skills/mage_q.png",
+		"E": "res://assets/ui/character_select/skills/mage_e.png",
+		"F": "res://assets/ui/character_select/skills/mage_f.png",
+	},
 }
 const CHARACTER_STAT_ICONS := {
 	"health": "res://assets/ui/character_select/stat_health.png",
@@ -77,6 +103,7 @@ var boss_health_multiplier := 1.0
 var boss_damage_multiplier := 1.0
 var elapsed_time := 0.0
 var wave_time_left := 0.0
+var epic_upgrade_seen := false
 var enemies_defeated := 0
 var damage_dealt := 0.0
 var damage_taken := 0.0
@@ -109,12 +136,13 @@ var character_select_panel: VBoxContainer
 var character_select_start_button: Button
 var hud_left: VBoxContainer
 var hud_right: VBoxContainer
-var player_hud_left: VBoxContainer
-var player_hud_right: VBoxContainer
+var player_hud: PanelContainer
 var status_label: Label
 var wave_label: Label
 var enemies_label: Label
 var player_huds: Array = []
+var player_hud_alpha := 1.0
+var player_hud_fade_release_left := 0.0
 var upgrade_panel: VBoxContainer
 var start_next_wave_button: Button
 var result_label: Label
@@ -210,6 +238,7 @@ func _process(delta: float) -> void:
 	if _is_network_game():
 		_send_network_input()
 	_update_camera()
+	_update_player_hud_occlusion(delta)
 	_update_enemy_targets()
 	if _is_combat_active():
 		combat_manager.update_ultimates(delta)
@@ -264,27 +293,18 @@ func _build_ui() -> void:
 	enemies_label = Label.new()
 	hud_left.add_child(enemies_label)
 
-	player_hud_left = VBoxContainer.new()
-	player_hud_left.visible = false
-	player_hud_left.custom_minimum_size = Vector2(LOCAL_PLAYER_HUD_WIDTH, 0.0)
-	player_hud_left.add_theme_constant_override("separation", 6)
-	ui_layer.add_child(player_hud_left)
+	player_hud = PanelContainer.new()
+	player_hud.visible = false
+	player_hud.custom_minimum_size = Vector2(PLAYER_HUD_WIDTH, 0.0)
+	ui_layer.add_child(player_hud)
 
-	_create_player_hud(player_hud_left, "P1", "K", ["普攻", "Q", "E", "F"])
+	_create_player_hud(player_hud, ["普攻", "Q", "E", "F"])
 
 	hud_right = VBoxContainer.new()
 	hud_right.position = Vector2(16, 16)
 	hud_right.visible = false
 	hud_right.add_theme_constant_override("separation", 6)
 	ui_layer.add_child(hud_right)
-
-	player_hud_right = VBoxContainer.new()
-	player_hud_right.visible = false
-	player_hud_right.custom_minimum_size = Vector2(LOCAL_PLAYER_HUD_WIDTH, 0.0)
-	player_hud_right.add_theme_constant_override("separation", 6)
-	ui_layer.add_child(player_hud_right)
-
-	_create_player_hud(player_hud_right, "P2", "右键 / K", ["普攻", "Q", "E", "F"])
 
 	main_menu_panel = VBoxContainer.new()
 	main_menu_panel.position = Vector2(460, 230)
@@ -393,12 +413,10 @@ func _layout_ui() -> void:
 		hud_left.position = Vector2(16, 16)
 	if hud_right != null:
 		hud_right.position = Vector2(16, 16)
-	if player_hud_left != null:
-		player_hud_left.position = Vector2(16.0, maxf(16.0, viewport_size.y - _get_hud_height(player_hud_left) - 16.0))
-	if player_hud_right != null:
-		player_hud_right.position = Vector2(
-			maxf(16.0, viewport_size.x - LOCAL_PLAYER_HUD_WIDTH - 16.0),
-			maxf(16.0, viewport_size.y - _get_hud_height(player_hud_right) - 16.0)
+	if player_hud != null:
+		player_hud.position = Vector2(
+			maxf(16.0, (viewport_size.x - PLAYER_HUD_WIDTH) * 0.5),
+			maxf(16.0, viewport_size.y - _get_hud_height(player_hud) - 16.0)
 		)
 	if main_menu_panel != null:
 		main_menu_panel.position = (viewport_size - main_menu_panel.custom_minimum_size) * 0.5
@@ -419,14 +437,43 @@ func _layout_ui() -> void:
 	if result_label != null and restart_button != null:
 		_position_result_panel()
 
-func _get_hud_height(hud: VBoxContainer) -> float:
+func _get_hud_height(hud: Control) -> float:
 	var height: float = hud.size.y
 	if height <= 0.0:
 		return 128.0
 	return height
 
-func _create_player_hud(parent: VBoxContainer, player_label: String, defend_hint: String, skill_labels: Array[String]) -> void:
-	player_roster.create_hud(parent, player_label, defend_hint, skill_labels)
+func _update_player_hud_occlusion(delta: float) -> void:
+	if player_hud == null or not player_hud.visible or not _is_combat_active():
+		player_hud_alpha = 1.0
+		player_hud_fade_release_left = 0.0
+		player_roster.set_hud_occlusion_opacity(player_hud_alpha)
+		return
+	var occluded := _has_actor_behind_player_hud()
+	if occluded:
+		player_hud_fade_release_left = PLAYER_HUD_FADE_RELEASE_DELAY
+	else:
+		player_hud_fade_release_left = maxf(0.0, player_hud_fade_release_left - delta)
+	var target_alpha := PLAYER_HUD_OCCLUDED_ALPHA if occluded or player_hud_fade_release_left > 0.0 else 1.0
+	var transition_time := PLAYER_HUD_FADE_OUT_TIME if target_alpha < player_hud_alpha else PLAYER_HUD_FADE_IN_TIME
+	player_hud_alpha = move_toward(player_hud_alpha, target_alpha, delta / transition_time)
+	player_roster.set_hud_occlusion_opacity(player_hud_alpha)
+
+func _has_actor_behind_player_hud() -> bool:
+	var hud_rect := player_hud.get_global_rect()
+	var canvas_transform := get_viewport().get_canvas_transform()
+	for target_player in players:
+		if is_instance_valid(target_player) and not target_player.is_dead:
+			if hud_rect.has_point(canvas_transform * target_player.global_position):
+				return true
+	for enemy in enemies:
+		if is_instance_valid(enemy):
+			if hud_rect.has_point(canvas_transform * enemy.global_position):
+				return true
+	return false
+
+func _create_player_hud(parent: PanelContainer, skill_labels: Array[String]) -> void:
+	player_roster.create_hud(parent, skill_labels)
 
 func _show_main_menu() -> void:
 	game_state = GameStateScript.LOBBY
@@ -438,10 +485,8 @@ func _show_main_menu() -> void:
 		hud_left.visible = false
 	if hud_right != null:
 		hud_right.visible = false
-	if player_hud_left != null:
-		player_hud_left.visible = false
-	if player_hud_right != null:
-		player_hud_right.visible = false
+	if player_hud != null:
+		player_hud.visible = false
 	if return_to_menu_button != null:
 		return_to_menu_button.visible = false
 	_update_status()
@@ -510,7 +555,7 @@ func _on_network_peer_connected(peer_id: int) -> void:
 
 func _on_network_connected_to_server() -> void:
 	network_peer_joined = true
-	_set_network_status("已连接，选择 P2 职业，等待房主开始")
+	_set_network_status("已连接，选择你的职业，等待房主开始")
 	_show_character_select(2)
 
 func _on_network_connection_failed() -> void:
@@ -661,6 +706,9 @@ func _build_character_card(character_id: String) -> Dictionary:
 	art.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	art.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
 	art.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	if character_id == "warrior":
+		art.offset_top = 38.0
+		art.offset_bottom = 38.0
 	art.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	button.add_child(art)
 
@@ -693,7 +741,7 @@ func _build_character_card(character_id: String) -> Dictionary:
 	title_panel.add_child(title_label)
 
 	var art_space: Control = Control.new()
-	art_space.custom_minimum_size = Vector2(0, 224)
+	art_space.custom_minimum_size = Vector2(0, 202)
 	art_space.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	content.add_child(art_space)
 
@@ -715,20 +763,13 @@ func _build_character_card(character_id: String) -> Dictionary:
 	stats_grid.add_child(_build_character_stat("cooldown", "间隔 %.2f秒" % float(config.get("attack_cooldown", 0.0))))
 
 	var skills: HBoxContainer = HBoxContainer.new()
-	skills.custom_minimum_size = Vector2(242, 36)
+	skills.custom_minimum_size = Vector2(242, 58)
 	skills.alignment = BoxContainer.ALIGNMENT_CENTER
-	skills.add_theme_constant_override("separation", 10)
+	skills.add_theme_constant_override("separation", 6)
 	skills.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	content.add_child(skills)
-	if character_id == "mage":
-		var pending_label := Label.new()
-		pending_label.text = "技能待定"
-		pending_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		pending_label.add_theme_font_size_override("font_size", 16)
-		skills.add_child(pending_label)
-	else:
-		for skill_key in ["Q", "E", "F"]:
-			skills.add_child(_build_character_skill_key(skill_key, CHARACTER_CARD_ACCENTS.get(character_id, Color.WHITE)))
+	for skill_key in ["Q", "E", "F"]:
+		skills.add_child(_build_character_skill_key(character_id, skill_key, CHARACTER_CARD_ACCENTS.get(character_id, Color.WHITE)))
 
 	return {
 		"character_id": character_id,
@@ -756,19 +797,34 @@ func _build_character_stat(icon_key: String, text: String) -> HBoxContainer:
 	row.add_child(label)
 	return row
 
-func _build_character_skill_key(skill_key: String, accent: Color) -> PanelContainer:
+func _build_character_skill_key(character_id: String, skill_key: String, accent: Color) -> PanelContainer:
 	var panel: PanelContainer = PanelContainer.new()
-	panel.custom_minimum_size = Vector2(84, 36)
+	panel.custom_minimum_size = Vector2(76, 58)
+	panel.clip_contents = true
 	var style := _make_character_info_style(Color(0.03, 0.05, 0.07, 0.92))
 	style.border_color = accent
 	style.set_border_width_all(2)
+	style.content_margin_left = 0
+	style.content_margin_top = 0
+	style.content_margin_right = 0
+	style.content_margin_bottom = 0
 	panel.add_theme_stylebox_override("panel", style)
 	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var icon: TextureRect = TextureRect.new()
+	var character_icons: Dictionary = CHARACTER_SKILL_ICONS.get(character_id, {})
+	icon.texture = load(str(character_icons.get(skill_key, ""))) as Texture2D
+	icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+	icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	panel.add_child(icon)
 	var label: Label = Label.new()
 	label.text = skill_key
-	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	label.add_theme_font_size_override("font_size", 19)
+	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+	label.vertical_alignment = VERTICAL_ALIGNMENT_TOP
+	label.add_theme_font_size_override("font_size", 15)
+	label.add_theme_color_override("font_color", Color.WHITE)
+	label.add_theme_color_override("font_outline_color", Color(0.02, 0.02, 0.03, 0.95))
+	label.add_theme_constant_override("outline_size", 4)
 	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	panel.add_child(label)
 	return panel
@@ -894,6 +950,7 @@ func _start_game(player_count: int) -> void:
 	wave_index = wave_manager.wave_index
 	elapsed_time = 0.0
 	wave_time_left = 0.0
+	epic_upgrade_seen = false
 	enemies_defeated = 0
 	damage_dealt = 0.0
 	damage_taken = 0.0
@@ -902,28 +959,25 @@ func _start_game(player_count: int) -> void:
 		main_menu_panel.visible = false
 	hud_left.visible = true
 	hud_right.visible = false
-	player_hud_left.visible = true
-	player_hud_right.visible = local_player_count > 1
+	player_hud.visible = true
 	return_to_menu_button.visible = true
 	_spawn_players(local_player_count)
+	call_deferred("_layout_ui")
 	_start_next_wave()
 
 func _spawn_players(player_count: int) -> void:
 	player = _create_player("Player1", Vector2(-42.0, 0.0), Color.WHITE, player_count <= 1, _build_character_config(0, "Blue Units"))
 	players = [player]
-	_add_local_player_slot(1, player, 0)
-	_assign_player_hud(0, player)
+	_add_local_player_slot(1, player)
 	combat_manager.setup_ultimate(player)
 	if player_count > 1:
 		player_two = _create_player("Player2", Vector2(42.0, 0.0), Color.WHITE, false, _build_character_config(1, "Red Units"))
 		players.append(player_two)
-		_add_local_player_slot(2, player_two, 1)
-		_assign_player_hud(1, player_two)
+		_add_local_player_slot(2, player_two)
 		combat_manager.setup_ultimate(player_two)
-	else:
-		_assign_player_hud(1, null)
 	if _uses_external_player_input():
 		_configure_network_players()
+	_assign_player_hud(0, _get_network_local_player() if _is_network_game() else player)
 
 func _configure_network_players() -> void:
 	if player != null:
@@ -988,14 +1042,18 @@ func _get_character_name(character_id: String) -> String:
 	var config: Dictionary = CHARACTER_CONFIGS.get(character_id, CHARACTER_CONFIGS["warrior"])
 	return str(config.get("name", character_id))
 
+func get_character_skill_icon_path(character_id: String, skill_key: String) -> String:
+	var character_icons: Dictionary = CHARACTER_SKILL_ICONS.get(character_id, {})
+	return str(character_icons.get(skill_key.to_upper(), ""))
+
 func _build_character_config(slot_index: int, unit_color_folder: String) -> Dictionary:
 	var character_id: String = _get_selected_character_id(slot_index)
 	var config: Dictionary = GameRulesScript.get_character_config(character_id)
 	config["unit_color_folder"] = "Yellow Units" if character_id in ["archer", "lancer"] else unit_color_folder
 	return config
 
-func _add_local_player_slot(player_index: int, target_player: PlayerController, hud_index: int) -> void:
-	player_roster.add_slot(player_index, target_player, hud_index)
+func _add_local_player_slot(player_index: int, target_player: PlayerController) -> void:
+	player_roster.add_slot(player_index, target_player)
 
 func _reset_upgrade_slots() -> void:
 	player_roster.reset_upgrade_slots()
@@ -1043,27 +1101,54 @@ func _start_next_wave() -> void:
 	else:
 		game_state = GameStateScript.WAVE_ACTIVE
 		wave_time_left = GameRulesScript.NORMAL_WAVE_TIME_LIMIT
-		_spawn_minions(roundi(float(wave_def["minions"]) * minion_count_multiplier))
+		_spawn_wave(wave_def)
 
 	_update_status()
 
 func _spawn_minions(count: int) -> void:
 	for index in range(count):
 		var enemy: EnemyController = EnemyScript.new()
-		_setup_wave_enemy(enemy, index, count)
+		enemy.setup_as_minion(wave_index + 1)
+		_tune_enemy_for_mode(enemy)
 		enemy.global_position = _spawn_point(index, count)
 		_register_enemy(enemy)
 
-func _setup_wave_enemy(enemy: EnemyController, index: int, count: int) -> void:
+func _spawn_wave(wave_def: Dictionary) -> void:
+	var spawn_types: Array[String] = []
+	for enemy_type in ["melee", "heavy", "ranged", "shield"]:
+		var scaled_count := roundi(float(wave_def.get(enemy_type, 0)) * minion_count_multiplier)
+		for _index in range(scaled_count):
+			spawn_types.append(enemy_type)
+	var elite_multiplier := 2 if local_player_count > 1 else 1
+	for enemy_type in ["charger", "bomber"]:
+		for _index in range(int(wave_def.get(enemy_type, 0)) * elite_multiplier):
+			spawn_types.append(enemy_type)
+	for _index in range(int(wave_def.get("priest", 0))):
+		spawn_types.append("priest")
+	spawn_types.shuffle()
+	for index in range(spawn_types.size()):
+		var enemy: EnemyController = EnemyScript.new()
+		_setup_wave_enemy(enemy, spawn_types[index])
+		enemy.global_position = _spawn_point(index, spawn_types.size())
+		_register_enemy(enemy)
+
+func _setup_wave_enemy(enemy: EnemyController, enemy_type: String) -> void:
 	var wave_number: int = wave_index + 1
-	if wave_number >= 4 and index % 7 == 3:
-		enemy.setup_as_heavy(wave_number)
-	elif wave_number >= 3 and index % 5 == 2:
-		enemy.setup_as_ranged(wave_number)
-	elif wave_number >= 5 and index == count - 1 and wave_number % 2 == 1:
-		enemy.setup_as_elite(wave_number)
-	else:
-		enemy.setup_as_minion(wave_number)
+	match enemy_type:
+		"heavy":
+			enemy.setup_as_heavy(wave_number)
+		"ranged":
+			enemy.setup_as_ranged(wave_number)
+		"shield":
+			enemy.setup_as_shield(wave_number)
+		"charger":
+			enemy.setup_as_charger(wave_number)
+		"bomber":
+			enemy.setup_as_bomber(wave_number)
+		"priest":
+			enemy.setup_as_priest(wave_number)
+		_:
+			enemy.setup_as_minion(wave_number)
 	_tune_enemy_for_mode(enemy)
 
 func _spawn_boss() -> void:
@@ -1079,6 +1164,10 @@ func _tune_enemy_for_mode(enemy: EnemyController) -> void:
 	enemy.health = enemy.max_health
 	enemy.attack_damage *= enemy_damage_multiplier
 	enemy.projectile_damage *= enemy_damage_multiplier
+	if enemy.enemy_type == EnemyController.TYPE_CHARGER:
+		enemy._charge_damage *= enemy_damage_multiplier
+	elif enemy.enemy_type == EnemyController.TYPE_BOMBER:
+		enemy._bomber_damage *= enemy_damage_multiplier
 	enemy.attack_interval *= 0.96 if local_player_count > 1 else 1.0
 
 func _tune_boss_for_mode(boss: EnemyController) -> void:
@@ -1097,8 +1186,31 @@ func _register_enemy(enemy: EnemyController) -> void:
 	enemy.attacked_player.connect(combat_manager.on_enemy_attacked_player)
 	enemy.projectile_requested.connect(combat_manager.on_enemy_projectile_requested)
 	enemy.area_attack_requested.connect(combat_manager.on_enemy_area_attack_requested)
+	enemy.charge_started.connect(combat_manager.on_enemy_charge_started)
+	enemy.self_destruct_requested.connect(combat_manager.on_enemy_self_destruct_requested)
+	enemy.healing_started.connect(combat_manager.on_enemy_healing_started)
+	enemy.healing_requested.connect(combat_manager.on_enemy_healing_requested)
+	enemy.boss_reinforcement_requested.connect(_on_boss_reinforcement_requested)
 	enemies.append(enemy)
 	enemy_root.add_child(enemy)
+
+func _on_boss_reinforcement_requested(boss: EnemyController) -> void:
+	if not is_instance_valid(boss) or game_state != GameStateScript.BOSS_WAVE:
+		return
+	var reinforcement_types: Array[String] = ["melee", "melee", "ranged", "shield"]
+	if local_player_count > 1:
+		reinforcement_types.append_array(["melee", "ranged"])
+	var offsets := [
+		Vector2(-150.0, -90.0), Vector2(150.0, -90.0),
+		Vector2(-150.0, 90.0), Vector2(150.0, 90.0),
+		Vector2(0.0, -150.0), Vector2(0.0, 150.0),
+	]
+	for index in range(reinforcement_types.size()):
+		var enemy: EnemyController = EnemyScript.new()
+		_setup_wave_enemy(enemy, reinforcement_types[index])
+		enemy.global_position = (boss.global_position + offsets[index]).clamp(ARENA_BOUNDS.position, ARENA_BOUNDS.end)
+		_register_enemy(enemy)
+		_spawn_effect(enemy.global_position, 46.0, Color(0.92, 0.24, 0.18, 0.28), 0.24)
 
 func _spawn_point(index: int, count: int) -> Vector2:
 	var side: int = index % 4
@@ -1313,7 +1425,7 @@ func _on_player_cooldown_notice_requested(skill_index: int, source_player: Playe
 		if hud.get("player") != source_player:
 			continue
 		var skill_labels: Array = hud.get("skill_labels", ["普攻", "Q", "E", "F"])
-		var skill_label: String = str(skill_labels[clampi(skill_index, 0, skill_labels.size() - 1)])
+		var skill_label := "右键" if skill_index == 4 else str(skill_labels[clampi(skill_index, 0, skill_labels.size() - 1)])
 		_spawn_cooldown_bubble(source_player, "%s：冷却中" % skill_label)
 		return
 
@@ -1492,7 +1604,24 @@ func _enter_upgrade_select() -> void:
 		var target_player: PlayerController = slot.get("player") as PlayerController
 		character_ids.append(target_player.character_id if target_player != null else "")
 		upgrade_players.append(target_player)
-	var upgrade_sets: Array = UpgradeManagerScript.roll_for_players(upgrade_players, 3)
+	var final_upgrade_round := wave_index == wave_manager.boss_wave_index() - 1
+	var force_epic := final_upgrade_round and not epic_upgrade_seen
+	var excluded_rarities: Array = []
+	var upgrade_rarity := "Common"
+	var upgrade_sets: Array = []
+	while excluded_rarities.size() < 3:
+		upgrade_rarity = UpgradeManagerScript.roll_rarity(force_epic and excluded_rarities.is_empty(), excluded_rarities)
+		upgrade_sets = UpgradeManagerScript.roll_for_players(upgrade_players, 3, upgrade_rarity)
+		var complete_roll := true
+		for upgrades in upgrade_sets:
+			if (upgrades as Array).size() < 3:
+				complete_roll = false
+				break
+		if complete_roll:
+			break
+		excluded_rarities.append(upgrade_rarity)
+	if upgrade_rarity == "Epic":
+		epic_upgrade_seen = true
 	for slot_index in range(local_player_slots.size()):
 		local_player_slots[slot_index]["upgrades"] = upgrade_sets[slot_index]
 	if network_mode == "host":
@@ -1686,13 +1815,22 @@ func _build_upgrade_card_badge(upgrade: Dictionary, accent: Color) -> Control:
 		style.set_border_width_all(3)
 		style.set_corner_radius_all(6)
 		panel.add_theme_stylebox_override("panel", style)
+		panel.clip_contents = true
 		panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		var icon: TextureRect = TextureRect.new()
+		icon.texture = load(get_character_skill_icon_path(str(upgrade.get("character_id", "")), skill_slot)) as Texture2D
+		icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+		icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		panel.add_child(icon)
 		var label: Label = Label.new()
 		label.text = skill_slot.to_upper()
-		label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-		label.add_theme_font_size_override("font_size", 40)
-		label.add_theme_color_override("font_color", accent)
+		label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+		label.vertical_alignment = VERTICAL_ALIGNMENT_TOP
+		label.add_theme_font_size_override("font_size", 22)
+		label.add_theme_color_override("font_color", Color.WHITE)
+		label.add_theme_color_override("font_outline_color", Color(0.015, 0.02, 0.035, 0.98))
+		label.add_theme_constant_override("outline_size", 5)
 		label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		panel.add_child(label)
 		return panel
@@ -1761,6 +1899,7 @@ func _select_upgrade(player_index: int, upgrade: Dictionary) -> void:
 	var target_player: PlayerController = slot.get("player") as PlayerController
 	if target_player == null or not is_instance_valid(target_player):
 		return
+	target_player.record_upgrade_offer_result(slot.get("upgrades", []) as Array, str(upgrade.get("id", "")))
 	target_player.apply_upgrade(upgrade)
 	slot["selected"] = true
 	if not _all_required_upgrades_selected():
@@ -1807,6 +1946,7 @@ func _apply_confirmed_network_upgrade(player_index: int, upgrade_index: int) -> 
 	var target_player: PlayerController = slot.get("player") as PlayerController
 	if target_player == null or not is_instance_valid(target_player):
 		return false
+	target_player.record_upgrade_offer_result(upgrades, str((upgrades[upgrade_index] as Dictionary).get("id", "")))
 	target_player.apply_upgrade(upgrades[upgrade_index] as Dictionary)
 	slot["selected"] = true
 	slot["selection_pending"] = false
@@ -1930,6 +2070,7 @@ func _clear_run_state() -> void:
 	wave_index = wave_manager.wave_index
 	elapsed_time = 0.0
 	wave_time_left = 0.0
+	epic_upgrade_seen = false
 	enemies_defeated = 0
 	damage_dealt = 0.0
 	damage_taken = 0.0
@@ -2027,7 +2168,7 @@ func _format_player_stat(stat: String, target_player: PlayerController = null) -
 		"dash_cooldown":
 			return "闪避冷却 %.2f秒" % stat_player.dash_cooldown
 		"skill_cooldown":
-			return "技能冷却 %.2f秒" % stat_player.skill_cooldown
+			return "Q %.2f秒 / E %.2f秒 / F %.1f秒" % [stat_player.skill_cooldown, stat_player.fan_skill_cooldown, stat_player.ultimate_cooldown]
 		"attack_range":
 			return "普攻范围 %.0f" % stat_player.attack_range
 		"skill_damage":

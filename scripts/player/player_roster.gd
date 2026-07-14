@@ -23,6 +23,7 @@ func create_player(player_name: String, spawn_position: Vector2, tint: Color, mo
 	player.active_skill_requested.connect(combat.on_player_active_skill.bind(player))
 	player.fan_skill_requested.connect(combat.on_player_fan_skill.bind(player))
 	player.ultimate_skill_requested.connect(combat.on_player_ultimate_skill.bind(player))
+	player.secondary_action_requested.connect(combat.on_player_secondary_action.bind(player))
 	player.cooldown_notice_requested.connect(game._on_player_cooldown_notice_requested.bind(player))
 	player.health_changed.connect(on_player_health_changed.bind(player))
 	player.damage_taken.connect(combat.on_player_damage_taken.bind(player))
@@ -32,9 +33,9 @@ func create_player(player_name: String, spawn_position: Vector2, tint: Color, mo
 	game.add_child(player)
 	return player
 
-func add_slot(player_index: int, player: PlayerController, hud_index: int) -> void:
+func add_slot(player_index: int, player: PlayerController) -> void:
 	game.local_player_slots.append({
-		"player_index": player_index, "player": player, "hud_index": hud_index,
+		"player_index": player_index, "player": player,
 		"upgrades": [], "selected": false, "selection_pending": false,
 	})
 
@@ -50,32 +51,125 @@ func reset_upgrade_slots() -> void:
 		slot["selected"] = false
 		slot["selection_pending"] = false
 
-func create_hud(parent: VBoxContainer, player_label: String, defend_hint: String, skill_labels: Array[String]) -> void:
-	var health_label := Label.new()
-	_configure_label(health_label)
-	parent.add_child(health_label)
+func create_hud(parent: PanelContainer, skill_labels: Array[String]) -> void:
+	parent.add_theme_stylebox_override("panel", _make_panel_style(
+		Color(0.025, 0.045, 0.075, 0.38), Color.TRANSPARENT, 0, 6
+	))
+	var margin := MarginContainer.new()
+	for side in ["margin_left", "margin_top", "margin_right", "margin_bottom"]:
+		margin.add_theme_constant_override(side, 8)
+	parent.add_child(margin)
+
+	var content := VBoxContainer.new()
+	content.add_theme_constant_override("separation", 7)
+	margin.add_child(content)
+
+	var health_layer := Control.new()
+	health_layer.custom_minimum_size = Vector2(game.PLAYER_HUD_WIDTH - 40.0, 30.0)
+	content.add_child(health_layer)
 	var health_bar := ProgressBar.new()
-	health_bar.custom_minimum_size = Vector2(game.LOCAL_PLAYER_HUD_WIDTH, 18)
+	health_bar.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	health_bar.show_percentage = false
 	_style_health_bar(health_bar)
-	parent.add_child(health_bar)
-	var cooldown_label := Label.new()
-	_configure_label(cooldown_label)
-	parent.add_child(cooldown_label)
-	var defense_label := Label.new()
-	_configure_label(defense_label)
-	parent.add_child(defense_label)
+	health_layer.add_child(health_bar)
+	var health_label := Label.new()
+	health_label.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	health_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	health_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	health_label.add_theme_font_size_override("font_size", 20)
+	health_label.add_theme_color_override("font_color", Color(0.025, 0.045, 0.075, 1.0))
+	health_label.add_theme_color_override("font_shadow_color", Color(0.8, 1.0, 0.35, 0.42))
+	health_label.add_theme_constant_override("shadow_offset_x", 1)
+	health_label.add_theme_constant_override("shadow_offset_y", 1)
+	health_layer.add_child(health_label)
+
+	var actions := HBoxContainer.new()
+	actions.add_theme_constant_override("separation", 6)
+	content.add_child(actions)
+	var action_names: Array[String] = ["普攻", "闪避", "右键", skill_labels[1], skill_labels[2], skill_labels[3]]
+	var action_panels: Array[PanelContainer] = []
+	var action_name_labels: Array[Label] = []
+	var action_status_labels: Array[Label] = []
+	var skill_icons: Array[TextureRect] = []
+	var cooldown_overlays: Array[ColorRect] = []
+	var ready_style := _make_panel_style(Color(0.025, 0.065, 0.10, 0.72), Color(0.55, 1.0, 0.08, 0.92), 2, 4)
+	var cooldown_style := _make_panel_style(Color(0.10, 0.065, 0.025, 0.76), Color(1.0, 0.63, 0.08, 0.92), 2, 4)
+	for action_index in range(action_names.size()):
+		var action_name: String = action_names[action_index]
+		var panel := PanelContainer.new()
+		panel.custom_minimum_size = Vector2(82.0, 62.0)
+		panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		panel.add_theme_stylebox_override("panel", ready_style)
+		panel.clip_contents = true
+		actions.add_child(panel)
+		var action_content := Control.new()
+		action_content.custom_minimum_size = Vector2(0.0, 50.0)
+		panel.add_child(action_content)
+		if action_index >= 3:
+			var icon := TextureRect.new()
+			icon.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+			icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+			icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+			icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			action_content.add_child(icon)
+			skill_icons.append(icon)
+			var overlay := ColorRect.new()
+			overlay.color = Color(0.01, 0.015, 0.025, 0.72)
+			overlay.anchor_left = 0.0
+			overlay.anchor_top = 0.0
+			overlay.anchor_right = 1.0
+			overlay.anchor_bottom = 0.0
+			overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			action_content.add_child(overlay)
+			cooldown_overlays.append(overlay)
+		var name_label := Label.new()
+		name_label.text = action_name
+		name_label.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		name_label.vertical_alignment = VERTICAL_ALIGNMENT_TOP
+		name_label.add_theme_font_size_override("font_size", 17 if action_index >= 3 else 15)
+		name_label.add_theme_color_override("font_color", Color(0.96, 0.97, 1.0, 1.0))
+		name_label.add_theme_color_override("font_outline_color", Color(0.015, 0.02, 0.035, 0.98))
+		name_label.add_theme_constant_override("outline_size", 4 if action_index >= 3 else 2)
+		name_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		action_content.add_child(name_label)
+		var status_label := Label.new()
+		status_label.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		status_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		status_label.vertical_alignment = VERTICAL_ALIGNMENT_BOTTOM
+		status_label.add_theme_font_size_override("font_size", 14)
+		status_label.add_theme_color_override("font_color", Color(0.55, 1.0, 0.08, 1.0))
+		status_label.add_theme_color_override("font_outline_color", Color(0.015, 0.02, 0.035, 0.98))
+		status_label.add_theme_constant_override("outline_size", 4 if action_index >= 3 else 2)
+		status_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		action_content.add_child(status_label)
+		action_panels.append(panel)
+		action_name_labels.append(name_label)
+		action_status_labels.append(status_label)
+
 	game.player_huds.append({
-		"player": null, "name": player_label, "defend_hint": defend_hint,
-		"skill_labels": skill_labels, "health_label": health_label,
-		"health_bar": health_bar, "cooldown_label": cooldown_label,
-		"defense_label": defense_label,
+		"player": null,
+		"skill_labels": skill_labels,
+		"health_label": health_label,
+		"health_bar": health_bar,
+		"action_panels": action_panels,
+		"action_name_labels": action_name_labels,
+		"action_status_labels": action_status_labels,
+		"skill_icons": skill_icons,
+		"cooldown_overlays": cooldown_overlays,
+		"ready_style": ready_style,
+		"cooldown_style": cooldown_style,
 	})
 
 func assign_hud(index: int, player: PlayerController) -> void:
 	if index < 0 or index >= game.player_huds.size():
 		return
 	game.player_huds[index]["player"] = player
+	if player != null and is_instance_valid(player):
+		var icons: Array = game.player_huds[index].get("skill_icons", [])
+		for skill_index in range(mini(icons.size(), 3)):
+			var skill_key: String = ["Q", "E", "F"][skill_index]
+			(icons[skill_index] as TextureRect).texture = load(game.get_character_skill_icon_path(player.character_id, skill_key)) as Texture2D
 	update_hud(index)
 
 func on_player_health_changed(current: float, maximum: float, player: PlayerController) -> void:
@@ -93,6 +187,25 @@ func update_all_huds() -> void:
 	for index in range(game.player_huds.size()):
 		update_hud(index)
 
+func set_hud_occlusion_opacity(opacity: float) -> void:
+	if game.player_huds.is_empty():
+		return
+	var hud: Dictionary = game.player_huds[0]
+	var clamped_opacity := clampf(opacity, 0.0, 1.0)
+	game.player_hud.self_modulate.a = clamped_opacity
+	var health_bar: ProgressBar = hud.get("health_bar") as ProgressBar
+	var health_label: Label = hud.get("health_label") as Label
+	if health_bar != null:
+		health_bar.modulate.a = maxf(0.25, clamped_opacity)
+	if health_label != null:
+		health_label.modulate.a = maxf(0.55, clamped_opacity)
+	for panel in hud.get("action_panels", []):
+		(panel as PanelContainer).self_modulate.a = clamped_opacity
+	for name_label in hud.get("action_name_labels", []):
+		(name_label as Label).modulate.a = maxf(0.38, clamped_opacity)
+	for status_label in hud.get("action_status_labels", []):
+		(status_label as Label).modulate.a = maxf(0.38, clamped_opacity)
+
 func update_hud(index: int) -> void:
 	if index < 0 or index >= game.player_huds.size():
 		return
@@ -100,38 +213,65 @@ func update_hud(index: int) -> void:
 	var player: PlayerController = hud.get("player") as PlayerController
 	var health_label: Label = hud["health_label"] as Label
 	var health_bar: ProgressBar = hud["health_bar"] as ProgressBar
-	var cooldown_label: Label = hud["cooldown_label"] as Label
-	var defense_label: Label = hud["defense_label"] as Label
-	var player_name := str(hud.get("name", "P%d" % (index + 1)))
+	var action_panels: Array = hud.get("action_panels", [])
+	var action_status_labels: Array = hud.get("action_status_labels", [])
+	var cooldown_overlays: Array = hud.get("cooldown_overlays", [])
 	if player == null or not is_instance_valid(player):
 		health_label.text = ""
 		health_bar.value = 0.0
-		cooldown_label.text = ""
-		defense_label.text = ""
+		for status_label in action_status_labels:
+			(status_label as Label).text = ""
 		return
-	health_label.text = "%s 生命：%d / %d%s" % [player_name, roundi(player.health), roundi(player.max_health), "（倒地）" if player.is_dead else ""]
+	health_label.text = "%d / %d%s" % [roundi(player.health), roundi(player.max_health), "（倒地）" if player.is_dead else ""]
 	health_bar.max_value = player.max_health
 	health_bar.value = player.health
-	var labels: Array = hud.get("skill_labels", ["普攻", "Q", "E", "F"])
-	cooldown_label.text = "%s：%s   闪避：%s (%d/%d)   %s：%s   %s：%s   %s：%s" % [
-		str(labels[0]), "就绪" if player.get_attack_ready() else "%.1f秒" % player.get_attack_remaining(),
-		"就绪" if player.get_dash_ready() else "%.1f秒" % player.get_dash_remaining(), player.dash_charges, player.dash_max_charges,
-		str(labels[1]), "就绪" if player.get_skill_ready() else "%.1f秒" % player.get_skill_remaining(),
-		str(labels[2]), "就绪" if player.get_fan_skill_ready() else "%.1f秒" % player.get_fan_skill_remaining(),
-		str(labels[3]), "就绪" if player.get_ultimate_ready() else "%.1f秒" % player.get_ultimate_remaining(),
+	var ready_states: Array[bool] = [
+		player.get_attack_ready(), player.get_dash_ready(), player.get_secondary_ready(),
+		player.get_skill_ready(), player.get_fan_skill_ready(), player.get_ultimate_ready(),
 	]
-	defense_label.text = "%s 防御：%s" % [player_name, "生效中" if player.is_defending else str(hud.get("defend_hint", ""))]
-
-func _configure_label(label: Label) -> void:
-	label.custom_minimum_size = Vector2(game.LOCAL_PLAYER_HUD_WIDTH, 0.0)
-	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	var status_texts: Array[String] = [
+		"就绪" if ready_states[0] else "%.1f秒" % player.get_attack_remaining(),
+		"就绪 %d/%d" % [player.dash_charges, player.dash_max_charges] if ready_states[1] else "%.1f秒 %d/%d" % [player.get_dash_remaining(), player.dash_charges, player.dash_max_charges],
+		"就绪" if ready_states[2] else "%.1f秒" % player.get_secondary_remaining(),
+		"" if ready_states[3] else "%.1f" % player.get_skill_remaining(),
+		"" if ready_states[4] else "%.1f" % player.get_fan_skill_remaining(),
+		"" if ready_states[5] else "%.1f" % player.get_ultimate_remaining(),
+	]
+	var skill_remaining: Array[float] = [
+		player.get_skill_remaining(), player.get_fan_skill_remaining(), player.get_ultimate_remaining(),
+	]
+	var skill_cooldowns: Array[float] = [
+		player.skill_cooldown, player.fan_skill_cooldown, player.ultimate_cooldown,
+	]
+	for skill_index in range(mini(cooldown_overlays.size(), skill_remaining.size())):
+		var ratio := clampf(skill_remaining[skill_index] / maxf(skill_cooldowns[skill_index], 0.001), 0.0, 1.0)
+		var overlay := cooldown_overlays[skill_index] as ColorRect
+		overlay.anchor_bottom = ratio
+		overlay.offset_bottom = 0.0
+	var ready_style: StyleBoxFlat = hud["ready_style"] as StyleBoxFlat
+	var cooldown_style: StyleBoxFlat = hud["cooldown_style"] as StyleBoxFlat
+	for action_index in range(mini(action_panels.size(), action_status_labels.size())):
+		var panel: PanelContainer = action_panels[action_index] as PanelContainer
+		var status_label: Label = action_status_labels[action_index] as Label
+		var ready := ready_states[action_index]
+		panel.add_theme_stylebox_override("panel", ready_style if ready else cooldown_style)
+		status_label.text = status_texts[action_index]
+		status_label.add_theme_color_override("font_color", Color.WHITE if action_index >= 3 else (Color(0.55, 1.0, 0.08, 1.0) if ready else Color(1.0, 0.68, 0.12, 1.0)))
 
 func _style_health_bar(bar: ProgressBar) -> void:
-	var background := StyleBoxFlat.new()
-	background.bg_color = Color(0.72, 0.08, 0.07, 0.92)
-	background.set_corner_radius_all(2)
+	var background := _make_panel_style(Color(0.02, 0.045, 0.075, 0.70), Color(0.20, 0.26, 0.32, 0.66), 1, 4)
 	bar.add_theme_stylebox_override("background", background)
-	var fill := StyleBoxFlat.new()
-	fill.bg_color = Color(0.24, 1.0, 0.20, 1.0)
-	fill.set_corner_radius_all(2)
+	var fill := _make_panel_style(Color(0.55, 1.0, 0.06, 1.0), Color(0.28, 0.52, 0.04, 1.0), 2, 4)
 	bar.add_theme_stylebox_override("fill", fill)
+
+func _make_panel_style(background: Color, border: Color, border_width: int, corner_radius: int) -> StyleBoxFlat:
+	var style := StyleBoxFlat.new()
+	style.bg_color = background
+	style.border_color = border
+	style.set_border_width_all(border_width)
+	style.set_corner_radius_all(corner_radius)
+	style.content_margin_left = 8.0
+	style.content_margin_top = 6.0
+	style.content_margin_right = 8.0
+	style.content_margin_bottom = 6.0
+	return style
