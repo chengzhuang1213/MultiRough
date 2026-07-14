@@ -7,7 +7,7 @@ func use_q(combat, origin: Vector2, direction: Vector2, length: float, half_widt
 	var sweep_length := length * 0.72 * range_multiplier
 	var sweep_width := half_width * 3.2 * range_multiplier
 	combat.damage_enemies_in_front(origin, direction, sweep_length, sweep_width, damage * damage_multiplier, attacker.attack_knockback * 0.55, attacker)
-	combat.game._spawn_lancer_sweep_effect(origin, direction, sweep_length, sweep_width)
+	combat.spawn_lancer_sweep_vfx(origin, direction, sweep_length, sweep_width)
 
 func use_e(combat, origin: Vector2, direction: Vector2, length: float, half_width: float, damage: float, attacker: PlayerController) -> void:
 	if attacker.get_upgrade_level("lancer_e_spear") > 0:

@@ -24,6 +24,7 @@ func _init() -> void:
 	_check_cooldown_pause_boundary()
 	_check_defense_hold_slowdown()
 	_check_common_animation_states()
+	_check_lancer_run_visual_scale()
 	_check_archer_projectile_origin()
 	_check_combat_event_frame()
 	_check_authority_snapshot_contract()
@@ -44,6 +45,7 @@ func _check_character_configs() -> void:
 	_expect(is_equal_approx(float(GameRulesScript.CHARACTER_CONFIGS["archer"]["visual_scale"]), 0.55), "archer visual scale changed")
 	_expect(is_equal_approx(float(GameRulesScript.CHARACTER_CONFIGS["lancer"]["visual_scale"]), 0.55), "lancer visual scale changed")
 	_expect(is_equal_approx(float(GameRulesScript.CHARACTER_CONFIGS["mage"]["visual_scale"]), 0.62), "mage visual scale changed")
+	_expect(is_equal_approx(float(GameRulesScript.CHARACTER_CONFIGS["lancer"]["attack_range"]), 110.4), "lancer base attack range is not 15 percent above 96")
 	_expect(is_equal_approx(float(GameRulesScript.CHARACTER_CONFIGS["warrior"]["defense_damage_multiplier"]), 0.30), "warrior passive defense multiplier is incorrect")
 	_expect(int(GameRulesScript.CHARACTER_CONFIGS["archer"]["dash_max_charges"]) == 2, "archer passive does not grant two dash charges")
 	_expect(is_equal_approx(GameRulesScript.NORMAL_WAVE_TIME_LIMIT, 60.0), "normal wave time limit is not 60 seconds")
@@ -90,6 +92,21 @@ func _check_mage_art_assets() -> void:
 		"res://assets/ui/character_select/skills/mage_q.png",
 		"res://assets/ui/character_select/skills/mage_e.png",
 		"res://assets/ui/character_select/skills/mage_f.png",
+		"res://assets/ui/character_select/skills/warrior_basic.png",
+		"res://assets/ui/character_select/skills/warrior_secondary.png",
+		"res://assets/ui/character_select/skills/warrior_dodge.png",
+		"res://assets/ui/character_select/skills/archer_basic.png",
+		"res://assets/ui/character_select/skills/archer_secondary.png",
+		"res://assets/ui/character_select/skills/archer_dodge.png",
+		"res://assets/ui/character_select/skills/lancer_basic.png",
+		"res://assets/ui/character_select/skills/lancer_secondary.png",
+		"res://assets/ui/character_select/skills/lancer_dodge.png",
+		"res://assets/ui/character_select/skills/mage_basic.png",
+		"res://assets/ui/character_select/skills/mage_secondary.png",
+		"res://assets/ui/character_select/skills/mage_dodge.png",
+		"res://assets/effects/warrior/warrior_q_vfx.png",
+		"res://assets/effects/warrior/warrior_e_vfx.png",
+		"res://assets/effects/warrior/warrior_f_blade_vfx.png",
 		"res://assets/original/characters/archer/archer_concept_v1.png",
 		"res://assets/original/characters/archer/archer_pixel_master_v1.png",
 		"res://assets/original/characters/archer/animations/archer_idle.png",
@@ -439,6 +456,20 @@ func _check_common_animation_states() -> void:
 		player._start_cast_animation()
 		_expect(player._current_anim == "cast", "%s did not enter the shared cast animation" % character_id)
 		player.free()
+
+func _check_lancer_run_visual_scale() -> void:
+	var player = PlayerScript.new()
+	player.apply_character_config(GameRulesScript.get_character_config("lancer"))
+	player._setup_nodes()
+	player._play_animation("idle", true)
+	var idle_scale: float = player._sprite.scale.y
+	var idle_foot_y: float = player._sprite.position.y + 42.0 * idle_scale
+	player._play_animation("run", true)
+	var run_scale: float = player._sprite.scale.y
+	var run_foot_y: float = player._sprite.position.y + 42.0 * run_scale
+	_expect(is_equal_approx(run_scale, idle_scale * 1.24), "lancer run animation did not receive its size correction")
+	_expect(is_equal_approx(run_foot_y, idle_foot_y), "lancer run size correction shifted the foot baseline")
+	player.free()
 
 func _check_archer_projectile_origin() -> void:
 	var player = PlayerScript.new()

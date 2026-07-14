@@ -7,6 +7,30 @@ const WarriorCombatScript := preload("res://scripts/characters/warrior_combat.gd
 const ArcherCombatScript := preload("res://scripts/characters/archer_combat.gd")
 const LancerCombatScript := preload("res://scripts/characters/lancer_combat.gd")
 const MageCombatScript := preload("res://scripts/characters/mage_combat.gd")
+const WarriorQVfxTexture := preload("res://assets/effects/warrior/warrior_q_vfx.png")
+const WarriorEVfxTexture := preload("res://assets/effects/warrior/warrior_e_vfx.png")
+const WarriorFBladeVfxTexture := preload("res://assets/effects/warrior/warrior_f_blade_vfx.png")
+const ArcherQVfxTexture := preload("res://assets/effects/archer/archer_q_vfx.png")
+const ArcherEVfxTexture := preload("res://assets/effects/archer/archer_e_vfx.png")
+const ArcherFVfxTexture := preload("res://assets/effects/archer/archer_f_vfx.png")
+const MageQVfxTexture := preload("res://assets/effects/mage/mage_q_vfx.png")
+const MageEVfxTexture := preload("res://assets/effects/mage/mage_e_vfx.png")
+const MageFVfxTexture := preload("res://assets/effects/mage/mage_f_vfx.png")
+const LancerQVfxTexture := preload("res://assets/effects/lancer/lancer_q_vfx.png")
+const LancerEVfxTexture := preload("res://assets/effects/lancer/lancer_e_vfx.png")
+const LancerFVfxTexture := preload("res://assets/effects/lancer/lancer_f_vfx.png")
+const WarriorSecondaryVfxTexture := preload("res://assets/effects/warrior/warrior_secondary_vfx.png")
+const ArcherSecondaryVfxTexture := preload("res://assets/effects/archer/archer_secondary_vfx.png")
+const MageSecondaryVfxTexture := preload("res://assets/effects/mage/mage_secondary_vfx.png")
+const LancerSecondaryVfxTexture := preload("res://assets/effects/lancer/lancer_secondary_vfx.png")
+
+const WARRIOR_Q_PULL_FORCE := 420.0
+const MAGE_ARCANE_REPEL_RADIUS := 110.0
+const MAGE_ARCANE_REPEL_DAMAGE_MULTIPLIER := 0.50
+const MAGE_ARCANE_REPEL_FORCE := 260.0
+const MAGE_ARCANE_REPEL_SLOW_DURATION := 1.5
+const MAGE_ARCANE_REPEL_SLOW_MULTIPLIER := 0.75
+const MAGE_ARCANE_REPEL_BOSS_SLOW_MULTIPLIER := 0.90
 
 var game: Node
 var character_modules: Dictionary
@@ -140,11 +164,20 @@ func on_player_damage_taken(amount: float, defended: bool, player: PlayerControl
 
 func on_player_reflected_damage(enemy: EnemyController, amount: float, player: PlayerController) -> void:
 	game._spawn_link_effect(player.global_position, enemy.global_position, Color(0.35, 0.78, 1.0, 0.90), 0.16)
+	game._spawn_textured_effect(player.global_position, WarriorEVfxTexture, 82.0, 0.18, "WarriorCounterFlash")
+	game._spawn_spark_burst(player.global_position, Color(0.45, 0.86, 1.0, 0.92), 8, 42.0, 0.18)
 	damage_enemy(enemy, amount, player, player.global_position, 0.0, false)
 
 func on_player_perfect_guard(player: PlayerController) -> void:
 	game._spawn_ring_effect(player.global_position, 115.0, Color(0.38, 0.82, 1.0, 0.85), 0.20)
+	game._spawn_textured_effect(player.global_position, WarriorEVfxTexture, 132.0, 0.22, "WarriorPerfectGuardFlash")
+	game._spawn_spark_burst(player.global_position, Color(0.72, 0.94, 1.0, 0.96), 12, 62.0, 0.22)
 	damage_enemies_in_radius(player.global_position, 115.0, player.fan_skill_damage * 0.22, player)
+
+func spawn_warrior_q_vfx(origin: Vector2, radius: float) -> void:
+	game._spawn_textured_effect(origin, WarriorQVfxTexture, radius * 2.0, 0.32, "WarriorQEffect")
+	game._spawn_ring_effect(origin, radius * 0.72, Color(1.0, 0.72, 0.20, 0.82), 0.28)
+	game._spawn_inward_streaks(origin, radius, Color(1.0, 0.42, 0.12, 0.90), 16, 0.34)
 
 func activate_warrior_taunt(owner: PlayerController, radius: float, duration: float) -> void:
 	owner.activate_warrior_taunt_guard(duration)
@@ -159,7 +192,7 @@ func damage_and_pull_enemies(origin: Vector2, radius: float, damage: float, owne
 		if not is_instance_valid(enemy) or enemy.global_position.distance_to(origin) > radius:
 			continue
 		var pull_origin: Vector2 = enemy.global_position + (enemy.global_position - origin).normalized() * 80.0
-		var pull_force := 0.0 if enemy.is_boss else 170.0
+		var pull_force := 0.0 if enemy.is_boss else WARRIOR_Q_PULL_FORCE
 		damage_enemy(enemy, damage, owner, pull_origin, pull_force)
 
 func add_warrior_counter_field(owner: PlayerController, damage: float, duration: float) -> void:
@@ -168,6 +201,12 @@ func add_warrior_counter_field(owner: PlayerController, damage: float, duration:
 	root.global_position = owner.global_position
 	game.effect_root.add_child(root)
 	game._spawn_area_visual(root, Vector2.ZERO, 105.0, Color(0.22, 0.58, 1.0, 0.10))
+	var outer_aura: Sprite2D = game._add_textured_effect(root, WarriorEVfxTexture, 210.0, Vector2.ZERO, Color(1.0, 1.0, 1.0, 0.38), "WarriorCounterTexture")
+	var inner_aura: Sprite2D = game._add_textured_effect(root, WarriorEVfxTexture, 158.0, Vector2.ZERO, Color(0.68, 0.88, 1.0, 0.18), "WarriorCounterInnerTexture")
+	inner_aura.flip_h = true
+	game._animate_effect_rotation(outer_aura, 3.6, true)
+	game._animate_effect_rotation(inner_aura, 2.8, false)
+	game._animate_effect_pulse(outer_aura, 0.24, 0.46, 0.72)
 	game.persistent_skill_areas.append({
 		"type": "warrior_counter", "owner": owner, "root": root,
 		"duration_left": duration, "tick_left": 0.0, "interval": 0.60,
@@ -190,6 +229,7 @@ func mark_nearest_enemy(origin: Vector2, direction: Vector2, max_range: float, d
 			best_score = score
 	if best != null:
 		best.apply_hunter_mark(owner, duration, multiplier)
+		_attach_archer_mark_vfx(best, duration)
 		game._spawn_effect(best.global_position, 34.0, Color(1.0, 0.25, 0.18, 0.30), 0.18)
 		game._spawn_ring_effect(best.global_position, 34.0, Color(1.0, 0.72, 0.18, 0.90), 0.30)
 
@@ -203,10 +243,30 @@ func transfer_hunter_mark(origin: Vector2, owner: PlayerController, excluded_ene
 			best = enemy
 			best_health = enemy.health
 	if best != null:
-		best.apply_hunter_mark(owner, 12.0, 1.60)
+		best.apply_hunter_mark(owner, 12.0, 1.70)
+		_attach_archer_mark_vfx(best, 12.0)
 		game._spawn_link_effect(origin, best.global_position, Color(1.0, 0.72, 0.18, 0.85), 0.20)
 
+func _attach_archer_mark_vfx(target: EnemyController, duration: float) -> void:
+	var root := Node2D.new()
+	root.name = "ArcherMarkVFX"
+	root.position = Vector2(0.0, -16.0)
+	target.add_child(root)
+	var outer: Sprite2D = game._add_textured_effect(root, ArcherEVfxTexture, 78.0, Vector2.ZERO, Color(1.0, 1.0, 1.0, 0.78), "ArcherMarkTexture")
+	var inner: Sprite2D = game._add_textured_effect(root, ArcherEVfxTexture, 54.0, Vector2.ZERO, Color(1.0, 0.70, 0.92, 0.42), "ArcherMarkInnerTexture")
+	inner.flip_h = true
+	game._animate_effect_rotation(outer, 3.2, true)
+	game._animate_effect_rotation(inner, 2.1, false)
+	game._animate_effect_pulse(outer, 0.44, 0.88, 0.72)
+	var timer := game.get_tree().create_timer(duration)
+	timer.timeout.connect(func() -> void:
+		if is_instance_valid(root):
+			root.queue_free()
+	)
+
 func cast_chain_lightning(origin: Vector2, direction: Vector2, damage: float, owner: PlayerController, empowered: bool) -> void:
+	game._spawn_textured_effect(origin, MageEVfxTexture, 118.0, 0.24, "MageChainCast")
+	game._spawn_spark_burst(origin, Color(0.42, 0.72, 1.0, 0.94), 10, 46.0, 0.18)
 	var remaining: Array[EnemyController] = []
 	for enemy in game.enemies.duplicate():
 		if is_instance_valid(enemy):
@@ -234,6 +294,8 @@ func cast_chain_lightning(origin: Vector2, direction: Vector2, damage: float, ow
 			break
 		var hit_damage := damage if empowered else damage * pow(0.85, hit_count)
 		game._spawn_link_effect(current_position, best.global_position, Color(0.52, 0.76, 1.0, 0.92), 0.16)
+		game._spawn_textured_effect(best.global_position, MageQVfxTexture, 58.0, 0.18, "MageChainImpact")
+		game._spawn_spark_burst(best.global_position, Color(0.34, 0.78, 1.0, 0.94), 7, 32.0, 0.16)
 		damage_enemy(best, hit_damage, owner, current_position, 0.0)
 		current_position = best.global_position
 		remaining.erase(best)
@@ -241,15 +303,40 @@ func cast_chain_lightning(origin: Vector2, direction: Vector2, damage: float, ow
 
 func lancer_dash_spin(owner: PlayerController, direction: Vector2, distance: float, damage: float) -> void:
 	var forward := direction.normalized() if direction != Vector2.ZERO else Vector2.RIGHT
+	var start := owner.global_position
 	owner.global_position = (owner.global_position + forward * distance).clamp(owner.arena_bounds.position, owner.arena_bounds.end)
 	damage_enemies_in_radius(owner.global_position, 120.0, damage, owner)
 	game._spawn_effect(owner.global_position, 120.0, Color(0.58, 0.86, 1.0, 0.22), 0.16)
+	_spawn_lancer_dash_vfx(start, owner.global_position, forward)
+
+func spawn_lancer_sweep_vfx(origin: Vector2, direction: Vector2, length: float, half_width: float) -> void:
+	game._spawn_lancer_sweep_effect(origin, direction, length, half_width, LancerQVfxTexture)
+
+func _spawn_lancer_dash_vfx(start: Vector2, finish: Vector2, forward: Vector2) -> void:
+	var root := Node2D.new()
+	root.name = "LancerDashVFX"
+	game.effect_root.add_child(root)
+	var distance := maxf(start.distance_to(finish), 80.0)
+	var spear: Sprite2D = game._add_textured_effect(root, LancerEVfxTexture, distance * 1.45, start.lerp(finish, 0.5), Color.WHITE, "LancerDashTexture")
+	spear.rotation = forward.angle()
+	var trail := Line2D.new()
+	trail.name = "LancerDashTrail"
+	trail.width = 8.0
+	trail.default_color = Color(0.58, 0.94, 1.0, 0.72)
+	trail.points = PackedVector2Array([start, finish])
+	root.add_child(trail)
+	var tween := root.create_tween().set_parallel(true)
+	tween.tween_property(spear, "modulate:a", 0.0, 0.20)
+	tween.tween_property(trail, "modulate:a", 0.0, 0.20)
+	tween.finished.connect(Callable(root, "queue_free"))
+	game._spawn_spark_burst(finish, Color(0.70, 0.96, 1.0, 0.94), 12, 68.0, 0.20)
 
 func schedule_lancer_second_sweep(owner: PlayerController, damage: float) -> void:
 	var timer := game.get_tree().create_timer(0.18)
 	timer.timeout.connect(func() -> void:
 		if owner != null and is_instance_valid(owner) and not owner.is_dead:
 			game._spawn_ring_effect(owner.global_position, 165.0, Color(0.62, 0.90, 1.0, 0.78), 0.20)
+			spawn_lancer_sweep_vfx(owner.global_position, Vector2.RIGHT.rotated(randf_range(0.0, TAU)), 165.0, 90.0)
 			damage_enemies_in_radius(owner.global_position, 165.0, damage * 0.75, owner)
 	)
 
@@ -262,18 +349,59 @@ func on_player_projectile_attack(origin: Vector2, direction: Vector2, damage: fl
 func on_player_secondary_action(origin: Vector2, direction: Vector2, damage: float, attacker: PlayerController) -> void:
 	var forward := direction.normalized() if direction != Vector2.ZERO else Vector2.RIGHT
 	match attacker.character_id:
+		"warrior":
+			_show_warrior_secondary_vfx(attacker, forward)
 		"archer":
 			var projectile_origin := attacker.get_projectile_origin(forward)
 			for angle in [-0.20, 0.0, 0.20]:
 				var arrow_direction := forward.rotated(float(angle))
 				fire_player_arrow(projectile_origin, arrow_direction, damage * 0.60, attacker, 560.0, 1.2, 18.0, "", 672.0 * attacker.get_attack_range_multiplier())
 			game._spawn_line_skill_effect(projectile_origin, forward, 72.0, Color(1.0, 0.80, 0.30, 0.50), 0.10)
+			_spawn_secondary_directional_vfx(projectile_origin, forward, ArcherSecondaryVfxTexture, 172.0, "ArcherSecondaryVFX", 0.20)
+			game._spawn_spark_burst(projectile_origin, Color(1.0, 0.70, 0.30, 0.94), 10, 54.0, 0.18)
 		"mage":
-			fire_mage_basic_projectile(origin + forward * 24.0, forward, damage, attacker)
+			cast_mage_arcane_repel(origin, damage, attacker)
 		"lancer":
 			damage_enemies_on_both_sides(origin, forward, attacker.attack_range * 1.35, attacker.attack_half_width * 1.40, damage * 0.80, attacker)
-			game._spawn_lancer_sweep_effect(origin, forward, attacker.attack_range * 1.35, attacker.attack_half_width * 1.40)
-			game._spawn_lancer_sweep_effect(origin, -forward, attacker.attack_range * 1.35, attacker.attack_half_width * 1.40)
+			_spawn_secondary_directional_vfx(origin, forward, LancerSecondaryVfxTexture, attacker.attack_range * 2.9, "LancerSecondaryVFX", 0.22)
+			game._spawn_spark_burst(origin, Color(0.68, 0.96, 1.0, 0.94), 12, attacker.attack_half_width * 1.8, 0.18)
+
+func _show_warrior_secondary_vfx(attacker: PlayerController, forward: Vector2) -> void:
+	attacker._remove_warrior_secondary_vfx()
+	var root := Node2D.new()
+	root.name = "WarriorSecondaryVFX"
+	attacker.add_child(root)
+	var shield: Sprite2D = game._add_textured_effect(root, WarriorSecondaryVfxTexture, 132.0, forward * 24.0, Color(1.0, 1.0, 1.0, 0.88), "Texture")
+	shield.rotation = forward.angle()
+	game._animate_effect_pulse(shield, 0.54, 0.92, 0.48)
+
+func _spawn_secondary_directional_vfx(origin: Vector2, forward: Vector2, texture: Texture2D, diameter: float, node_name: String, lifetime: float) -> void:
+	var root := Node2D.new()
+	root.name = node_name
+	game.effect_root.add_child(root)
+	var sprite: Sprite2D = game._add_textured_effect(root, texture, diameter, origin, Color.WHITE, "Texture")
+	sprite.rotation = forward.angle()
+	var target_scale := sprite.scale * 1.10
+	sprite.scale *= 0.72
+	var tween := sprite.create_tween().set_parallel(true)
+	tween.set_trans(Tween.TRANS_QUAD)
+	tween.set_ease(Tween.EASE_OUT)
+	tween.tween_property(sprite, "scale", target_scale, lifetime)
+	tween.tween_property(sprite, "modulate:a", 0.0, lifetime)
+	tween.finished.connect(Callable(root, "queue_free"))
+
+func cast_mage_arcane_repel(origin: Vector2, damage: float, attacker: PlayerController) -> void:
+	for enemy in game.enemies.duplicate():
+		if not is_instance_valid(enemy) or enemy.global_position.distance_to(origin) > MAGE_ARCANE_REPEL_RADIUS:
+			continue
+		var slow_multiplier := MAGE_ARCANE_REPEL_BOSS_SLOW_MULTIPLIER if enemy.is_boss else MAGE_ARCANE_REPEL_SLOW_MULTIPLIER
+		var knockback_force := 0.0 if enemy.is_boss else MAGE_ARCANE_REPEL_FORCE
+		enemy.apply_slow(MAGE_ARCANE_REPEL_SLOW_DURATION, slow_multiplier)
+		damage_enemy(enemy, damage * MAGE_ARCANE_REPEL_DAMAGE_MULTIPLIER, attacker, origin, knockback_force)
+	game._spawn_effect(origin, MAGE_ARCANE_REPEL_RADIUS, Color(0.62, 0.38, 1.0, 0.22), 0.14)
+	game._spawn_ring_effect(origin, MAGE_ARCANE_REPEL_RADIUS, Color(0.78, 0.58, 1.0, 0.80), 0.20)
+	_spawn_secondary_directional_vfx(origin, Vector2.RIGHT, MageSecondaryVfxTexture, MAGE_ARCANE_REPEL_RADIUS * 2.25, "MageSecondaryVFX", 0.24)
+	game._spawn_spark_burst(origin, Color(0.64, 0.52, 1.0, 0.92), 16, MAGE_ARCANE_REPEL_RADIUS, 0.22)
 
 func damage_enemies_on_both_sides(origin: Vector2, direction: Vector2, length: float, half_width: float, damage: float, attacker: PlayerController) -> void:
 	var forward := direction.normalized() if direction != Vector2.ZERO else Vector2.RIGHT
@@ -285,7 +413,7 @@ func damage_enemies_on_both_sides(origin: Vector2, direction: Vector2, length: f
 		if absf(offset.dot(forward)) <= length and absf(offset.dot(side)) <= half_width:
 			damage_enemy(enemy, damage, attacker, origin, attacker.attack_knockback * 0.45)
 
-func fire_player_arrow(origin: Vector2, direction: Vector2, damage: float, attacker: PlayerController, speed: float = 560.0, lifetime: float = 1.2, hit_radius: float = 18.0, visual_texture_path: String = "", max_distance: float = 0.0) -> void:
+func fire_player_arrow(origin: Vector2, direction: Vector2, damage: float, attacker: PlayerController, speed: float = 560.0, lifetime: float = 1.2, hit_radius: float = 18.0, visual_texture_path: String = "", max_distance: float = 0.0, visual_size: Vector2 = Vector2.ZERO, visual_additive: bool = false) -> PlayerProjectile:
 	var projectile = PlayerProjectileScript.new()
 	projectile.global_position = origin
 	projectile.direction = direction
@@ -294,10 +422,34 @@ func fire_player_arrow(origin: Vector2, direction: Vector2, damage: float, attac
 	projectile.lifetime = lifetime
 	projectile.hit_radius = hit_radius
 	projectile.visual_texture_path = visual_texture_path
+	projectile.visual_size = visual_size
+	projectile.visual_additive = visual_additive
 	projectile.max_distance = max_distance
 	projectile.enemies = game.enemies
 	projectile.hit_enemy.connect(_on_player_projectile_hit_enemy.bind(attacker))
 	game.projectile_root.add_child(projectile)
+	return projectile
+
+func decorate_archer_q_projectile(projectile: PlayerProjectile, origin: Vector2, fully_charged: bool) -> void:
+	if projectile == null or not is_instance_valid(projectile):
+		return
+	var trail := Line2D.new()
+	trail.name = "ArcherQTrail"
+	trail.width = 13.0 if fully_charged else 9.0
+	trail.points = PackedVector2Array([Vector2(-108.0, 0.0), Vector2(-52.0, 0.0), Vector2(-12.0, 0.0)])
+	var gradient := Gradient.new()
+	gradient.colors = PackedColorArray([
+		Color(0.92, 0.12, 0.58, 0.0),
+		Color(1.0, 0.36, 0.22, 0.42),
+		Color(1.0, 0.88, 0.34, 0.92),
+	])
+	trail.gradient = gradient
+	projectile.add_child(trail)
+	var texture_sprite := projectile.get_node_or_null("Texture") as Sprite2D
+	if texture_sprite != null:
+		game._animate_effect_pulse(texture_sprite, 0.72, 1.0, 0.20)
+	game._spawn_textured_effect(origin, ArcherQVfxTexture, 108.0 if fully_charged else 82.0, 0.18, "ArcherQLaunchFlash")
+	game._spawn_spark_burst(origin, Color(1.0, 0.72, 0.22, 0.92), 12 if fully_charged else 8, 48.0 if fully_charged else 38.0, 0.16)
 
 func fire_mage_fireball(origin: Vector2, direction: Vector2, damage: float, attacker: PlayerController, explosion_radius: float, max_range: float) -> void:
 	var projectile = PlayerProjectileScript.new()
@@ -308,13 +460,34 @@ func fire_mage_fireball(origin: Vector2, direction: Vector2, damage: float, atta
 	projectile.lifetime = 1.5
 	projectile.hit_radius = 25.0
 	projectile.scale = Vector2.ONE * 1.25
-	projectile.visual_texture_path = "res://assets/original/characters/mage/mage_basic_projectile.svg"
+	projectile.visual_texture_path = "res://assets/effects/mage/mage_q_vfx.png"
+	projectile.visual_size = Vector2(94.0, 68.0)
+	projectile.visual_additive = true
 	projectile.max_distance = max_range
 	projectile.enemies = game.enemies
 	projectile.hit_enemy.connect(_on_mage_fireball_hit.bind(attacker, explosion_radius))
 	projectile.reached_max_distance.connect(_on_mage_fireball_reached_limit.bind(damage, attacker, explosion_radius))
 	game.projectile_root.add_child(projectile)
+	_decorate_mage_q_projectile(projectile, origin)
 	game._spawn_line_skill_effect(origin, direction, 58.0, Color(0.88, 0.42, 1.0, 0.42), 0.10)
+
+func _decorate_mage_q_projectile(projectile: PlayerProjectile, origin: Vector2) -> void:
+	var trail := Line2D.new()
+	trail.name = "MageQTrail"
+	trail.width = 11.0
+	trail.points = PackedVector2Array([Vector2(-76.0, 0.0), Vector2(-38.0, 0.0), Vector2(-8.0, 0.0)])
+	var gradient := Gradient.new()
+	gradient.colors = PackedColorArray([
+		Color(0.18, 0.52, 1.0, 0.0),
+		Color(0.48, 0.20, 1.0, 0.48),
+		Color(0.84, 0.62, 1.0, 0.94),
+	])
+	trail.gradient = gradient
+	projectile.add_child(trail)
+	var texture_sprite := projectile.get_node_or_null("Texture") as Sprite2D
+	if texture_sprite != null:
+		game._animate_effect_pulse(texture_sprite, 0.72, 1.0, 0.22)
+	game._spawn_textured_effect(origin, MageQVfxTexture, 88.0, 0.18, "MageQCastFlash")
 
 func fire_mage_basic_projectile(origin: Vector2, direction: Vector2, damage: float, attacker: PlayerController) -> void:
 	var projectile = PlayerProjectileScript.new()
@@ -351,7 +524,25 @@ func _on_mage_fireball_reached_limit(impact: Vector2, damage: float, attacker: P
 
 func _mage_fireball_explode(impact: Vector2, damage: float, attacker: PlayerController, explosion_radius: float) -> void:
 	game._spawn_effect(impact, explosion_radius, Color(0.82, 0.30, 1.0, 0.30), 0.16)
+	_spawn_mage_q_explosion(impact, explosion_radius)
 	damage_enemies_in_radius(impact, explosion_radius, damage, attacker)
+
+func _spawn_mage_q_explosion(impact: Vector2, radius: float) -> void:
+	var root := Node2D.new()
+	root.name = "MageQExplosion"
+	root.global_position = impact
+	game.effect_root.add_child(root)
+	for index in range(3):
+		var burst: Sprite2D = game._add_textured_effect(root, MageQVfxTexture, radius * 2.15, Vector2.ZERO, Color(1.0, 1.0, 1.0, 0.82), "Burst%d" % index)
+		burst.rotation = TAU * float(index) / 3.0
+		var final_scale := burst.scale * 1.18
+		burst.scale *= 0.62
+		var tween := burst.create_tween().set_parallel(true)
+		tween.tween_property(burst, "scale", final_scale, 0.22)
+		tween.tween_property(burst, "modulate:a", 0.0, 0.22)
+	game._spawn_spark_burst(impact, Color(0.50, 0.72, 1.0, 0.96), 14, radius * 0.82, 0.22)
+	var timer := game.get_tree().create_timer(0.24)
+	timer.timeout.connect(Callable(root, "queue_free"))
 
 func _on_player_projectile_hit_enemy(enemy: EnemyController, damage: float, attacker: PlayerController) -> void:
 	if attacker != null and attacker.character_id == "archer" and enemy.consume_guaranteed_arrow_crit(attacker):
@@ -375,6 +566,8 @@ func start_blade_ultimate(owner: PlayerController, damage: float, duration: floa
 	state["damage"] = damage
 	(state["hit_cooldowns"] as Dictionary).clear()
 	(state["root"] as Node2D).visible = true
+	game._spawn_ring_effect(owner.global_position, 92.0, Color(1.0, 0.48, 0.12, 0.88), 0.28)
+	game._spawn_spark_burst(owner.global_position, Color(1.0, 0.68, 0.16, 0.94), 14, 82.0, 0.24)
 	if owner.get_upgrade_level("warrior_f_attack_defense") > 0:
 		owner.activate_warrior_blade_guard(duration)
 
@@ -397,11 +590,22 @@ func _sync_warrior_blade_count(state: Dictionary, desired_count: int) -> void:
 		blade.queue_free()
 
 func _add_ultimate_blade(root: Node2D, index: int) -> void:
-	var blade := Line2D.new()
+	var blade := Node2D.new()
 	blade.name = "Blade%d" % index
-	blade.width = 5.0
-	blade.default_color = Color(0.65, 0.9, 1.0, 0.82)
-	blade.points = PackedVector2Array([Vector2(-42.0, 0.0), Vector2(42.0, 0.0)])
+	var trail := Line2D.new()
+	trail.name = "Trail"
+	trail.width = 16.0
+	trail.points = PackedVector2Array([Vector2(-64.0, 0.0), Vector2(-38.0, 0.0), Vector2(-10.0, 0.0)])
+	var trail_gradient := Gradient.new()
+	trail_gradient.colors = PackedColorArray([
+		Color(1.0, 0.12, 0.02, 0.0),
+		Color(1.0, 0.32, 0.04, 0.42),
+		Color(1.0, 0.78, 0.22, 0.82),
+	])
+	trail.gradient = trail_gradient
+	blade.add_child(trail)
+	var texture_sprite: Sprite2D = game._add_textured_effect(blade, WarriorFBladeVfxTexture, 112.0, Vector2.ZERO, Color.WHITE, "Texture")
+	game._animate_effect_pulse(texture_sprite, 0.72, 1.0, 0.26)
 	root.add_child(blade)
 
 func update_ultimates(delta: float) -> void:
@@ -440,11 +644,11 @@ func _update_blade_visuals(state: Dictionary) -> void:
 	var owner: PlayerController = state["owner"]
 	root.global_position = owner.global_position
 	for index in range(root.get_child_count()):
-		var blade: Line2D = root.get_child(index)
+		var blade: Node2D = root.get_child(index) as Node2D
 		var angle := float(state["angle"]) + TAU * float(index) / float(root.get_child_count())
 		var tangent := Vector2(-sin(angle), cos(angle))
 		blade.position = Vector2(cos(angle), sin(angle)) * 62.0
-		blade.points = PackedVector2Array([-tangent * 42.0, tangent * 42.0])
+		blade.rotation = tangent.angle()
 
 func _damage_with_blades(state: Dictionary) -> void:
 	var owner: PlayerController = state["owner"]
@@ -455,6 +659,7 @@ func _damage_with_blades(state: Dictionary) -> void:
 		if _enemy_touched_by_blade(state["root"], enemy.global_position, 18.0):
 			var damage := owner.roll_damage(float(state["damage"]))
 			damage_enemy(enemy, damage, owner, owner.global_position, owner.attack_knockback * 0.35)
+			game._spawn_spark_burst(enemy.global_position, Color(1.0, 0.58, 0.12, 0.94), 7, 30.0, 0.16)
 			cooldowns[enemy.get_instance_id()] = 0.35
 
 func _destroy_projectiles_with_blades(state: Dictionary) -> void:
@@ -466,12 +671,13 @@ func _destroy_projectiles_with_blades(state: Dictionary) -> void:
 
 func _enemy_touched_by_blade(root: Node2D, position: Vector2, hit_width: float) -> bool:
 	for child in root.get_children():
-		var blade := child as Line2D
-		if blade != null and blade.points.size() >= 2:
-			var start := root.global_position + blade.position + blade.points[0]
-			var end := root.global_position + blade.position + blade.points[1]
-			if _distance_to_segment(position, start, end) <= hit_width:
-				return true
+		var blade := child as Node2D
+		if blade == null:
+			continue
+		var tangent := Vector2.RIGHT.rotated(blade.rotation)
+		var center := root.global_position + blade.position
+		if _distance_to_segment(position, center - tangent * 42.0, center + tangent * 42.0) <= hit_width:
+			return true
 	return false
 
 func _distance_to_segment(point: Vector2, start: Vector2, end: Vector2) -> float:
@@ -501,6 +707,8 @@ func throw_warrior_shield(origin: Vector2, direction: Vector2, damage: float, ow
 	root.name = "WarriorShield_%s" % owner.name
 	game.effect_root.add_child(root)
 	game._spawn_area_visual(root, Vector2.ZERO, 20.0, Color(0.35, 0.72, 1.0, 0.34))
+	var shield_texture: Sprite2D = game._add_textured_effect(root, WarriorEVfxTexture, 58.0, Vector2.ZERO, Color.WHITE, "WarriorShieldTexture")
+	game._animate_effect_rotation(shield_texture, 0.62, true)
 	game.persistent_skill_areas.append({
 		"type": "warrior_shield", "owner": owner, "root": root, "duration_left": 2.0,
 		"origin": origin, "direction": forward, "travel": 0.0, "max_travel": 280.0,
@@ -513,12 +721,15 @@ func throw_lancer_spear(origin: Vector2, direction: Vector2, damage: float, owne
 	var forward := direction.normalized() if direction != Vector2.ZERO else Vector2.RIGHT
 	var root := Node2D.new()
 	root.name = "LancerSpear_%s" % owner.name
-	var spear := Line2D.new()
-	spear.width = 5.0
-	spear.default_color = Color(0.62, 0.90, 1.0, 0.92)
-	spear.points = PackedVector2Array([Vector2(-24.0, 0.0), Vector2(24.0, 0.0)])
-	root.add_child(spear)
 	game.effect_root.add_child(root)
+	var spear: Sprite2D = game._add_textured_effect(root, LancerEVfxTexture, 104.0, Vector2.ZERO, Color.WHITE, "LancerSpearTexture")
+	var trail := Line2D.new()
+	trail.name = "LancerSpearTrail"
+	trail.width = 5.0
+	trail.default_color = Color(0.52, 0.92, 1.0, 0.68)
+	trail.points = PackedVector2Array([Vector2(-62.0, 0.0), Vector2(-12.0, 0.0)])
+	root.add_child(trail)
+	game._animate_effect_pulse(spear, 0.72, 1.0, 0.22)
 	game.persistent_skill_areas.append({
 		"type": "lancer_spear", "owner": owner, "root": root, "duration_left": 2.0,
 		"origin": origin, "direction": forward, "travel": 0.0, "max_travel": 320.0,
@@ -533,6 +744,12 @@ func place_archer_trap(origin: Vector2, direction: Vector2, owner: PlayerControl
 	root.name = "ArcherTrap_%s" % owner.name
 	game.effect_root.add_child(root)
 	game._spawn_area_visual(root, origin, 34.0, Color(1.0, 0.72, 0.18, 0.24))
+	var outer: Sprite2D = game._add_textured_effect(root, ArcherEVfxTexture, 82.0, origin, Color(1.0, 1.0, 1.0, 0.74), "ArcherTrapTexture")
+	var inner: Sprite2D = game._add_textured_effect(root, ArcherEVfxTexture, 58.0, origin, Color(0.98, 0.54, 0.92, 0.38), "ArcherTrapInnerTexture")
+	inner.flip_h = true
+	game._animate_effect_rotation(outer, 4.0, true)
+	game._animate_effect_rotation(inner, 2.7, false)
+	game._animate_effect_pulse(outer, 0.40, 0.82, 0.84)
 	game.persistent_skill_areas.append({
 		"type": "archer_trap", "owner": owner, "root": root,
 		"duration_left": 6.0, "tick_left": 0.0, "interval": 0.05,
@@ -549,6 +766,12 @@ func add_arrow_rain(origin: Vector2, direction: Vector2, damage: float, duration
 	root.name = "ArrowRain_%s" % attacker.name
 	game.effect_root.add_child(root)
 	game._spawn_area_visual(root, center, 125.0, Color(0.95, 0.78, 0.24, 0.16))
+	var outer: Sprite2D = game._add_textured_effect(root, ArcherFVfxTexture, 258.0, center, Color(1.0, 1.0, 1.0, 0.58), "ArcherRainTexture")
+	var inner: Sprite2D = game._add_textured_effect(root, ArcherFVfxTexture, 214.0, center, Color(1.0, 0.68, 0.92, 0.24), "ArcherRainInnerTexture")
+	inner.flip_h = true
+	game._animate_effect_rotation(outer, 8.0, true)
+	game._animate_effect_rotation(inner, 6.0, false)
+	game._animate_effect_pulse(outer, 0.34, 0.68, 0.92)
 	game.persistent_skill_areas.append({
 		"type": "arrow_rain", "owner": attacker, "root": root,
 		"duration_left": minf(duration, 5.0), "tick_left": 0.0, "interval": 0.50,
@@ -566,11 +789,17 @@ func add_lancer_storm(owner: PlayerController, damage: float, duration: float) -
 	game.effect_root.add_child(root)
 	var radius := 175.0 * (1.20 if owner.get_upgrade_level("lancer_f_reach") > 0 else 1.0)
 	game._spawn_area_visual(root, Vector2.ZERO, radius, Color(0.48, 0.78, 1.0, 0.18))
+	var outer: Sprite2D = game._add_textured_effect(root, LancerFVfxTexture, radius * 2.08, Vector2.ZERO, Color(1.0, 1.0, 1.0, 0.62), "LancerStormTexture")
+	var inner: Sprite2D = game._add_textured_effect(root, LancerFVfxTexture, radius * 1.66, Vector2.ZERO, Color(0.60, 0.94, 1.0, 0.30), "LancerStormInnerTexture")
+	inner.flip_h = true
+	game._animate_effect_rotation(outer, 1.15, true)
+	game._animate_effect_rotation(inner, 1.75, false)
+	game._animate_effect_pulse(outer, 0.48, 0.76, 0.42)
 	game.persistent_skill_areas.append({
 		"type": "lancer_storm", "owner": owner, "root": root,
 		"duration_left": duration, "tick_left": 0.0,
 		"interval": 0.45, "radius": radius, "damage": damage * 0.34,
-		"pull_upgrade": owner.get_upgrade_level("lancer_f_pull") > 0,
+		"pull_upgrade": owner.get_upgrade_level("lancer_f_pull") > 0, "sweep_angle": 0.0,
 		"finisher_upgrade": owner.get_upgrade_level("lancer_f_finisher") > 0,
 	})
 
@@ -595,6 +824,12 @@ func add_mage_field(center: Vector2, radius: float, damage: float, attacker: Pla
 	root.name = "MageField_%s" % attacker.name
 	game.effect_root.add_child(root)
 	game._spawn_area_visual(root, center, radius, Color(0.50, 0.24, 0.92, 0.18))
+	var outer: Sprite2D = game._add_textured_effect(root, MageEVfxTexture, radius * 2.08, center, Color(1.0, 1.0, 1.0, 0.54), "MageFieldTexture")
+	var inner: Sprite2D = game._add_textured_effect(root, MageEVfxTexture, radius * 1.62, center, Color(0.66, 0.48, 1.0, 0.28), "MageFieldInnerTexture")
+	inner.flip_h = true
+	game._animate_effect_rotation(outer, 7.0, true)
+	game._animate_effect_rotation(inner, 5.0, false)
+	game._animate_effect_pulse(outer, 0.30, 0.62, 0.86)
 	game.persistent_skill_areas.append({
 		"type": "mage_field", "owner": attacker, "root": root,
 		"duration_left": duration, "tick_left": 0.0, "interval": 0.50,
@@ -608,6 +843,12 @@ func add_mage_storm(center: Vector2, damage: float, duration: float, attacker: P
 	root.name = "MageStorm_%s" % attacker.name
 	game.effect_root.add_child(root)
 	game._spawn_area_visual(root, center, radius, Color(0.36, 0.58, 1.0, 0.20))
+	var outer: Sprite2D = game._add_textured_effect(root, MageFVfxTexture, radius * 2.06, center, Color(1.0, 1.0, 1.0, 0.54), "MageStormTexture")
+	var inner: Sprite2D = game._add_textured_effect(root, MageFVfxTexture, radius * 1.72, center, Color(0.48, 0.72, 1.0, 0.26), "MageStormInnerTexture")
+	inner.flip_h = true
+	game._animate_effect_rotation(outer, 6.0, true)
+	game._animate_effect_rotation(inner, 4.2, false)
+	game._animate_effect_pulse(outer, 0.32, 0.64, 0.72)
 	game.persistent_skill_areas.append({
 		"type": "mage_storm", "owner": attacker, "root": root,
 		"duration_left": minf(duration, 5.0), "tick_left": 0.0,
@@ -670,6 +911,7 @@ func _tick_arrow_rain(area: Dictionary, owner: PlayerController) -> void:
 	var count := int(area.get("consecutive_hits", 0)) + 1
 	area["consecutive_hits"] = count
 	game._spawn_line_skill_effect(target.global_position + Vector2(0.0, -90.0), Vector2.DOWN, 90.0, Color(1.0, 0.82, 0.24, 0.70), 0.10)
+	_spawn_archer_arrow_strike(target.global_position)
 	var damage_multiplier := 1.0
 	if bool(area.get("weakpoint_upgrade", false)):
 		damage_multiplier = minf(2.20, 1.0 + 0.18 * float(count - 1))
@@ -679,6 +921,22 @@ func _tick_arrow_rain(area: Dictionary, owner: PlayerController) -> void:
 	if randf() < clampf(crit_chance, 0.0, 1.0):
 		damage_multiplier *= owner.crit_multiplier
 	damage_enemy(target, damage * damage_multiplier, owner, center, owner.attack_knockback * 0.28)
+	game._spawn_spark_burst(target.global_position, Color(1.0, 0.72, 0.22, 0.92), 6, 26.0, 0.14)
+
+func _spawn_archer_arrow_strike(target_position: Vector2) -> void:
+	var root := Node2D.new()
+	root.name = "ArcherArrowStrike"
+	root.global_position = target_position + Vector2(0.0, -92.0)
+	game.effect_root.add_child(root)
+	var arrow: Sprite2D = game._add_textured_effect(root, ArcherQVfxTexture, 86.0, Vector2.ZERO, Color.WHITE, "Texture")
+	arrow.scale.y *= 0.34
+	arrow.rotation = PI * 0.5
+	var tween := root.create_tween().set_parallel(true)
+	tween.set_trans(Tween.TRANS_QUAD)
+	tween.set_ease(Tween.EASE_IN)
+	tween.tween_property(root, "global_position", target_position, 0.14)
+	tween.tween_property(arrow, "modulate:a", 0.0, 0.18).set_delay(0.05)
+	tween.finished.connect(Callable(root, "queue_free"))
 
 func _get_arrow_rain_target(center: Vector2, radius: float) -> EnemyController:
 	var candidates: Array[EnemyController] = []
@@ -701,6 +959,8 @@ func _tick_archer_trap(area: Dictionary, owner: PlayerController) -> void:
 		if bool(area.get("execution_upgrade", false)):
 			enemy.apply_guaranteed_arrow_crit(owner)
 		game._spawn_ring_effect(center, 48.0, Color(1.0, 0.72, 0.18, 0.82), 0.20)
+		game._spawn_textured_effect(center, ArcherEVfxTexture, 96.0, 0.24, "ArcherTrapTrigger")
+		game._spawn_spark_burst(center, Color(1.0, 0.42, 0.72, 0.94), 10, 46.0, 0.20)
 		remove_persistent_skill_area(area)
 		return
 
@@ -753,6 +1013,9 @@ func _tick_lancer_storm(area: Dictionary, owner: PlayerController) -> void:
 		root.global_position = owner.global_position
 	game._spawn_effect(owner.global_position, radius, Color(0.46, 0.78, 1.0, 0.10), 0.12)
 	game._spawn_ring_effect(owner.global_position, radius, Color(0.58, 0.88, 1.0, 0.58), 0.18)
+	var sweep_angle := float(area.get("sweep_angle", 0.0)) + 1.92
+	area["sweep_angle"] = sweep_angle
+	spawn_lancer_sweep_vfx(owner.global_position, Vector2.RIGHT.rotated(sweep_angle), radius, radius * 0.58)
 	for enemy in game.enemies.duplicate():
 		if is_instance_valid(enemy) and enemy.global_position.distance_to(owner.global_position) <= radius:
 			if bool(area.get("pull_upgrade", false)) and not enemy.is_boss:
@@ -770,12 +1033,16 @@ func _finish_persistent_skill_area(area: Dictionary, owner: PlayerController) ->
 		var damage := float(area.get("damage", owner.attack_damage)) * 2.0
 		game._spawn_effect(center, radius, Color(0.36, 0.58, 1.0, 0.30), 0.18)
 		game._spawn_ring_effect(center, radius, Color(0.56, 0.76, 1.0, 0.72), 0.22)
+		game._spawn_textured_effect(center, MageFVfxTexture, radius * 2.0, 0.30, "MageStormFinisher")
+		game._spawn_spark_burst(center, Color(0.58, 0.82, 1.0, 0.96), 20, radius * 0.72, 0.28)
 		damage_enemies_in_radius(center, radius, damage, owner)
 	elif area_type == "lancer_storm" and bool(area.get("finisher_upgrade", false)):
 		var radius := float(area.get("radius", 175.0)) * 1.45
 		var damage := float(area.get("damage", owner.attack_damage)) * 2.2
 		game._spawn_effect(owner.global_position, radius, Color(0.48, 0.78, 1.0, 0.26), 0.18)
 		game._spawn_ring_effect(owner.global_position, radius, Color(0.68, 0.92, 1.0, 0.78), 0.24)
+		game._spawn_textured_effect(owner.global_position, LancerFVfxTexture, radius * 2.0, 0.30, "LancerStormFinisher")
+		game._spawn_spark_burst(owner.global_position, Color(0.72, 0.96, 1.0, 0.96), 22, radius * 0.78, 0.28)
 		damage_enemies_in_radius(owner.global_position, radius, damage, owner)
 
 func _tick_warrior_field(area: Dictionary, owner: PlayerController) -> void:
@@ -815,11 +1082,12 @@ func _tick_mage_area(area: Dictionary, owner: PlayerController) -> void:
 		if is_instance_valid(enemy) and enemy.global_position.distance_to(center) <= radius:
 			var area_type := str(area.get("type", ""))
 			if area_type == "mage_field":
-				enemy.apply_slow(0.60, 0.80)
+				enemy.apply_slow(0.60, 0.90)
 			elif area_type == "mage_storm":
+				_spawn_mage_lightning_strike(enemy.global_position)
 				var stunned_ids := area.get("stunned_ids") as Dictionary
 				if not stunned_ids.has(enemy.get_instance_id()):
-					enemy.apply_stun(1.0)
+					enemy.apply_stun(0.5)
 					stunned_ids[enemy.get_instance_id()] = true
 			var hit_damage := damage
 			if area_type == "mage_field" and bool(area.get("accumulation", false)):
@@ -828,6 +1096,26 @@ func _tick_mage_area(area: Dictionary, owner: PlayerController) -> void:
 				hit_counts[enemy.get_instance_id()] = count
 				hit_damage *= minf(2.0, 1.0 + 0.15 * float(count - 1))
 			damage_enemy(enemy, hit_damage, owner, center, 0.0, true, false)
+
+func _spawn_mage_lightning_strike(target_position: Vector2) -> void:
+	var root := Node2D.new()
+	root.name = "MageLightningStrike"
+	root.global_position = target_position
+	game.effect_root.add_child(root)
+	var bolt := Line2D.new()
+	bolt.width = 5.0
+	bolt.default_color = Color(0.48, 0.82, 1.0, 0.96)
+	bolt.points = PackedVector2Array([
+		Vector2(-14.0, -132.0), Vector2(8.0, -98.0), Vector2(-7.0, -62.0), Vector2(5.0, -30.0), Vector2.ZERO,
+	])
+	root.add_child(bolt)
+	var impact: Sprite2D = game._add_textured_effect(root, MageQVfxTexture, 72.0, Vector2.ZERO, Color.WHITE, "Impact")
+	impact.rotation = PI * 0.5
+	var tween := root.create_tween().set_parallel(true)
+	tween.tween_property(bolt, "modulate:a", 0.0, 0.18)
+	tween.tween_property(impact, "modulate:a", 0.0, 0.20)
+	tween.finished.connect(Callable(root, "queue_free"))
+	game._spawn_spark_burst(target_position, Color(0.46, 0.76, 1.0, 0.94), 9, 38.0, 0.18)
 
 func remove_persistent_skill_area(area: Dictionary) -> void:
 	game.persistent_skill_areas.erase(area)

@@ -2,6 +2,7 @@ extends RefCounted
 class_name PlayerRoster
 
 const PlayerScript := preload("res://scripts/player/player_controller.gd")
+const VerdantUIThemeScript := preload("res://scripts/ui/verdant_ui_theme.gd")
 
 var game: Node
 var combat
@@ -52,12 +53,10 @@ func reset_upgrade_slots() -> void:
 		slot["selection_pending"] = false
 
 func create_hud(parent: PanelContainer, skill_labels: Array[String]) -> void:
-	parent.add_theme_stylebox_override("panel", _make_panel_style(
-		Color(0.025, 0.045, 0.075, 0.38), Color.TRANSPARENT, 0, 6
-	))
+	parent.add_theme_stylebox_override("panel", VerdantUIThemeScript.make_panel_style(Color(1.0, 1.0, 1.0, 0.96)))
 	var margin := MarginContainer.new()
 	for side in ["margin_left", "margin_top", "margin_right", "margin_bottom"]:
-		margin.add_theme_constant_override(side, 8)
+		margin.add_theme_constant_override(side, 14)
 	parent.add_child(margin)
 
 	var content := VBoxContainer.new()
@@ -90,37 +89,42 @@ func create_hud(parent: PanelContainer, skill_labels: Array[String]) -> void:
 	var action_panels: Array[PanelContainer] = []
 	var action_name_labels: Array[Label] = []
 	var action_status_labels: Array[Label] = []
+	var action_icons: Array[TextureRect] = []
+	var action_cooldown_overlays: Array[ColorRect] = []
 	var skill_icons: Array[TextureRect] = []
 	var cooldown_overlays: Array[ColorRect] = []
-	var ready_style := _make_panel_style(Color(0.025, 0.065, 0.10, 0.72), Color(0.55, 1.0, 0.08, 0.92), 2, 4)
-	var cooldown_style := _make_panel_style(Color(0.10, 0.065, 0.025, 0.76), Color(1.0, 0.63, 0.08, 0.92), 2, 4)
+	var ready_style := VerdantUIThemeScript.make_skill_slot_style()
+	var cooldown_style := VerdantUIThemeScript.make_skill_slot_style(Color(0.66, 0.62, 0.48, 1.0))
 	for action_index in range(action_names.size()):
 		var action_name: String = action_names[action_index]
 		var panel := PanelContainer.new()
 		panel.custom_minimum_size = Vector2(82.0, 62.0)
 		panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		panel.add_theme_stylebox_override("panel", ready_style)
+		panel.tooltip_text = action_name
 		panel.clip_contents = true
 		actions.add_child(panel)
 		var action_content := Control.new()
 		action_content.custom_minimum_size = Vector2(0.0, 50.0)
 		panel.add_child(action_content)
+		var icon := TextureRect.new()
+		icon.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+		icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		action_content.add_child(icon)
+		action_icons.append(icon)
+		var overlay := ColorRect.new()
+		overlay.color = Color(0.01, 0.015, 0.025, 0.72)
+		overlay.anchor_left = 0.0
+		overlay.anchor_top = 0.0
+		overlay.anchor_right = 1.0
+		overlay.anchor_bottom = 0.0
+		overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		action_content.add_child(overlay)
+		action_cooldown_overlays.append(overlay)
 		if action_index >= 3:
-			var icon := TextureRect.new()
-			icon.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-			icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-			icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
-			icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
-			action_content.add_child(icon)
 			skill_icons.append(icon)
-			var overlay := ColorRect.new()
-			overlay.color = Color(0.01, 0.015, 0.025, 0.72)
-			overlay.anchor_left = 0.0
-			overlay.anchor_top = 0.0
-			overlay.anchor_right = 1.0
-			overlay.anchor_bottom = 0.0
-			overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
-			action_content.add_child(overlay)
 			cooldown_overlays.append(overlay)
 		var name_label := Label.new()
 		name_label.text = action_name
@@ -155,6 +159,8 @@ func create_hud(parent: PanelContainer, skill_labels: Array[String]) -> void:
 		"action_panels": action_panels,
 		"action_name_labels": action_name_labels,
 		"action_status_labels": action_status_labels,
+		"action_icons": action_icons,
+		"action_cooldown_overlays": action_cooldown_overlays,
 		"skill_icons": skill_icons,
 		"cooldown_overlays": cooldown_overlays,
 		"ready_style": ready_style,
@@ -166,10 +172,10 @@ func assign_hud(index: int, player: PlayerController) -> void:
 		return
 	game.player_huds[index]["player"] = player
 	if player != null and is_instance_valid(player):
-		var icons: Array = game.player_huds[index].get("skill_icons", [])
-		for skill_index in range(mini(icons.size(), 3)):
-			var skill_key: String = ["Q", "E", "F"][skill_index]
-			(icons[skill_index] as TextureRect).texture = load(game.get_character_skill_icon_path(player.character_id, skill_key)) as Texture2D
+		var icons: Array = game.player_huds[index].get("action_icons", [])
+		var action_keys: Array[String] = ["BASIC", "DODGE", "SECONDARY", "Q", "E", "F"]
+		for action_index in range(mini(icons.size(), action_keys.size())):
+			(icons[action_index] as TextureRect).texture = load(game.get_character_skill_icon_path(player.character_id, action_keys[action_index])) as Texture2D
 	update_hud(index)
 
 func on_player_health_changed(current: float, maximum: float, player: PlayerController) -> void:
@@ -215,7 +221,7 @@ func update_hud(index: int) -> void:
 	var health_bar: ProgressBar = hud["health_bar"] as ProgressBar
 	var action_panels: Array = hud.get("action_panels", [])
 	var action_status_labels: Array = hud.get("action_status_labels", [])
-	var cooldown_overlays: Array = hud.get("cooldown_overlays", [])
+	var action_cooldown_overlays: Array = hud.get("action_cooldown_overlays", [])
 	if player == null or not is_instance_valid(player):
 		health_label.text = ""
 		health_bar.value = 0.0
@@ -237,19 +243,21 @@ func update_hud(index: int) -> void:
 		"" if ready_states[4] else "%.1f" % player.get_fan_skill_remaining(),
 		"" if ready_states[5] else "%.1f" % player.get_ultimate_remaining(),
 	]
-	var skill_remaining: Array[float] = [
+	var action_remaining: Array[float] = [
+		player.get_attack_remaining(), player.get_dash_remaining(), player.get_secondary_remaining(),
 		player.get_skill_remaining(), player.get_fan_skill_remaining(), player.get_ultimate_remaining(),
 	]
-	var skill_cooldowns: Array[float] = [
+	var action_cooldowns: Array[float] = [
+		player.attack_cooldown, player.dash_cooldown, player.SECONDARY_COOLDOWN,
 		player.skill_cooldown, player.fan_skill_cooldown, player.ultimate_cooldown,
 	]
-	for skill_index in range(mini(cooldown_overlays.size(), skill_remaining.size())):
-		var ratio := clampf(skill_remaining[skill_index] / maxf(skill_cooldowns[skill_index], 0.001), 0.0, 1.0)
-		var overlay := cooldown_overlays[skill_index] as ColorRect
+	for action_index in range(mini(action_cooldown_overlays.size(), action_remaining.size())):
+		var ratio := clampf(action_remaining[action_index] / maxf(action_cooldowns[action_index], 0.001), 0.0, 1.0)
+		var overlay := action_cooldown_overlays[action_index] as ColorRect
 		overlay.anchor_bottom = ratio
 		overlay.offset_bottom = 0.0
-	var ready_style: StyleBoxFlat = hud["ready_style"] as StyleBoxFlat
-	var cooldown_style: StyleBoxFlat = hud["cooldown_style"] as StyleBoxFlat
+	var ready_style: StyleBox = hud["ready_style"] as StyleBox
+	var cooldown_style: StyleBox = hud["cooldown_style"] as StyleBox
 	for action_index in range(mini(action_panels.size(), action_status_labels.size())):
 		var panel: PanelContainer = action_panels[action_index] as PanelContainer
 		var status_label: Label = action_status_labels[action_index] as Label
@@ -259,9 +267,12 @@ func update_hud(index: int) -> void:
 		status_label.add_theme_color_override("font_color", Color.WHITE if action_index >= 3 else (Color(0.55, 1.0, 0.08, 1.0) if ready else Color(1.0, 0.68, 0.12, 1.0)))
 
 func _style_health_bar(bar: ProgressBar) -> void:
-	var background := _make_panel_style(Color(0.02, 0.045, 0.075, 0.70), Color(0.20, 0.26, 0.32, 0.66), 1, 4)
-	bar.add_theme_stylebox_override("background", background)
+	bar.add_theme_stylebox_override("background", VerdantUIThemeScript.make_hud_bar_style())
 	var fill := _make_panel_style(Color(0.55, 1.0, 0.06, 1.0), Color(0.28, 0.52, 0.04, 1.0), 2, 4)
+	fill.content_margin_left = 16.0
+	fill.content_margin_top = 10.0
+	fill.content_margin_right = 16.0
+	fill.content_margin_bottom = 10.0
 	bar.add_theme_stylebox_override("fill", fill)
 
 func _make_panel_style(background: Color, border: Color, border_width: int, corner_radius: int) -> StyleBoxFlat:

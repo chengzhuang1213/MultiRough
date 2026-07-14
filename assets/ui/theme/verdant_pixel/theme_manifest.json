@@ -1,0 +1,50 @@
+{
+  "style": "verdant_pixel_fantasy",
+  "assets": {
+    "panel_large_9slice.png": {
+      "size": [512, 512],
+      "patch_margin": {"left": 84, "top": 84, "right": 84, "bottom": 84}
+    },
+    "tooltip_9slice.png": {
+      "size": [512, 512],
+      "patch_margin": {"left": 72, "top": 72, "right": 72, "bottom": 72}
+    },
+    "title_plate_9slice.png": {
+      "size": [768, 256],
+      "patch_margin": {"left": 112, "top": 72, "right": 112, "bottom": 72}
+    },
+    "button_normal_9slice.png": {
+      "size": [512, 160],
+      "patch_margin": {"left": 88, "top": 48, "right": 88, "bottom": 48}
+    },
+    "button_hover_9slice.png": {
+      "size": [512, 160],
+      "patch_margin": {"left": 88, "top": 48, "right": 88, "bottom": 48}
+    },
+    "button_pressed_9slice.png": {
+      "size": [512, 160],
+      "patch_margin": {"left": 88, "top": 48, "right": 88, "bottom": 48}
+    },
+    "button_disabled_9slice.png": {
+      "size": [512, 160],
+      "patch_margin": {"left": 88, "top": 48, "right": 88, "bottom": 48}
+    },
+    "input_field_9slice.png": {
+      "size": [512, 128],
+      "patch_margin": {"left": 72, "top": 40, "right": 72, "bottom": 40}
+    },
+    "hud_bar_frame_9slice.png": {
+      "size": [512, 96],
+      "patch_margin": {"left": 64, "top": 28, "right": 64, "bottom": 28}
+    },
+    "skill_slot_frame.png": {
+      "size": [192, 192],
+      "stretch": false
+    },
+    "separator_tile.png": {
+      "size": [512, 48],
+      "tile_axis": "horizontal",
+      "protected_end_width": 72
+    }
+  }
+}

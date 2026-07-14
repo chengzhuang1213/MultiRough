@@ -11,8 +11,12 @@ var lifetime := 1.4
 var hit_radius := 18.0
 var enemies: Array = []
 var visual_texture_path := ""
+var visual_size := Vector2.ZERO
+var visual_additive := false
+var pierces_enemies := false
 var max_distance := 0.0
 var _distance_traveled := 0.0
+var _hit_enemy_ids: Dictionary = {}
 
 func _ready() -> void:
 	_build_visual()
@@ -40,15 +44,30 @@ func _process(delta: float) -> void:
 	for enemy in enemies.duplicate():
 		if not is_instance_valid(enemy):
 			continue
+		if _hit_enemy_ids.has(enemy.get_instance_id()):
+			continue
 		if global_position.distance_to(enemy.global_position) <= hit_radius:
+			_hit_enemy_ids[enemy.get_instance_id()] = true
 			hit_enemy.emit(enemy, damage)
-			queue_free()
-			return
+			if not pierces_enemies:
+				queue_free()
+				return
 
 func _build_visual() -> void:
 	if not visual_texture_path.is_empty():
 		var sprite := Sprite2D.new()
+		sprite.name = "Texture"
 		sprite.texture = load(visual_texture_path) as Texture2D
+		if sprite.texture != null and visual_size != Vector2.ZERO:
+			var texture_size := sprite.texture.get_size()
+			sprite.scale = Vector2(
+				visual_size.x / maxf(texture_size.x, 1.0),
+				visual_size.y / maxf(texture_size.y, 1.0)
+			)
+		if visual_additive:
+			var material := CanvasItemMaterial.new()
+			material.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+			sprite.material = material
 		add_child(sprite)
 		return
 

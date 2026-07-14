@@ -8,6 +8,7 @@ const UpgradeManagerScript := preload("res://scripts/upgrades/upgrade_manager.gd
 const CombatManagerScript := preload("res://scripts/gameplay/combat_manager.gd")
 const PlayerRosterScript := preload("res://scripts/player/player_roster.gd")
 const AuthorityContractScript := preload("res://scripts/network/authority_contract.gd")
+const VerdantUIThemeScript := preload("res://scripts/ui/verdant_ui_theme.gd")
 
 const ARENA_BOUNDS := Rect2(Vector2(-960, -540), Vector2(1920, 1080))
 const VIEWPORT_SIZE := Vector2(1280, 720)
@@ -58,21 +59,33 @@ const CHARACTER_CARD_ACCENTS := {
 }
 const CHARACTER_SKILL_ICONS := {
 	"warrior": {
+		"BASIC": "res://assets/ui/character_select/skills/warrior_basic.png",
+		"DODGE": "res://assets/ui/character_select/skills/warrior_dodge.png",
+		"SECONDARY": "res://assets/ui/character_select/skills/warrior_secondary.png",
 		"Q": "res://assets/ui/character_select/skills/warrior_q.png",
 		"E": "res://assets/ui/character_select/skills/warrior_e.png",
 		"F": "res://assets/ui/character_select/skills/warrior_f.png",
 	},
 	"archer": {
+		"BASIC": "res://assets/ui/character_select/skills/archer_basic.png",
+		"DODGE": "res://assets/ui/character_select/skills/archer_dodge.png",
+		"SECONDARY": "res://assets/ui/character_select/skills/archer_secondary.png",
 		"Q": "res://assets/ui/character_select/skills/archer_q.png",
 		"E": "res://assets/ui/character_select/skills/archer_e.png",
 		"F": "res://assets/ui/character_select/skills/archer_f.png",
 	},
 	"lancer": {
+		"BASIC": "res://assets/ui/character_select/skills/lancer_basic.png",
+		"DODGE": "res://assets/ui/character_select/skills/lancer_dodge.png",
+		"SECONDARY": "res://assets/ui/character_select/skills/lancer_secondary.png",
 		"Q": "res://assets/ui/character_select/skills/lancer_q.png",
 		"E": "res://assets/ui/character_select/skills/lancer_e.png",
 		"F": "res://assets/ui/character_select/skills/lancer_f.png",
 	},
 	"mage": {
+		"BASIC": "res://assets/ui/character_select/skills/mage_basic.png",
+		"DODGE": "res://assets/ui/character_select/skills/mage_dodge.png",
+		"SECONDARY": "res://assets/ui/character_select/skills/mage_secondary.png",
 		"Q": "res://assets/ui/character_select/skills/mage_q.png",
 		"E": "res://assets/ui/character_select/skills/mage_e.png",
 		"F": "res://assets/ui/character_select/skills/mage_f.png",
@@ -135,10 +148,13 @@ var enemy_root: Node2D
 var projectile_root: Node2D
 var effect_root: Node2D
 var ui_layer: CanvasLayer
-var main_menu_panel: VBoxContainer
+var ui_root: Control
+var main_menu_panel: PanelContainer
+var main_menu_content: VBoxContainer
 var network_ip_edit: LineEdit
 var network_status_label: Label
-var character_select_panel: VBoxContainer
+var character_select_panel: PanelContainer
+var character_select_content: VBoxContainer
 var character_select_start_button: Button
 var hud_left: VBoxContainer
 var hud_right: VBoxContainer
@@ -149,8 +165,10 @@ var enemies_label: Label
 var player_huds: Array = []
 var player_hud_alpha := 1.0
 var player_hud_fade_release_left := 0.0
-var upgrade_panel: VBoxContainer
+var upgrade_panel: PanelContainer
+var upgrade_content: VBoxContainer
 var start_next_wave_button: Button
+var result_panel: PanelContainer
 var result_label: Label
 var restart_button: Button
 var return_to_menu_button: Button
@@ -284,12 +302,17 @@ func _build_ui() -> void:
 	ui_layer = CanvasLayer.new()
 	ui_layer.name = "UI"
 	add_child(ui_layer)
+	ui_root = Control.new()
+	ui_root.name = "VerdantUIRoot"
+	ui_root.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	ui_root.theme = VerdantUIThemeScript.build_theme()
+	ui_layer.add_child(ui_root)
 
 	hud_left = VBoxContainer.new()
 	hud_left.position = Vector2(16, 16)
 	hud_left.visible = false
 	hud_left.add_theme_constant_override("separation", 6)
-	ui_layer.add_child(hud_left)
+	ui_root.add_child(hud_left)
 
 	status_label = Label.new()
 	hud_left.add_child(status_label)
@@ -303,7 +326,7 @@ func _build_ui() -> void:
 	player_hud = PanelContainer.new()
 	player_hud.visible = false
 	player_hud.custom_minimum_size = Vector2(PLAYER_HUD_WIDTH, 0.0)
-	ui_layer.add_child(player_hud)
+	ui_root.add_child(player_hud)
 
 	_create_player_hud(player_hud, ["普攻", "Q", "E", "F"])
 
@@ -311,29 +334,26 @@ func _build_ui() -> void:
 	hud_right.position = Vector2(16, 16)
 	hud_right.visible = false
 	hud_right.add_theme_constant_override("separation", 6)
-	ui_layer.add_child(hud_right)
+	ui_root.add_child(hud_right)
 
-	main_menu_panel = VBoxContainer.new()
-	main_menu_panel.position = Vector2(460, 230)
-	main_menu_panel.custom_minimum_size = Vector2(360, 250)
-	main_menu_panel.add_theme_constant_override("separation", 16)
-	ui_layer.add_child(main_menu_panel)
+	main_menu_panel = PanelContainer.new()
+	main_menu_panel.custom_minimum_size = Vector2(440, 340)
+	ui_root.add_child(main_menu_panel)
+	main_menu_content = _attach_panel_content(main_menu_panel, 34, 28, 34, 28)
+	main_menu_content.add_theme_constant_override("separation", 14)
 
-	var title: Label = Label.new()
-	title.text = "MultiRough"
-	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	title.add_theme_font_size_override("font_size", 36)
-	main_menu_panel.add_child(title)
+	main_menu_content.add_child(_build_title_plate("MultiRough", Vector2(360, 72), 34))
+	main_menu_content.add_child(_build_ui_separator(Vector2(360, 22)))
 
 	var single_button: Button = Button.new()
 	single_button.text = "单人模式"
 	single_button.custom_minimum_size = Vector2(360, 54)
 	single_button.pressed.connect(_start_single_player)
-	main_menu_panel.add_child(single_button)
+	main_menu_content.add_child(single_button)
 
 	var network_row: HBoxContainer = HBoxContainer.new()
 	network_row.add_theme_constant_override("separation", 8)
-	main_menu_panel.add_child(network_row)
+	main_menu_content.add_child(network_row)
 
 	network_ip_edit = LineEdit.new()
 	network_ip_edit.placeholder_text = "房主 IP，如 192.168.1.78"
@@ -357,20 +377,22 @@ func _build_ui() -> void:
 	network_status_label.text = ""
 	network_status_label.custom_minimum_size = Vector2(360, 0.0)
 	network_status_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	main_menu_panel.add_child(network_status_label)
+	main_menu_content.add_child(network_status_label)
 
-	character_select_panel = VBoxContainer.new()
-	character_select_panel.custom_minimum_size = Vector2(1120, 680)
+	character_select_panel = PanelContainer.new()
+	character_select_panel.custom_minimum_size = Vector2(1180, 700)
 	character_select_panel.visible = false
-	character_select_panel.add_theme_constant_override("separation", 10)
-	ui_layer.add_child(character_select_panel)
+	ui_root.add_child(character_select_panel)
+	character_select_content = _attach_panel_content(character_select_panel, 24, 18, 24, 18)
+	character_select_content.add_theme_constant_override("separation", 10)
 
-	upgrade_panel = VBoxContainer.new()
+	upgrade_panel = PanelContainer.new()
 	upgrade_panel.position = (VIEWPORT_SIZE - Vector2(UPGRADE_PANEL_WIDTH, UPGRADE_PANEL_HEIGHT)) * 0.5
 	upgrade_panel.custom_minimum_size = Vector2(UPGRADE_PANEL_WIDTH, UPGRADE_PANEL_HEIGHT)
 	upgrade_panel.visible = false
-	upgrade_panel.add_theme_constant_override("separation", 18)
-	ui_layer.add_child(upgrade_panel)
+	ui_root.add_child(upgrade_panel)
+	upgrade_content = _attach_panel_content(upgrade_panel, 24, 18, 24, 18)
+	upgrade_content.add_theme_constant_override("separation", 12)
 
 	start_next_wave_button = Button.new()
 	start_next_wave_button.text = "开启下一波"
@@ -382,13 +404,19 @@ func _build_ui() -> void:
 	start_next_wave_button.visible = false
 	start_next_wave_button.disabled = true
 	start_next_wave_button.pressed.connect(_on_start_next_wave_pressed)
-	ui_layer.add_child(start_next_wave_button)
+	ui_root.add_child(start_next_wave_button)
 
+	result_panel = PanelContainer.new()
+	result_panel.custom_minimum_size = Vector2(430, 290)
+	result_panel.visible = false
+	ui_root.add_child(result_panel)
+	var result_content := _attach_panel_content(result_panel, 36, 28, 36, 28)
 	result_label = Label.new()
-	result_label.position = Vector2(520, 248)
-	result_label.visible = false
+	result_label.custom_minimum_size = Vector2(350, 210)
+	result_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	result_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	result_label.add_theme_font_size_override("font_size", 28)
-	ui_layer.add_child(result_label)
+	result_content.add_child(result_label)
 
 	restart_button = Button.new()
 	restart_button.text = "重新开始"
@@ -396,17 +424,51 @@ func _build_ui() -> void:
 	restart_button.custom_minimum_size = Vector2(184, 48)
 	restart_button.visible = false
 	restart_button.pressed.connect(_on_restart_pressed)
-	ui_layer.add_child(restart_button)
+	ui_root.add_child(restart_button)
 
 	return_to_menu_button = Button.new()
 	return_to_menu_button.text = "返回主菜单"
 	return_to_menu_button.custom_minimum_size = Vector2(132, 40)
 	return_to_menu_button.visible = false
 	return_to_menu_button.pressed.connect(_on_return_to_menu_pressed)
-	ui_layer.add_child(return_to_menu_button)
+	ui_root.add_child(return_to_menu_button)
 
 	_layout_ui()
 	_update_status()
+
+func _attach_panel_content(panel: PanelContainer, left: int, top: int, right: int, bottom: int) -> VBoxContainer:
+	var margin := MarginContainer.new()
+	margin.add_theme_constant_override("margin_left", left)
+	margin.add_theme_constant_override("margin_top", top)
+	margin.add_theme_constant_override("margin_right", right)
+	margin.add_theme_constant_override("margin_bottom", bottom)
+	panel.add_child(margin)
+	var content := VBoxContainer.new()
+	margin.add_child(content)
+	return content
+
+func _build_title_plate(text: String, minimum_size: Vector2, font_size: int) -> PanelContainer:
+	var plate := PanelContainer.new()
+	plate.custom_minimum_size = minimum_size
+	plate.add_theme_stylebox_override("panel", VerdantUIThemeScript.make_title_style())
+	plate.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var label := Label.new()
+	label.text = text
+	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	label.add_theme_font_size_override("font_size", font_size)
+	label.add_theme_color_override("font_outline_color", VerdantUIThemeScript.TEXT_OUTLINE)
+	label.add_theme_constant_override("outline_size", 3)
+	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	plate.add_child(label)
+	return plate
+
+func _build_ui_separator(minimum_size: Vector2) -> HSeparator:
+	var separator := HSeparator.new()
+	separator.custom_minimum_size = minimum_size
+	separator.add_theme_stylebox_override("separator", VerdantUIThemeScript.make_separator_style())
+	separator.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	return separator
 
 func _get_viewport_size() -> Vector2:
 	var viewport_size: Vector2 = get_viewport_rect().size
@@ -441,7 +503,7 @@ func _layout_ui() -> void:
 			maxf(16.0, viewport_size.x - return_to_menu_button.custom_minimum_size.x - 16.0),
 			16.0
 		)
-	if result_label != null and restart_button != null:
+	if result_panel != null and restart_button != null:
 		_position_result_panel()
 
 func _get_hud_height(hud: Control) -> float:
@@ -653,20 +715,19 @@ func _show_character_select(player_count: int) -> void:
 func _rebuild_character_select_panel() -> void:
 	character_select_rows.clear()
 	character_select_slot_buttons.clear()
-	for child in character_select_panel.get_children():
-		character_select_panel.remove_child(child)
+	for child in character_select_content.get_children():
+		character_select_content.remove_child(child)
 		child.queue_free()
 	if _is_network_game():
 		character_select_active_slot = local_peer_player_index - 1
 	else:
 		character_select_active_slot = clampi(character_select_active_slot, 0, pending_player_count - 1)
 
-	var title: Label = Label.new()
-	title.text = "联机房间" if _is_network_game() else "选择角色"
-	title.custom_minimum_size = Vector2(1120, 38)
-	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	title.add_theme_font_size_override("font_size", 32)
-	character_select_panel.add_child(title)
+	character_select_content.add_child(_build_title_plate(
+		"联机房间" if _is_network_game() else "选择角色",
+		Vector2(1120, 58),
+		30
+	))
 
 	if _is_network_game():
 		var room_status: Label = Label.new()
@@ -674,14 +735,14 @@ func _rebuild_character_select_panel() -> void:
 		room_status.custom_minimum_size = Vector2(1120, 28)
 		room_status.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		room_status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		character_select_panel.add_child(room_status)
+		character_select_content.add_child(room_status)
 
 	if pending_player_count > 1:
 		var slot_row: HBoxContainer = HBoxContainer.new()
 		slot_row.custom_minimum_size = Vector2(1120, 42)
 		slot_row.alignment = BoxContainer.ALIGNMENT_CENTER
 		slot_row.add_theme_constant_override("separation", 12)
-		character_select_panel.add_child(slot_row)
+		character_select_content.add_child(slot_row)
 		for slot_index in range(pending_player_count):
 			var slot_button: Button = Button.new()
 			slot_button.custom_minimum_size = Vector2(240, 40)
@@ -693,7 +754,7 @@ func _rebuild_character_select_panel() -> void:
 	card_row.custom_minimum_size = Vector2(1120, 452)
 	card_row.alignment = BoxContainer.ALIGNMENT_CENTER
 	card_row.add_theme_constant_override("separation", 18)
-	character_select_panel.add_child(card_row)
+	character_select_content.add_child(card_row)
 	for character_id in CHARACTER_ORDER:
 		var card_data := _build_character_card(str(character_id))
 		card_row.add_child(card_data["button"] as Button)
@@ -702,7 +763,7 @@ func _rebuild_character_select_panel() -> void:
 	character_select_start_button = Button.new()
 	character_select_start_button.custom_minimum_size = Vector2(1120, 50)
 	character_select_start_button.pressed.connect(_confirm_character_select)
-	character_select_panel.add_child(character_select_start_button)
+	character_select_content.add_child(character_select_start_button)
 	_refresh_character_select_buttons()
 
 func _build_character_card(character_id: String) -> Dictionary:
@@ -810,13 +871,11 @@ func _build_character_skill_key(character_id: String, skill_key: String, accent:
 	var panel: PanelContainer = PanelContainer.new()
 	panel.custom_minimum_size = Vector2(76, 58)
 	panel.clip_contents = true
-	var style := _make_character_info_style(Color(0.03, 0.05, 0.07, 0.92))
-	style.border_color = accent
-	style.set_border_width_all(2)
-	style.content_margin_left = 0
-	style.content_margin_top = 0
-	style.content_margin_right = 0
-	style.content_margin_bottom = 0
+	var style := VerdantUIThemeScript.make_skill_slot_style(Color(0.82, 0.86, 0.78, 1.0).lerp(accent, 0.18))
+	style.content_margin_left = 7
+	style.content_margin_top = 7
+	style.content_margin_right = 7
+	style.content_margin_bottom = 7
 	panel.add_theme_stylebox_override("panel", style)
 	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var icon: TextureRect = TextureRect.new()
@@ -901,32 +960,28 @@ func _refresh_character_select_buttons() -> void:
 func _style_character_card_button(button: Button, selected: bool, accent: Color) -> void:
 	if button == null:
 		return
-	var normal: StyleBoxFlat = StyleBoxFlat.new()
-	normal.bg_color = Color(0.025, 0.035, 0.05, 1.0)
-	normal.border_color = accent if selected else Color(0.30, 0.34, 0.38, 0.9)
-	normal.set_border_width_all(4 if selected else 2)
-	normal.set_corner_radius_all(6)
-	var hover: StyleBoxFlat = normal.duplicate()
-	hover.border_color = accent.lightened(0.18)
-	hover.set_border_width_all(4)
-	var pressed: StyleBoxFlat = hover.duplicate()
-	pressed.bg_color = Color(0.08, 0.10, 0.13, 1.0)
+	var normal := VerdantUIThemeScript.make_panel_style(Color.WHITE if selected else Color(0.70, 0.72, 0.68, 1.0))
+	var hover := VerdantUIThemeScript.make_panel_style(Color(0.90, 0.96, 0.90, 1.0).lerp(accent, 0.10))
+	var pressed := VerdantUIThemeScript.make_panel_style(Color(0.72, 0.78, 0.70, 1.0).lerp(accent, 0.08))
+	for style in [normal, hover, pressed]:
+		style.content_margin_left = 6
+		style.content_margin_top = 6
+		style.content_margin_right = 6
+		style.content_margin_bottom = 6
 	button.add_theme_stylebox_override("normal", normal)
 	button.add_theme_stylebox_override("hover", hover)
 	button.add_theme_stylebox_override("pressed", pressed)
 	button.add_theme_stylebox_override("focus", hover)
-	button.modulate = Color.WHITE if selected else Color(0.82, 0.84, 0.86, 1.0)
+	button.modulate = Color.WHITE if selected else Color(0.88, 0.90, 0.86, 1.0)
 
 func _style_character_slot_button(button: Button, active: bool) -> void:
-	var style: StyleBoxFlat = StyleBoxFlat.new()
-	style.bg_color = Color(0.12, 0.16, 0.20, 0.96) if active else Color(0.06, 0.08, 0.10, 0.90)
-	style.border_color = Color(0.95, 0.76, 0.28, 1.0) if active else Color(0.30, 0.34, 0.38, 0.9)
-	style.set_border_width_all(2)
-	style.set_corner_radius_all(4)
+	var style := VerdantUIThemeScript.make_button_style(
+		VerdantUIThemeScript.BUTTON_HOVER_TEXTURE if active else VerdantUIThemeScript.BUTTON_NORMAL_TEXTURE
+	)
 	button.add_theme_stylebox_override("normal", style)
-	button.add_theme_stylebox_override("hover", style)
-	button.add_theme_stylebox_override("pressed", style)
-	button.add_theme_stylebox_override("disabled", style)
+	button.add_theme_stylebox_override("hover", VerdantUIThemeScript.make_button_style(VerdantUIThemeScript.BUTTON_HOVER_TEXTURE))
+	button.add_theme_stylebox_override("pressed", VerdantUIThemeScript.make_button_style(VerdantUIThemeScript.BUTTON_PRESSED_TEXTURE))
+	button.add_theme_stylebox_override("disabled", VerdantUIThemeScript.make_button_style(VerdantUIThemeScript.BUTTON_DISABLED_TEXTURE))
 
 func _confirm_character_select() -> void:
 	if network_mode == "client":
@@ -1201,7 +1256,7 @@ func _start_next_wave() -> void:
 	upgrade_panel.visible = false
 	start_next_wave_button.visible = false
 	start_next_wave_button.disabled = true
-	result_label.visible = false
+	result_panel.visible = false
 	waiting_for_next_wave_input = false
 	_reset_upgrade_slots()
 
@@ -1524,11 +1579,11 @@ func _enter_wave_clear() -> void:
 	_set_player_cooldowns_paused(true)
 	_stop_ultimate()
 	result_label.text = "波次清理完成"
-	result_label.visible = true
+	result_panel.visible = true
 	var timer: SceneTreeTimer = get_tree().create_timer(1.0)
 	timer.timeout.connect(func() -> void:
 		if game_state == GameStateScript.COUNTDOWN and enemies.is_empty():
-			result_label.visible = false
+			result_panel.visible = false
 			_enter_upgrade_select()
 	)
 
@@ -1571,6 +1626,85 @@ func _spawn_effect(origin: Vector2, radius: float, color: Color, lifetime: float
 	var timer: SceneTreeTimer = get_tree().create_timer(lifetime)
 	timer.timeout.connect(Callable(effect, "queue_free"))
 
+func _add_textured_effect(root: Node2D, texture: Texture2D, diameter: float, position: Vector2 = Vector2.ZERO, tint: Color = Color.WHITE, node_name: String = "TexturedEffect") -> Sprite2D:
+	var sprite := Sprite2D.new()
+	sprite.name = node_name
+	sprite.texture = texture
+	sprite.position = position
+	sprite.modulate = tint
+	var texture_width := maxf(float(texture.get_width()), 1.0)
+	sprite.scale = Vector2.ONE * (diameter / texture_width)
+	var material := CanvasItemMaterial.new()
+	material.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	sprite.material = material
+	root.add_child(sprite)
+	return sprite
+
+func _spawn_textured_effect(origin: Vector2, texture: Texture2D, diameter: float, lifetime: float, node_name: String = "TexturedEffect") -> void:
+	var sprite := _add_textured_effect(effect_root, texture, diameter, origin, Color.WHITE, node_name)
+	var final_scale := sprite.scale * 1.12
+	sprite.scale *= 0.72
+	var tween := create_tween()
+	tween.set_parallel(true)
+	tween.tween_property(sprite, "scale", final_scale, lifetime)
+	tween.tween_property(sprite, "modulate:a", 0.0, lifetime)
+	tween.finished.connect(Callable(sprite, "queue_free"))
+
+func _animate_effect_rotation(sprite: Sprite2D, duration: float, clockwise: bool) -> void:
+	var tween := sprite.create_tween().set_loops()
+	tween.set_trans(Tween.TRANS_LINEAR)
+	tween.tween_property(sprite, "rotation", TAU if clockwise else -TAU, maxf(duration, 0.05)).from(0.0)
+
+func _animate_effect_pulse(sprite: Sprite2D, minimum_alpha: float, maximum_alpha: float, duration: float) -> void:
+	sprite.modulate.a = maximum_alpha
+	var tween := sprite.create_tween().set_loops()
+	tween.set_trans(Tween.TRANS_SINE)
+	tween.set_ease(Tween.EASE_IN_OUT)
+	tween.tween_property(sprite, "modulate:a", minimum_alpha, maxf(duration * 0.5, 0.05))
+	tween.tween_property(sprite, "modulate:a", maximum_alpha, maxf(duration * 0.5, 0.05))
+
+func _spawn_inward_streaks(origin: Vector2, radius: float, color: Color, count: int, lifetime: float) -> void:
+	var root := Node2D.new()
+	root.name = "WarriorQInwardStreaks"
+	effect_root.add_child(root)
+	for index in range(count):
+		var angle := TAU * float(index) / float(maxi(count, 1))
+		var direction := Vector2(cos(angle), sin(angle))
+		var streak := Line2D.new()
+		streak.width = 3.0
+		streak.default_color = color
+		streak.position = origin + direction * radius
+		streak.points = PackedVector2Array([-direction * 16.0, direction * 4.0])
+		root.add_child(streak)
+		var tween := streak.create_tween().set_parallel(true)
+		tween.set_trans(Tween.TRANS_QUAD)
+		tween.set_ease(Tween.EASE_IN)
+		tween.tween_property(streak, "position", origin + direction * 10.0, lifetime)
+		tween.tween_property(streak, "modulate:a", 0.0, lifetime)
+	var timer := get_tree().create_timer(lifetime)
+	timer.timeout.connect(Callable(root, "queue_free"))
+
+func _spawn_spark_burst(origin: Vector2, color: Color, count: int, distance: float, lifetime: float) -> void:
+	var root := Node2D.new()
+	root.name = "SparkBurst"
+	effect_root.add_child(root)
+	for index in range(count):
+		var angle := TAU * float(index) / float(maxi(count, 1)) + randf_range(-0.16, 0.16)
+		var direction := Vector2(cos(angle), sin(angle))
+		var spark := Line2D.new()
+		spark.width = randf_range(2.0, 4.0)
+		spark.default_color = color
+		spark.position = origin
+		spark.points = PackedVector2Array([Vector2.ZERO, direction * randf_range(7.0, 14.0)])
+		root.add_child(spark)
+		var tween := spark.create_tween().set_parallel(true)
+		tween.set_trans(Tween.TRANS_QUAD)
+		tween.set_ease(Tween.EASE_OUT)
+		tween.tween_property(spark, "position", origin + direction * randf_range(distance * 0.72, distance), lifetime)
+		tween.tween_property(spark, "modulate:a", 0.0, lifetime)
+	var timer := get_tree().create_timer(lifetime)
+	timer.timeout.connect(Callable(root, "queue_free"))
+
 func _spawn_area_visual(root: Node2D, origin: Vector2, radius: float, color: Color) -> void:
 	var area: Polygon2D = Polygon2D.new()
 	var points: PackedVector2Array = []
@@ -1607,11 +1741,23 @@ func _spawn_lancer_barricade_visual(root: Node2D, center: Vector2, forward: Vect
 		])
 		root.add_child(spear)
 
-func _spawn_lancer_sweep_effect(origin: Vector2, direction: Vector2, length: float, half_width: float) -> void:
+func _spawn_lancer_sweep_effect(origin: Vector2, direction: Vector2, length: float, half_width: float, texture: Texture2D) -> void:
 	var forward: Vector2 = direction.normalized()
 	if forward == Vector2.ZERO:
 		forward = Vector2.RIGHT
 	var side_axis: Vector2 = Vector2(-forward.y, forward.x)
+	var root := Node2D.new()
+	root.name = "LancerSweep"
+	effect_root.add_child(root)
+	var slash: Sprite2D = _add_textured_effect(root, texture, maxf(length * 1.65, half_width * 1.75), origin + forward * length * 0.44, Color.WHITE, "LancerSweepTexture")
+	slash.rotation = forward.angle() - 0.72
+	var slash_scale := slash.scale
+	slash.scale *= 0.72
+	var slash_tween := slash.create_tween().set_parallel(true)
+	slash_tween.set_trans(Tween.TRANS_QUAD)
+	slash_tween.set_ease(Tween.EASE_OUT)
+	slash_tween.tween_property(slash, "scale", slash_scale * 1.08, 0.18)
+	slash_tween.tween_property(slash, "modulate:a", 0.0, 0.18)
 	for side in [-1.0, 0.0, 1.0]:
 		var line: Line2D = Line2D.new()
 		line.position = origin
@@ -1621,9 +1767,12 @@ func _spawn_lancer_sweep_effect(origin: Vector2, direction: Vector2, length: flo
 			side_axis * half_width * side * 0.45,
 			forward * length + side_axis * half_width * side,
 		])
-		effect_root.add_child(line)
-		var timer: SceneTreeTimer = get_tree().create_timer(0.12)
-		timer.timeout.connect(Callable(line, "queue_free"))
+		root.add_child(line)
+		var line_tween := line.create_tween()
+		line_tween.tween_property(line, "modulate:a", 0.0, 0.14)
+	var timer: SceneTreeTimer = get_tree().create_timer(0.19)
+	timer.timeout.connect(Callable(root, "queue_free"))
+	_spawn_spark_burst(origin + forward * length * 0.72, Color(0.70, 0.96, 1.0, 0.92), 9, half_width * 0.72, 0.16)
 
 func _spawn_shockwave_effect(origin: Vector2, direction: Vector2, length: float) -> void:
 	var forward: Vector2 = direction.normalized()
@@ -1773,7 +1922,7 @@ func _prepare_upgrade_select() -> void:
 	start_next_wave_button.visible = false
 	start_next_wave_button.disabled = true
 	waiting_for_next_wave_input = false
-	result_label.visible = false
+	result_panel.visible = false
 
 @rpc("authority", "reliable")
 func _network_begin_upgrade_select(upgrade_sets: Array) -> void:
@@ -1810,18 +1959,18 @@ func _build_single_player_upgrade_panel(player_index: int = 1) -> void:
 	_configure_upgrade_panel(panel_width, panel_height)
 	var slot: Dictionary = _get_local_player_slot(player_index)
 	var target_player: PlayerController = slot.get("player") as PlayerController
-	var title: Label = Label.new()
-	title.text = "%s · 选择升级" % _get_character_name(target_player.character_id if target_player != null else "warrior")
-	title.custom_minimum_size = Vector2(panel_width, 0.0)
-	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	title.add_theme_font_size_override("font_size", 28)
-	upgrade_panel.add_child(title)
+	upgrade_content.add_child(_build_title_plate(
+		"%s · 选择升级" % _get_character_name(target_player.character_id if target_player != null else "warrior"),
+		Vector2(panel_width - 48.0, 62.0),
+		28
+	))
+	upgrade_content.add_child(_build_ui_separator(Vector2(panel_width - 48.0, 18.0)))
 
 	var cards: HBoxContainer = HBoxContainer.new()
-	cards.custom_minimum_size = Vector2(panel_width, 490)
+	cards.custom_minimum_size = Vector2(panel_width - 48.0, 470)
 	cards.alignment = BoxContainer.ALIGNMENT_CENTER
 	cards.add_theme_constant_override("separation", 20)
-	upgrade_panel.add_child(cards)
+	upgrade_content.add_child(cards)
 
 	var upgrades: Array = slot.get("upgrades", [])
 	for upgrade_value in upgrades:
@@ -1849,6 +1998,11 @@ func _build_upgrade_card(upgrade: Dictionary, target_player: PlayerController, c
 	button.custom_minimum_size = card_size
 	button.clip_contents = true
 	button.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	button.tooltip_text = "%s\n%s\n当前：%s" % [
+		str(upgrade.get("title", "升级")),
+		str(upgrade.get("description", "")),
+		_format_upgrade_current(upgrade, target_player),
+	]
 	_style_upgrade_card_button(button, accent)
 
 	var background: TextureRect = TextureRect.new()
@@ -1936,11 +2090,11 @@ func _build_upgrade_card_badge(upgrade: Dictionary, accent: Color) -> Control:
 	if not skill_slot.is_empty():
 		var panel: PanelContainer = PanelContainer.new()
 		panel.custom_minimum_size = size
-		var style: StyleBoxFlat = StyleBoxFlat.new()
-		style.bg_color = Color(0.025, 0.035, 0.05, 0.92)
-		style.border_color = accent
-		style.set_border_width_all(3)
-		style.set_corner_radius_all(6)
+		var style := VerdantUIThemeScript.make_skill_slot_style(Color(0.86, 0.90, 0.82, 1.0).lerp(accent, 0.12))
+		style.content_margin_left = 10
+		style.content_margin_top = 10
+		style.content_margin_right = 10
+		style.content_margin_bottom = 10
 		panel.add_theme_stylebox_override("panel", style)
 		panel.clip_contents = true
 		panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -2036,7 +2190,7 @@ func _select_upgrade(player_index: int, upgrade: Dictionary) -> void:
 	start_next_wave_button.disabled = true
 	waiting_for_next_wave_input = true
 	result_label.text = "按任意键开启下一波"
-	result_label.visible = true
+	result_panel.visible = true
 
 @rpc("any_peer", "reliable")
 func _network_choose_upgrade(player_index: int, upgrade_index: int) -> void:
@@ -2080,7 +2234,7 @@ func _apply_confirmed_network_upgrade(player_index: int, upgrade_index: int) -> 
 	if player_index == local_peer_player_index:
 		upgrade_panel.visible = false
 		result_label.text = "等待另一名玩家选择升级"
-		result_label.visible = true
+		result_panel.visible = true
 	return true
 
 func _set_network_upgrades_ready() -> void:
@@ -2089,7 +2243,7 @@ func _set_network_upgrades_ready() -> void:
 	start_next_wave_button.disabled = true
 	waiting_for_next_wave_input = true
 	result_label.text = "等待房主开启下一波" if network_mode == "client" else "按任意键开启下一波"
-	result_label.visible = true
+	result_panel.visible = true
 
 @rpc("authority", "reliable")
 func _network_upgrades_ready() -> void:
@@ -2118,7 +2272,7 @@ func _enter_victory() -> void:
 	_clear_effects()
 	_position_result_panel()
 	result_label.text = _format_result_text("胜利")
-	result_label.visible = true
+	result_panel.visible = true
 	restart_button.visible = true
 	_update_status()
 
@@ -2131,13 +2285,13 @@ func _enter_defeat(reason: String = "失败") -> void:
 	_clear_effects()
 	_position_result_panel()
 	result_label.text = _format_result_text(reason)
-	result_label.visible = true
+	result_panel.visible = true
 	restart_button.visible = true
 	_update_status()
 
 func _on_restart_pressed() -> void:
 	_clear_run_state()
-	result_label.visible = false
+	result_panel.visible = false
 	restart_button.visible = false
 	_show_main_menu()
 
@@ -2149,13 +2303,13 @@ func _on_return_to_menu_pressed() -> void:
 	local_peer_player_index = 1
 	_set_network_status("")
 	_clear_run_state()
-	result_label.visible = false
+	result_panel.visible = false
 	restart_button.visible = false
 	_show_main_menu()
 
 func _position_result_panel() -> void:
 	var viewport_size: Vector2 = _get_viewport_size()
-	result_label.position = viewport_size * 0.5 + Vector2(-120.0, -112.0)
+	result_panel.position = (viewport_size - result_panel.custom_minimum_size) * 0.5 + Vector2(0.0, -36.0)
 	restart_button.position = Vector2(
 		(viewport_size.x - 184.0) * 0.5,
 		viewport_size.y * 0.5 + 150.0
@@ -2240,7 +2394,7 @@ func _clear_persistent_skill_areas() -> void:
 	combat_manager.clear_persistent_skill_areas()
 
 func _clear_upgrade_panel() -> void:
-	for child in upgrade_panel.get_children():
+	for child in upgrade_content.get_children():
 		child.queue_free()
 
 func _update_player_health_labels() -> void:

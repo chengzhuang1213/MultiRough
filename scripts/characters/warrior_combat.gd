@@ -6,6 +6,7 @@ func use_q(combat, origin: Vector2, direction: Vector2, length: float, half_widt
 	var damage_multiplier := 1.25 if attacker.get_upgrade_level("warrior_q_damage") > 0 else 1.0
 	combat.activate_warrior_taunt(attacker, radius, 2.0)
 	combat.damage_and_pull_enemies(origin, radius, damage * 0.85 * damage_multiplier, attacker)
+	combat.spawn_warrior_q_vfx(origin, radius)
 	combat.game._spawn_effect(origin, radius, Color(1.0, 0.45, 0.18, 0.22), 0.18)
 
 func use_e(combat, origin: Vector2, direction: Vector2, length: float, half_width: float, damage: float, attacker: PlayerController) -> void:

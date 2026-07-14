@@ -76,7 +76,7 @@ const CHARACTER_CONFIGS := {
 		"move_speed": 225.0,
 		"attack_damage": 30.0,
 		"attack_cooldown": 0.60,
-		"attack_range": 96.0,
+		"attack_range": 110.4,
 		"attack_half_width": 28.0,
 		"attack_knockback": 95.0,
 		"defense_damage_multiplier": 0.60,

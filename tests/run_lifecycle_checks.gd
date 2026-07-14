@@ -41,11 +41,23 @@ func _check_complete_single_player_run() -> void:
 	_expect(game.wave_time_left > 0.0 and game.wave_time_left <= 60.0, "normal wave did not start with a 60-second limit")
 	_expect(game.player_huds[0].get("player") == game.players[0], "player HUD was not bound to the created player")
 	var hud: Dictionary = game.player_huds[0]
+	var action_icons: Array = hud.get("action_icons", [])
+	var action_cooldown_overlays: Array = hud.get("action_cooldown_overlays", [])
 	var skill_icons: Array = hud.get("skill_icons", [])
 	var cooldown_overlays: Array = hud.get("cooldown_overlays", [])
+	_expect(action_icons.size() == 6 and action_icons.all(func(icon): return (icon as TextureRect).texture != null), "player HUD did not load all six action icons")
+	_expect(action_cooldown_overlays.size() == 6, "player HUD did not create six vertical cooldown overlays")
 	_expect(skill_icons.size() == 3 and skill_icons.all(func(icon): return (icon as TextureRect).texture != null), "player HUD did not load all three profession skill icons")
 	_expect(cooldown_overlays.size() == 3, "player HUD did not create three vertical cooldown overlays")
 	var player = game.players[0]
+	player._attack_timer = player.attack_cooldown
+	game.player_roster.update_hud(0)
+	_expect(is_equal_approx((action_cooldown_overlays[0] as ColorRect).anchor_bottom, 1.0), "basic attack cooldown did not cover its icon")
+	player._attack_timer = 0.0
+	player._secondary_timer = player.SECONDARY_COOLDOWN
+	game.player_roster.update_hud(0)
+	_expect(is_equal_approx((action_cooldown_overlays[2] as ColorRect).anchor_bottom, 1.0), "secondary cooldown did not cover its icon")
+	player._secondary_timer = 0.0
 	player._skill_timer = player.skill_cooldown
 	game.player_roster.update_hud(0)
 	_expect(is_equal_approx((cooldown_overlays[0] as ColorRect).anchor_bottom, 1.0), "Q cooldown did not fully cover its icon when activated")

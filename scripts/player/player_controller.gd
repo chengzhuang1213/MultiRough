@@ -34,6 +34,9 @@ const CHARACTER_WARRIOR := "warrior"
 const CHARACTER_ARCHER := "archer"
 const CHARACTER_LANCER := "lancer"
 const CHARACTER_MAGE := "mage"
+const LANCER_RUN_SCALE_MULTIPLIER := 1.24
+const LANCER_FOOT_BASELINE_FROM_FRAME_CENTER := 42.0
+const WARRIOR_SECONDARY_VFX_NODE := "WarriorSecondaryVFX"
 const MAGE_ANIMATION_PATH := "res://assets/original/characters/mage/animations/"
 const WARRIOR_ANIMATION_PATH := "res://assets/original/characters/warrior/animations/"
 const LANCER_ANIMATION_PATH := "res://assets/original/characters/lancer/animations/"
@@ -74,6 +77,7 @@ var upgrade_offer_misses: Dictionary = {}
 var warrior_counter_reflect_multiplier := 1.30
 var warrior_counter_pulse_multiplier := 1.0
 var archer_charge_time_multiplier := 1.0
+var archer_q_fully_charged := false
 
 var _base_max_health := 120.0
 var _base_move_speed := 240.0
@@ -152,6 +156,7 @@ var _archer_q_charging := false
 var _archer_q_charge_time := 0.0
 
 var _sprite: Sprite2D
+var _sprite_base_position := Vector2.ZERO
 var _collision_shape: CollisionShape2D
 var _charge_indicator: Line2D
 
@@ -351,7 +356,9 @@ func _emit_pending_combat_event() -> void:
 			else:
 				basic_attack_requested.emit(global_position, direction, attack_range, attack_half_width, damage)
 		"q":
+			archer_q_fully_charged = character_id == CHARACTER_ARCHER and bool(_pending_combat_event.get("full_charge", false))
 			active_skill_requested.emit(global_position, direction, skill_length, skill_half_width, damage)
+			archer_q_fully_charged = false
 		"e":
 			fan_skill_requested.emit(global_position, direction, fan_skill_length, fan_skill_half_width, damage)
 		"f":
@@ -383,11 +390,15 @@ func _update_secondary_action() -> void:
 	var secondary_pressed := secondary_held and not _secondary_was_held
 	if character_id == CHARACTER_WARRIOR and not secondary_held:
 		_warrior_manual_guard_active = false
+		_remove_warrior_secondary_vfx()
 	if secondary_pressed and not cooldowns_paused:
 		if _secondary_timer <= 0.0:
 			_secondary_timer = SECONDARY_COOLDOWN
 			if character_id == CHARACTER_WARRIOR:
 				_warrior_manual_guard_active = true
+				var direction := _get_attack_direction()
+				_last_direction = direction
+				secondary_action_requested.emit(global_position, direction, 0.0)
 			else:
 				var direction := _get_attack_direction()
 				_last_direction = direction
@@ -400,6 +411,11 @@ func _update_secondary_action() -> void:
 		else:
 			cooldown_notice_requested.emit(4)
 	_secondary_was_held = secondary_held
+
+func _remove_warrior_secondary_vfx() -> void:
+	var effect := get_node_or_null(WARRIOR_SECONDARY_VFX_NODE)
+	if effect != null:
+		effect.free()
 
 func _get_defense_move_multiplier() -> float:
 	if _warrior_counter_left > 0.0:
@@ -490,9 +506,11 @@ func _update_archer_q_charge(delta: float) -> void:
 	_last_direction = skill_direction
 	_skill_timer = skill_cooldown
 	_queue_combat_event("q", skill_direction, skill_damage * damage_ratio)
+	_pending_combat_event["full_charge"] = charge_ratio >= 1.0
 	_start_cast_animation()
 	_archer_q_charging = false
 	_archer_q_charge_time = 0.0
+	archer_q_fully_charged = false
 
 func _consume_fan_pressed() -> bool:
 	if not external_input_enabled:
@@ -573,6 +591,7 @@ func _reset_transient_action_state() -> void:
 	_external_defending = false
 	_secondary_was_held = false
 	_warrior_manual_guard_active = false
+	_remove_warrior_secondary_vfx()
 	_external_basic_pressed = false
 	_external_dash_pressed = false
 	_external_skill_pressed = false
@@ -582,6 +601,7 @@ func _reset_transient_action_state() -> void:
 	_external_ultimate_pressed = false
 	_archer_q_charging = false
 	_archer_q_charge_time = 0.0
+	archer_q_fully_charged = false
 	_warrior_taunt_guard_left = 0.0
 	_warrior_counter_left = 0.0
 	_warrior_blade_guard_left = 0.0
@@ -763,6 +783,7 @@ func _setup_nodes() -> void:
 		_collision_shape = get_node("CollisionShape2D") as CollisionShape2D
 
 	_sprite = get_node("Sprite2D") as Sprite2D
+	_sprite_base_position = _sprite.position
 	_charge_indicator = Line2D.new()
 	_charge_indicator.name = "ChargeIndicator"
 	_charge_indicator.width = 3.0
@@ -852,7 +873,14 @@ func _apply_animation_frame() -> void:
 	var data: Dictionary = _get_animation_data(_current_anim)
 	var frame_size: Vector2 = data.get("frame_size", SPRITE_FRAME_SIZE) as Vector2
 	_sprite.region_rect = Rect2(Vector2(frame_size.x * float(_anim_frame), 0.0), frame_size)
+	_apply_animation_visual_transform()
 	_emit_pending_combat_event()
+
+func _apply_animation_visual_transform() -> void:
+	var scale_multiplier := LANCER_RUN_SCALE_MULTIPLIER if character_id == CHARACTER_LANCER and _current_anim == ANIM_RUN else 1.0
+	_sprite.scale = Vector2.ONE * visual_scale * scale_multiplier
+	_sprite.position = _sprite_base_position
+	_sprite.position.y += visual_scale * LANCER_FOOT_BASELINE_FROM_FRAME_CENTER * (1.0 - scale_multiplier)
 
 func _get_animation_data(anim_name: String) -> Dictionary:
 	if anim_name in [ANIM_CAST, ANIM_HIT, ANIM_DEATH]:
