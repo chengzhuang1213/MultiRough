@@ -7,6 +7,7 @@ const WaveManagerScript := preload("res://scripts/gameplay/wave_manager.gd")
 const UpgradeManagerScript := preload("res://scripts/upgrades/upgrade_manager.gd")
 const CombatManagerScript := preload("res://scripts/gameplay/combat_manager.gd")
 const PlayerRosterScript := preload("res://scripts/player/player_roster.gd")
+const AuthorityContractScript := preload("res://scripts/network/authority_contract.gd")
 
 const ARENA_BOUNDS := Rect2(Vector2(-960, -540), Vector2(1920, 1080))
 const VIEWPORT_SIZE := Vector2(1280, 720)
@@ -89,6 +90,7 @@ const UPGRADE_CARD_ART := {
 	"Epic": "res://assets/ui/upgrades/upgrade_card_epic.png",
 }
 const CHARACTER_CONFIGS := GameRulesScript.CHARACTER_CONFIGS
+const NETWORK_SNAPSHOT_INTERVAL := 0.10
 
 var game_state := GameStateScript.LOBBY
 var wave_index := -1
@@ -119,6 +121,10 @@ var network_mode := "none"
 var local_peer_player_index := 1
 var network_peer_joined := false
 var network_status_text := ""
+var network_snapshot_sequence := 0
+var network_last_applied_snapshot := -1
+var network_snapshot_time_left := 0.0
+var network_next_enemy_id := 1
 
 var player: PlayerController
 var player_two: PlayerController
@@ -230,13 +236,14 @@ func _add_mouse_action(action: StringName, button_index: int) -> void:
 		InputMap.action_add_event(action, event)
 
 func _process(delta: float) -> void:
-	if _is_combat_active():
+	if _is_combat_active() and network_mode != "client":
 		elapsed_time += delta
 		wave_time_left = maxf(0.0, wave_time_left - delta)
 		if wave_time_left <= 0.0:
 			_enter_defeat("时间耗尽")
 	if _is_network_game():
 		_send_network_input()
+		_update_network_authority(delta)
 	_update_camera()
 	_update_player_hud_occlusion(delta)
 	_update_enemy_targets()
@@ -244,7 +251,7 @@ func _process(delta: float) -> void:
 		combat_manager.update_ultimates(delta)
 		_update_persistent_skill_areas(delta)
 	_update_status()
-	if _is_combat_active():
+	if _is_combat_active() and network_mode != "client":
 		if _all_players_dead():
 			_enter_defeat()
 
@@ -598,7 +605,7 @@ func _set_network_status(text: String) -> void:
 	if network_status_label != null:
 		network_status_label.text = text
 
-@rpc("any_peer", "reliable")
+@rpc("authority", "reliable")
 func _network_enter_room(character_ids: Array) -> void:
 	selected_character_ids = character_ids.duplicate()
 	_show_character_select(2)
@@ -607,12 +614,17 @@ func _network_enter_room(character_ids: Array) -> void:
 func _network_set_character(player_index: int, character_id: String) -> void:
 	if player_index < 1 or player_index > 2 or not CHARACTER_CONFIGS.has(character_id):
 		return
+	var sender_id := multiplayer.get_remote_sender_id()
+	if network_mode == "host" and sender_id != 0 and (sender_id != 2 or player_index != 2):
+		return
+	if network_mode == "client" and sender_id != 1:
+		return
 	selected_character_ids[player_index - 1] = character_id
 	if network_mode == "host":
 		rpc("_network_set_character", player_index, character_id)
 	_refresh_character_select_buttons()
 
-@rpc("any_peer", "reliable")
+@rpc("authority", "reliable")
 func _network_start_game(character_ids: Array) -> void:
 	selected_character_ids = character_ids.duplicate()
 	if character_select_panel != null:
@@ -951,6 +963,10 @@ func _start_game(player_count: int) -> void:
 	enemies_defeated = 0
 	damage_dealt = 0.0
 	damage_taken = 0.0
+	network_snapshot_sequence = 0
+	network_last_applied_snapshot = -1
+	network_snapshot_time_left = 0.0
+	network_next_enemy_id = 1
 	local_player_slots.clear()
 	if main_menu_panel != null:
 		main_menu_panel.visible = false
@@ -1012,21 +1028,126 @@ func _get_network_player(player_index: int) -> PlayerController:
 	return null
 
 func _send_network_input() -> void:
-	if multiplayer.multiplayer_peer == null:
+	if network_mode != "client" or multiplayer.multiplayer_peer == null:
 		return
 	var local_player := _get_network_local_player()
 	if local_player == null or not is_instance_valid(local_player):
 		return
-	rpc("_receive_player_input", local_peer_player_index, local_player.make_input_packet())
+	rpc_id(1, "_receive_player_input", local_peer_player_index, local_player.make_input_packet())
 
 @rpc("any_peer", "unreliable")
 func _receive_player_input(player_index: int, packet: Dictionary) -> void:
-	if player_index == local_peer_player_index:
+	if network_mode != "host" or multiplayer.get_remote_sender_id() != 2 or player_index != 2:
 		return
 	var target_player := _get_network_player(player_index)
 	if target_player == null or not is_instance_valid(target_player):
 		return
-	target_player.apply_external_input(packet)
+	var authoritative_packet := packet.duplicate(true)
+	authoritative_packet.erase("position")
+	target_player.apply_external_input(authoritative_packet)
+
+func _update_network_authority(delta: float) -> void:
+	if network_mode != "host" or not network_peer_joined or players.is_empty():
+		return
+	network_snapshot_time_left -= delta
+	if network_snapshot_time_left > 0.0:
+		return
+	network_snapshot_time_left += NETWORK_SNAPSHOT_INTERVAL
+	network_snapshot_sequence += 1
+	rpc("_network_receive_authority_snapshot", _build_authority_snapshot())
+
+func _build_authority_snapshot() -> Dictionary:
+	var player_states: Array = []
+	for player_index in range(players.size()):
+		var target_player := players[player_index] as PlayerController
+		if target_player == null or not is_instance_valid(target_player):
+			continue
+		player_states.append(AuthorityContractScript.make_player_state(
+			player_index + 1,
+			target_player.global_position,
+			target_player.health,
+			target_player.max_health,
+			target_player.is_dead,
+			target_player.make_authority_cooldowns()
+		))
+	var enemy_states: Array = []
+	for enemy in enemies:
+		if is_instance_valid(enemy):
+			enemy_states.append(enemy.make_authority_state())
+	return AuthorityContractScript.make_snapshot(
+		network_snapshot_sequence,
+		game_state,
+		wave_index,
+		player_states,
+		enemy_states,
+		wave_time_left,
+		elapsed_time,
+		{"enemies_defeated": enemies_defeated, "damage_dealt": damage_dealt, "damage_taken": damage_taken}
+	)
+
+@rpc("authority", "unreliable_ordered")
+func _network_receive_authority_snapshot(snapshot: Dictionary) -> void:
+	if network_mode != "client":
+		return
+	_apply_authority_snapshot(snapshot)
+
+func _apply_authority_snapshot(snapshot: Dictionary) -> bool:
+	if not AuthorityContractScript.validate_snapshot(snapshot):
+		return false
+	var sequence := int(snapshot.get("sequence", -1))
+	if sequence <= network_last_applied_snapshot:
+		return false
+	network_last_applied_snapshot = sequence
+	wave_index = int(snapshot.get("wave_index", wave_index))
+	wave_time_left = maxf(0.0, float(snapshot.get("wave_time_left", wave_time_left)))
+	elapsed_time = maxf(0.0, float(snapshot.get("elapsed_time", elapsed_time)))
+	var authority_phase := str(snapshot.get("phase", game_state))
+	if authority_phase == GameStateScript.VICTORY and game_state != GameStateScript.VICTORY:
+		_enter_victory()
+	elif authority_phase == GameStateScript.DEFEAT and game_state != GameStateScript.DEFEAT:
+		_enter_defeat("房主判定失败")
+	elif authority_phase in [GameStateScript.WAVE_ACTIVE, GameStateScript.BOSS_WAVE, GameStateScript.COUNTDOWN]:
+		game_state = authority_phase
+	for player_state in snapshot.get("players", []) as Array:
+		var target_player := _get_network_player(int((player_state as Dictionary).get("player_id", 0)))
+		if target_player != null and is_instance_valid(target_player):
+			target_player.apply_authority_state(player_state as Dictionary)
+	_apply_authority_enemy_states(snapshot.get("enemies", []) as Array)
+	var metrics: Dictionary = snapshot.get("metrics", {}) as Dictionary
+	enemies_defeated = int(metrics.get("enemies_defeated", enemies_defeated))
+	damage_dealt = float(metrics.get("damage_dealt", damage_dealt))
+	damage_taken = float(metrics.get("damage_taken", damage_taken))
+	return true
+
+func _apply_authority_enemy_states(enemy_states: Array) -> void:
+	var existing_by_id := {}
+	for enemy in enemies:
+		if is_instance_valid(enemy) and enemy.network_id > 0:
+			existing_by_id[enemy.network_id] = enemy
+	var authority_ids := {}
+	for state in enemy_states:
+		var enemy_state := state as Dictionary
+		var enemy_id := int(enemy_state.get("enemy_id", -1))
+		authority_ids[enemy_id] = true
+		var enemy: EnemyController = existing_by_id.get(enemy_id) as EnemyController
+		if enemy == null or not is_instance_valid(enemy):
+			enemy = _create_enemy_from_authority_state(enemy_state)
+		enemy.apply_authority_state(enemy_state)
+	for enemy in enemies.duplicate():
+		if is_instance_valid(enemy) and not authority_ids.has(enemy.network_id):
+			enemies.erase(enemy)
+			enemy.queue_free()
+
+func _create_enemy_from_authority_state(state: Dictionary) -> EnemyController:
+	var enemy: EnemyController = EnemyScript.new()
+	var enemy_type := str(state.get("enemy_type", "melee"))
+	if enemy_type == "boss":
+		enemy.setup_as_boss()
+		_tune_boss_for_mode(enemy)
+	else:
+		_setup_wave_enemy(enemy, enemy_type)
+	_register_enemy(enemy, int(state.get("enemy_id", -1)))
+	return enemy
 
 func _get_selected_character_id(slot_index: int) -> String:
 	if slot_index >= 0 and slot_index < selected_character_ids.size():
@@ -1174,7 +1295,13 @@ func _tune_boss_for_mode(boss: EnemyController) -> void:
 	boss.move_speed *= 1.06 if local_player_count > 1 else 1.0
 	boss.attack_interval *= 0.92 if local_player_count > 1 else 1.0
 
-func _register_enemy(enemy: EnemyController) -> void:
+func _register_enemy(enemy: EnemyController, authority_enemy_id: int = -1) -> void:
+	if authority_enemy_id > 0:
+		enemy.network_id = authority_enemy_id
+		network_next_enemy_id = maxi(network_next_enemy_id, authority_enemy_id + 1)
+	else:
+		enemy.network_id = network_next_enemy_id
+		network_next_enemy_id += 1
 	enemy.arena_bounds = ARENA_BOUNDS
 	enemy.set_target(_find_closest_alive_player(enemy.global_position))
 	enemy.died.connect(_on_enemy_died)
@@ -1370,6 +1497,9 @@ func _set_player_cooldowns_paused(paused: bool) -> void:
 			existing_player.cooldowns_paused = paused
 
 func _on_enemy_died(enemy: EnemyController) -> void:
+	if network_mode == "client":
+		enemies.erase(enemy)
+		return
 	enemies_defeated += 1
 	if is_instance_valid(enemy):
 		_spawn_effect(enemy.global_position, 36.0, Color(1.0, 0.35, 0.25, 0.32), 0.16)
@@ -1913,7 +2043,7 @@ func _network_choose_upgrade(player_index: int, upgrade_index: int) -> void:
 	if network_mode != "host":
 		return
 	var sender_id := multiplayer.get_remote_sender_id()
-	if sender_id == 1 or player_index != 2:
+	if sender_id != 2 or player_index != 2:
 		return
 	_confirm_network_upgrade(player_index, upgrade_index)
 
@@ -2071,6 +2201,10 @@ func _clear_run_state() -> void:
 	enemies_defeated = 0
 	damage_dealt = 0.0
 	damage_taken = 0.0
+	network_snapshot_sequence = 0
+	network_last_applied_snapshot = -1
+	network_snapshot_time_left = 0.0
+	network_next_enemy_id = 1
 	local_player_count = 1
 	var scaling: Dictionary = GameRulesScript.get_mode_scaling(local_player_count)
 	minion_count_multiplier = float(scaling["minion_count"])
@@ -2113,7 +2247,7 @@ func _update_player_health_labels() -> void:
 	player_roster.update_all_huds()
 
 func _on_player_died() -> void:
-	if game_state == GameStateScript.WAVE_ACTIVE or game_state == GameStateScript.BOSS_WAVE:
+	if network_mode != "client" and (game_state == GameStateScript.WAVE_ACTIVE or game_state == GameStateScript.BOSS_WAVE):
 		if _all_players_dead():
 			_enter_defeat()
 

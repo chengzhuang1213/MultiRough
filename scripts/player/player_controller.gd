@@ -526,6 +526,37 @@ func revive(health_ratio: float = 0.5) -> void:
 	_defense_flash_left = 0.0
 	health_changed.emit(health, max_health)
 
+func make_authority_cooldowns() -> Dictionary:
+	return {
+		"attack": _attack_timer,
+		"dash": _dash_timer,
+		"skill": _skill_timer,
+		"fan": _fan_skill_timer,
+		"ultimate": _ultimate_timer,
+		"secondary": _secondary_timer,
+	}
+
+func apply_authority_state(state: Dictionary) -> void:
+	global_position = state.get("position", global_position) as Vector2
+	max_health = maxf(1.0, float(state.get("maximum_health", max_health)))
+	var authority_dead := bool(state.get("dead", false))
+	if authority_dead and not is_dead:
+		is_dead = true
+		_reset_transient_action_state()
+		_death_anim_finished = false
+		_play_animation(ANIM_DEATH, true)
+	elif not authority_dead and is_dead:
+		revive(1.0)
+	health = clampf(float(state.get("health", health)), 0.0, max_health)
+	var cooldowns: Dictionary = state.get("cooldowns", {}) as Dictionary
+	_attack_timer = maxf(0.0, float(cooldowns.get("attack", _attack_timer)))
+	_dash_timer = maxf(0.0, float(cooldowns.get("dash", _dash_timer)))
+	_skill_timer = maxf(0.0, float(cooldowns.get("skill", _skill_timer)))
+	_fan_skill_timer = maxf(0.0, float(cooldowns.get("fan", _fan_skill_timer)))
+	_ultimate_timer = maxf(0.0, float(cooldowns.get("ultimate", _ultimate_timer)))
+	_secondary_timer = maxf(0.0, float(cooldowns.get("secondary", _secondary_timer)))
+	health_changed.emit(health, max_health)
+
 func _reset_transient_action_state() -> void:
 	velocity = Vector2.ZERO
 	is_defending = false

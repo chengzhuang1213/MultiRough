@@ -21,6 +21,7 @@ func _run() -> void:
 	await _check_defeat_and_second_restart()
 	await _check_wave_timeout()
 	await _check_return_to_menu_cleanup()
+	await _check_network_upgrade_and_snapshot_sync()
 
 	Engine.time_scale = 1.0
 	if failures.is_empty():
@@ -121,6 +122,110 @@ func _check_return_to_menu_cleanup() -> void:
 	await process_frame
 	_expect_clean_lobby("return-to-menu action")
 	_expect(not game.return_to_menu_button.visible, "lobby still showed the return-to-menu button")
+
+func _check_network_upgrade_and_snapshot_sync() -> void:
+	var host := MainScene.instantiate()
+	var client := MainScene.instantiate()
+	root.add_child(host)
+	root.add_child(client)
+	await process_frame
+	_start_network_test_pair(host, client, ["archer", "mage"])
+	await process_frame
+	_sync_upgrade_round(host, client, 1, "archer_e_trap")
+	_sync_upgrade_round(host, client, 1, "archer_e_execution_trap")
+	_sync_upgrade_round(host, client, 2, "mage_e_chain")
+	_sync_upgrade_round(host, client, 2, "mage_e_conduction")
+	_expect(host.players[0].upgrade_levels == client.players[0].upgrade_levels, "archer trap branch diverged between host and client")
+	_expect(host.players[1].upgrade_levels == client.players[1].upgrade_levels, "mage chain branch diverged between host and client")
+	_expect(host.players[0].get_upgrade_level("archer_e_mark") == 0, "archer trap sync also applied the mark branch")
+	_expect(host.players[1].get_upgrade_level("mage_e_field") == 0, "mage chain sync also applied the field branch")
+
+	host.players[0].global_position = Vector2(125.0, -80.0)
+	host.players[0]._skill_timer = 2.5
+	host.wave_time_left = 47.5
+	host.elapsed_time = 12.25
+	host.enemies_defeated = 3
+	host.damage_dealt = 456.0
+	host.damage_taken = 78.0
+	var host_enemy = host.enemies[0]
+	host_enemy.global_position = Vector2(-215.0, 115.0)
+	host_enemy.health = maxf(1.0, host_enemy.health - 9.0)
+	host.network_snapshot_sequence = 7
+	var snapshot: Dictionary = host._build_authority_snapshot()
+	_expect(client._apply_authority_snapshot(snapshot), "client rejected a valid host snapshot")
+	_expect(client.network_last_applied_snapshot == 7, "client did not advance the snapshot sequence")
+	_expect(client.players[0].global_position.is_equal_approx(host.players[0].global_position), "host player position was not corrected from snapshot")
+	_expect(is_equal_approx(client.players[0]._skill_timer, host.players[0]._skill_timer), "skill cooldown drifted after host snapshot")
+	_expect(is_equal_approx(client.wave_time_left, host.wave_time_left), "wave timer drifted after host snapshot")
+	_expect(client.enemies_defeated == host.enemies_defeated, "defeated-enemy count drifted after host snapshot")
+	var client_enemy = _find_network_enemy(client, host_enemy.network_id)
+	_expect(client_enemy != null, "client lost an enemy present in the host snapshot")
+	if client_enemy != null:
+		_expect(client_enemy.global_position.is_equal_approx(host_enemy.global_position), "enemy position drifted after host snapshot")
+		_expect(is_equal_approx(client_enemy.health, host_enemy.health), "enemy health drifted after host snapshot")
+	var stale_snapshot := snapshot.duplicate(true)
+	stale_snapshot["sequence"] = 6
+	_expect(not client._apply_authority_snapshot(stale_snapshot), "client accepted an out-of-order authority snapshot")
+
+	host._clear_run_state()
+	client._clear_run_state()
+	await process_frame
+	await process_frame
+	_start_network_test_pair(host, client, ["warrior", "lancer"])
+	await process_frame
+	_sync_upgrade_round(host, client, 1, "warrior_e_shield")
+	_sync_upgrade_round(host, client, 1, "warrior_e_shield_guard")
+	_sync_upgrade_round(host, client, 2, "lancer_e_spear")
+	_sync_upgrade_round(host, client, 2, "lancer_e_return")
+	_expect(host.players[0].upgrade_levels == client.players[0].upgrade_levels, "warrior shield branch diverged between host and client")
+	_expect(host.players[1].upgrade_levels == client.players[1].upgrade_levels, "lancer spear branch diverged between host and client")
+
+	host._clear_run_state()
+	client._clear_run_state()
+	await process_frame
+	await process_frame
+	_start_network_test_pair(host, client, ["warrior", "lancer"])
+	await process_frame
+	_expect(host.players.all(func(player): return (player as PlayerController).upgrade_levels.is_empty()), "host restart retained upgrades from the previous network run")
+	_expect(client.players.all(func(player): return (player as PlayerController).upgrade_levels.is_empty()), "client restart retained upgrades from the previous network run")
+	host.queue_free()
+	client.queue_free()
+	await process_frame
+
+func _start_network_test_pair(host: Node, client: Node, character_ids: Array) -> void:
+	host.network_mode = "host"
+	host.local_peer_player_index = 1
+	host.selected_character_ids = character_ids.duplicate()
+	host._start_game(2)
+	client.network_mode = "client"
+	client.local_peer_player_index = 2
+	client.selected_character_ids = character_ids.duplicate()
+	client._start_game(2)
+
+func _sync_upgrade_round(host: Node, client: Node, player_index: int, upgrade_id: String) -> void:
+	var upgrade := _find_behavior_upgrade(upgrade_id)
+	_expect(not upgrade.is_empty(), "missing network-sync upgrade: %s" % upgrade_id)
+	if upgrade.is_empty():
+		return
+	for target_game in [host, client]:
+		var slot: Dictionary = target_game._get_local_player_slot(player_index)
+		slot["upgrades"] = [upgrade.duplicate(true)]
+		slot["selected"] = false
+		slot["selection_pending"] = false
+	_expect(host._apply_confirmed_network_upgrade(player_index, 0), "host rejected synchronized upgrade: %s" % upgrade_id)
+	_expect(client._apply_confirmed_network_upgrade(player_index, 0), "client rejected synchronized upgrade: %s" % upgrade_id)
+
+func _find_behavior_upgrade(upgrade_id: String) -> Dictionary:
+	for upgrade in UpgradeCatalogScript.BEHAVIOR_POOL:
+		if str((upgrade as Dictionary).get("id", "")) == upgrade_id:
+			return upgrade as Dictionary
+	return {}
+
+func _find_network_enemy(target_game: Node, network_id: int):
+	for enemy in target_game.enemies:
+		if is_instance_valid(enemy) and enemy.network_id == network_id:
+			return enemy
+	return null
 
 func _check_wave_timeout() -> void:
 	game._start_game(1)

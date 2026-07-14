@@ -4,24 +4,128 @@
 	"runs": [
 		{
 			"character": "warrior",
-			"combat_time": 253.95,
-			"damage_dealt": 15287.13,
-			"damage_taken": 295.16,
-			"enemies_defeated": 114,
+			"combat_time": 300.55,
+			"damage_dealt": 18128.81,
+			"damage_taken": 233.01,
+			"enemies_defeated": 136,
 			"frame_guard_hit": false,
 			"health_remaining": 0.0,
-			"reached_wave": 10,
+			"reached_wave": 11,
 			"run": 1,
 			"seed": 73000,
 			"upgrades": [
-				"warrior_f_projectile_guard",
-				"warrior_e_counter",
-				"warrior_q_range",
+				"warrior_f_attack_defense",
 				"warrior_q_damage",
-				"attack_damage_common",
-				"warrior_e_perfect_guard",
+				"warrior_e_counter",
 				"warrior_f_extra_blade",
+				"attack_range_epic",
+				"warrior_e_perfect_guard",
+				"warrior_q_range",
 				"max_health_common",
+				"warrior_f_projectile_guard",
+				"attack_damage_rare"
+			],
+			"victory": false,
+			"waves": [
+				{
+					"cleared": true,
+					"damage": 184.0,
+					"damage_taken": 0.0,
+					"time": 9.37,
+					"wave": 1
+				},
+				{
+					"cleared": true,
+					"damage": 356.4,
+					"damage_taken": 9.0,
+					"time": 14.38,
+					"wave": 2
+				},
+				{
+					"cleared": true,
+					"damage": 750.2,
+					"damage_taken": 5.51,
+					"time": 25.42,
+					"wave": 3
+				},
+				{
+					"cleared": true,
+					"damage": 878.5,
+					"damage_taken": 12.0,
+					"time": 29.2,
+					"wave": 4
+				},
+				{
+					"cleared": true,
+					"damage": 1115.4,
+					"damage_taken": 0.0,
+					"time": 21.48,
+					"wave": 5
+				},
+				{
+					"cleared": true,
+					"damage": 1066.4,
+					"damage_taken": 22.5,
+					"time": 17.43,
+					"wave": 6
+				},
+				{
+					"cleared": true,
+					"damage": 2021.0,
+					"damage_taken": 0.0,
+					"time": 33.18,
+					"wave": 7
+				},
+				{
+					"cleared": true,
+					"damage": 2556.0,
+					"damage_taken": 9.0,
+					"time": 33.85,
+					"wave": 8
+				},
+				{
+					"cleared": true,
+					"damage": 2662.0,
+					"damage_taken": 68.25,
+					"time": 33.97,
+					"wave": 9
+				},
+				{
+					"cleared": true,
+					"damage": 5834.75,
+					"damage_taken": 50.05,
+					"time": 52.73,
+					"wave": 10
+				},
+				{
+					"cleared": false,
+					"damage": 704.16,
+					"damage_taken": 56.7,
+					"time": 17.49,
+					"wave": 11
+				}
+			]
+		},
+		{
+			"character": "warrior",
+			"combat_time": 256.21,
+			"damage_dealt": 16040.56,
+			"damage_taken": 264.36,
+			"enemies_defeated": 120,
+			"frame_guard_hit": false,
+			"health_remaining": 0.0,
+			"reached_wave": 10,
+			"run": 2,
+			"seed": 73001,
+			"upgrades": [
+				"warrior_f_attack_defense",
+				"warrior_e_counter",
+				"warrior_q_damage",
+				"warrior_q_range",
+				"warrior_f_extra_blade",
+				"attack_damage_epic",
+				"attack_damage_common",
+				"skill_cooldown_epic",
 				"attack_cooldown_common"
 			],
 			"victory": false,
@@ -30,92 +134,95 @@
 					"cleared": true,
 					"damage": 184.0,
 					"damage_taken": 0.0,
-					"time": 11.31,
+					"time": 8.02,
 					"wave": 1
 				},
 				{
 					"cleared": true,
 					"damage": 356.4,
-					"damage_taken": 10.35,
-					"time": 13.55,
+					"damage_taken": 4.5,
+					"time": 17.39,
 					"wave": 2
 				},
 				{
 					"cleared": true,
 					"damage": 750.2,
-					"damage_taken": 36.75,
-					"time": 30.88,
+					"damage_taken": 26.25,
+					"time": 20.37,
 					"wave": 3
 				},
 				{
 					"cleared": true,
 					"damage": 878.5,
-					"damage_taken": 12.0,
-					"time": 23.19,
+					"damage_taken": 24.0,
+					"time": 23.18,
 					"wave": 4
 				},
 				{
 					"cleared": true,
 					"damage": 1115.4,
-					"damage_taken": 20.23,
-					"time": 19.25,
+					"damage_taken": 0.0,
+					"time": 27.14,
 					"wave": 5
 				},
 				{
 					"cleared": true,
-					"damage": 1066.4,
-					"damage_taken": 45.0,
-					"time": 20.51,
+					"damage": 989.2,
+					"damage_taken": 49.5,
+					"time": 19.45,
 					"wave": 6
 				},
 				{
 					"cleared": true,
 					"damage": 2021.0,
-					"damage_taken": 6.6,
-					"time": 31.65,
+					"damage_taken": 3.3,
+					"time": 29.5,
 					"wave": 7
 				},
 				{
 					"cleared": true,
-					"damage": 2814.76,
-					"damage_taken": 36.0,
-					"time": 38.14,
+					"damage": 2376.0,
+					"damage_taken": 13.5,
+					"time": 33.32,
 					"wave": 8
 				},
 				{
 					"cleared": true,
-					"damage": 2648.83,
-					"damage_taken": 97.44,
-					"time": 32.2,
+					"damage": 2662.0,
+					"damage_taken": 13.16,
+					"time": 29.48,
 					"wave": 9
 				},
 				{
 					"cleared": false,
-					"damage": 3451.64,
-					"damage_taken": 30.8,
-					"time": 24.23,
+					"damage": 4707.86,
+					"damage_taken": 130.15,
+					"time": 36.8,
 					"wave": 10
 				}
 			]
 		},
 		{
 			"character": "warrior",
-			"combat_time": 137.35,
-			"damage_dealt": 4629.6,
-			"damage_taken": 197.66,
-			"enemies_defeated": 56,
+			"combat_time": 318.21,
+			"damage_dealt": 17407.04,
+			"damage_taken": 373.55,
+			"enemies_defeated": 123,
 			"frame_guard_hit": false,
-			"health_remaining": 0.0,
-			"reached_wave": 7,
-			"run": 2,
-			"seed": 73001,
+			"health_remaining": 79.21,
+			"reached_wave": 10,
+			"run": 3,
+			"seed": 73002,
 			"upgrades": [
 				"warrior_f_extra_blade",
-				"warrior_e_shield",
-				"warrior_q_range",
-				"warrior_e_shield_guard",
+				"warrior_q_damage",
+				"warrior_f_projectile_guard",
+				"lifesteal_rare",
 				"warrior_f_attack_defense",
-				"warrior_f_projectile_guard"
+				"warrior_e_shield",
+				"warrior_e_shield_guard",
+				"max_health_epic",
+				"skill_cooldown_rare"
 			],
 			"victory": false,
 			"waves": [
@@ -123,75 +230,184 @@
 					"cleared": true,
 					"damage": 184.0,
 					"damage_taken": 0.0,
-					"time": 11.5,
+					"time": 8.05,
 					"wave": 1
 				},
 				{
 					"cleared": true,
 					"damage": 356.4,
 					"damage_taken": 2.7,
-					"time": 13.63,
+					"time": 16.08,
 					"wave": 2
 				},
 				{
 					"cleared": true,
 					"damage": 750.2,
-					"damage_taken": 10.5,
-					"time": 22.33,
+					"damage_taken": 8.4,
+					"time": 23.1,
 					"wave": 3
 				},
 				{
 					"cleared": true,
 					"damage": 878.5,
-					"damage_taken": 36.0,
-					"time": 23.57,
+					"damage_taken": 28.8,
+					"time": 24.42,
 					"wave": 4
 				},
 				{
 					"cleared": true,
 					"damage": 1115.4,
-					"damage_taken": 67.46,
-					"time": 29.8,
+					"damage_taken": 0.0,
+					"time": 22.82,
 					"wave": 5
 				},
 				{
 					"cleared": true,
-					"damage": 989.2,
-					"damage_taken": 15.0,
-					"time": 17.95,
+					"damage": 1066.4,
+					"damage_taken": 27.0,
+					"time": 23.67,
 					"wave": 6
 				},
 				{
-					"cleared": false,
-					"damage": 355.9,
-					"damage_taken": 66.0,
-					"time": 10.86,
+					"cleared": true,
+					"damage": 2021.0,
+					"damage_taken": 22.0,
+					"time": 30.02,
 					"wave": 7
+				},
+				{
+					"cleared": true,
+					"damage": 3065.49,
+					"damage_taken": 42.0,
+					"time": 57.4,
+					"wave": 8
+				},
+				{
+					"cleared": true,
+					"damage": 2662.0,
+					"damage_taken": 107.25,
+					"time": 41.01,
+					"wave": 9
+				},
+				{
+					"cleared": false,
+					"damage": 5307.65,
+					"damage_taken": 135.4,
+					"time": 58.6,
+					"wave": 10
 				}
 			]
 		},
 		{
 			"character": "warrior",
-			"combat_time": 288.52,
-			"damage_dealt": 19061.95,
-			"damage_taken": 238.75,
+			"combat_time": 189.15,
+			"damage_dealt": 11135.7,
+			"damage_taken": 178.06,
+			"enemies_defeated": 96,
+			"frame_guard_hit": false,
+			"health_remaining": 0.0,
+			"reached_wave": 9,
+			"run": 4,
+			"seed": 73003,
+			"upgrades": [
+				"warrior_q_damage",
+				"warrior_e_counter",
+				"warrior_q_range",
+				"warrior_f_extra_blade",
+				"warrior_f_attack_defense",
+				"move_speed_common",
+				"attack_damage_common",
+				"skill_cooldown_common"
+			],
+			"victory": false,
+			"waves": [
+				{
+					"cleared": true,
+					"damage": 184.0,
+					"damage_taken": 0.0,
+					"time": 8.03,
+					"wave": 1
+				},
+				{
+					"cleared": true,
+					"damage": 356.4,
+					"damage_taken": 9.0,
+					"time": 14.67,
+					"wave": 2
+				},
+				{
+					"cleared": true,
+					"damage": 750.2,
+					"damage_taken": 0.0,
+					"time": 19.29,
+					"wave": 3
+				},
+				{
+					"cleared": true,
+					"damage": 878.5,
+					"damage_taken": 12.0,
+					"time": 19.34,
+					"wave": 4
+				},
+				{
+					"cleared": true,
+					"damage": 1115.4,
+					"damage_taken": 0.0,
+					"time": 14.68,
+					"wave": 5
+				},
+				{
+					"cleared": true,
+					"damage": 1066.4,
+					"damage_taken": 15.0,
+					"time": 16.43,
+					"wave": 6
+				},
+				{
+					"cleared": true,
+					"damage": 2021.0,
+					"damage_taken": 0.0,
+					"time": 29.08,
+					"wave": 7
+				},
+				{
+					"cleared": true,
+					"damage": 2996.7,
+					"damage_taken": 49.5,
+					"time": 32.47,
+					"wave": 8
+				},
+				{
+					"cleared": false,
+					"damage": 1767.1,
+					"damage_taken": 92.56,
+					"time": 25.23,
+					"wave": 9
+				}
+			]
+		},
+		{
+			"character": "warrior",
+			"combat_time": 325.19,
+			"damage_dealt": 18208.2,
+			"damage_taken": 152.42,
 			"enemies_defeated": 138,
 			"frame_guard_hit": false,
-			"health_remaining": 38.65,
+			"health_remaining": 90.1,
 			"reached_wave": 11,
-			"run": 3,
-			"seed": 73002,
+			"run": 5,
+			"seed": 73004,
 			"upgrades": [
 				"warrior_f_attack_defense",
-				"warrior_f_projectile_guard",
-				"attack_damage_rare",
-				"warrior_f_extra_blade",
+				"warrior_e_counter",
 				"warrior_q_range",
+				"warrior_f_extra_blade",
+				"warrior_f_projectile_guard",
 				"warrior_q_damage",
-				"attack_cooldown_rare",
-				"move_speed_rare",
-				"skill_cooldown_epic",
-				"skill_cooldown_rare"
+				"warrior_e_perfect_guard",
+				"max_health_rare",
+				"attack_damage_epic",
+				"attack_cooldown_common"
 			],
 			"victory": true,
 			"waves": [
@@ -199,198 +415,415 @@
 					"cleared": true,
 					"damage": 184.0,
 					"damage_taken": 0.0,
-					"time": 12.96,
+					"time": 10.45,
 					"wave": 1
 				},
 				{
 					"cleared": true,
 					"damage": 356.4,
-					"damage_taken": 15.75,
-					"time": 17.33,
+					"damage_taken": 2.7,
+					"time": 13.47,
 					"wave": 2
 				},
 				{
 					"cleared": true,
 					"damage": 750.2,
-					"damage_taken": 5.25,
-					"time": 17.97,
+					"damage_taken": 11.03,
+					"time": 23.73,
 					"wave": 3
 				},
 				{
 					"cleared": true,
 					"damage": 878.5,
-					"damage_taken": 51.0,
-					"time": 29.91,
-					"wave": 4
-				},
-				{
-					"cleared": true,
-					"damage": 1115.4,
-					"damage_taken": 5.4,
-					"time": 22.86,
-					"wave": 5
-				},
-				{
-					"cleared": true,
-					"damage": 993.36,
-					"damage_taken": 0.0,
-					"time": 15.38,
-					"wave": 6
-				},
-				{
-					"cleared": true,
-					"damage": 2021.0,
-					"damage_taken": 37.92,
-					"time": 31.39,
-					"wave": 7
-				},
-				{
-					"cleared": true,
-					"damage": 2625.01,
-					"damage_taken": 56.07,
-					"time": 39.4,
-					"wave": 8
-				},
-				{
-					"cleared": true,
-					"damage": 2560.16,
-					"damage_taken": 0.0,
-					"time": 25.38,
-					"wave": 9
-				},
-				{
-					"cleared": true,
-					"damage": 6567.23,
-					"damage_taken": 6.3,
-					"time": 45.38,
-					"wave": 10
-				},
-				{
-					"cleared": true,
-					"damage": 1010.7,
-					"damage_taken": 61.05,
-					"time": 18.07,
-					"wave": 11
-				}
-			]
-		},
-		{
-			"character": "archer",
-			"combat_time": 284.31,
-			"damage_dealt": 13413.71,
-			"damage_taken": 63.0,
-			"enemies_defeated": 119,
-			"frame_guard_hit": false,
-			"health_remaining": 32.0,
-			"reached_wave": 10,
-			"run": 1,
-			"seed": 74000,
-			"upgrades": [
-				"archer_f_critical",
-				"archer_f_damage",
-				"archer_q_damage",
-				"archer_e_trap",
-				"archer_q_quickdraw",
-				"archer_e_execution_trap",
-				"attack_range_rare",
-				"archer_f_weakpoint",
-				"attack_cooldown_rare"
-			],
-			"victory": false,
-			"waves": [
-				{
-					"cleared": true,
-					"damage": 184.0,
-					"damage_taken": 0.0,
-					"time": 4.95,
-					"wave": 1
-				},
-				{
-					"cleared": true,
-					"damage": 356.4,
-					"damage_taken": 0.0,
-					"time": 6.66,
-					"wave": 2
-				},
-				{
-					"cleared": true,
-					"damage": 750.2,
-					"damage_taken": 0.0,
-					"time": 15.53,
-					"wave": 3
-				},
-				{
-					"cleared": true,
-					"damage": 878.5,
-					"damage_taken": 0.0,
-					"time": 25.26,
+					"damage_taken": 16.8,
+					"time": 29.07,
 					"wave": 4
 				},
 				{
 					"cleared": true,
 					"damage": 1115.4,
 					"damage_taken": 0.0,
-					"time": 19.27,
+					"time": 17.67,
 					"wave": 5
 				},
 				{
 					"cleared": true,
 					"damage": 1066.4,
-					"damage_taken": 0.0,
-					"time": 17.88,
+					"damage_taken": 19.5,
+					"time": 19.81,
 					"wave": 6
 				},
 				{
 					"cleared": true,
 					"damage": 2021.0,
 					"damage_taken": 0.0,
-					"time": 37.72,
+					"time": 41.48,
 					"wave": 7
 				},
 				{
 					"cleared": true,
-					"damage": 2055.3,
+					"damage": 2526.32,
+					"damage_taken": 9.0,
+					"time": 45.04,
+					"wave": 8
+				},
+				{
+					"cleared": true,
+					"damage": 2662.0,
+					"damage_taken": 19.5,
+					"time": 35.09,
+					"wave": 9
+				},
+				{
+					"cleared": true,
+					"damage": 5637.27,
+					"damage_taken": 28.0,
+					"time": 46.77,
+					"wave": 10
+				},
+				{
+					"cleared": true,
+					"damage": 1010.7,
+					"damage_taken": 45.9,
+					"time": 29.27,
+					"wave": 11
+				}
+			]
+		},
+		{
+			"character": "warrior",
+			"combat_time": 295.92,
+			"damage_dealt": 16934.83,
+			"damage_taken": 239.33,
+			"enemies_defeated": 138,
+			"frame_guard_hit": false,
+			"health_remaining": 11.98,
+			"reached_wave": 11,
+			"run": 6,
+			"seed": 73005,
+			"upgrades": [
+				"warrior_f_projectile_guard",
+				"skill_cooldown_rare",
+				"warrior_q_damage",
+				"attack_damage_rare",
+				"max_health_rare",
+				"warrior_f_extra_blade",
+				"warrior_e_counter",
+				"warrior_e_perfect_guard",
+				"warrior_q_range",
+				"warrior_f_attack_defense"
+			],
+			"victory": true,
+			"waves": [
+				{
+					"cleared": true,
+					"damage": 184.0,
 					"damage_taken": 0.0,
-					"time": 45.63,
+					"time": 11.96,
+					"wave": 1
+				},
+				{
+					"cleared": true,
+					"damage": 356.4,
+					"damage_taken": 4.5,
+					"time": 18.12,
+					"wave": 2
+				},
+				{
+					"cleared": true,
+					"damage": 750.2,
+					"damage_taken": 10.5,
+					"time": 21.14,
+					"wave": 3
+				},
+				{
+					"cleared": true,
+					"damage": 878.5,
+					"damage_taken": 12.0,
+					"time": 28.73,
+					"wave": 4
+				},
+				{
+					"cleared": true,
+					"damage": 1115.4,
+					"damage_taken": 0.0,
+					"time": 26.04,
+					"wave": 5
+				},
+				{
+					"cleared": true,
+					"damage": 1066.4,
+					"damage_taken": 30.0,
+					"time": 16.17,
+					"wave": 6
+				},
+				{
+					"cleared": true,
+					"damage": 2021.0,
+					"damage_taken": 0.0,
+					"time": 40.52,
+					"wave": 7
+				},
+				{
+					"cleared": true,
+					"damage": 2364.35,
+					"damage_taken": 10.8,
+					"time": 30.34,
+					"wave": 8
+				},
+				{
+					"cleared": true,
+					"damage": 2530.0,
+					"damage_taken": 19.5,
+					"time": 32.05,
+					"wave": 9
+				},
+				{
+					"cleared": true,
+					"damage": 4657.88,
+					"damage_taken": 42.0,
+					"time": 32.44,
+					"wave": 10
+				},
+				{
+					"cleared": true,
+					"damage": 1010.7,
+					"damage_taken": 110.03,
+					"time": 24.63,
+					"wave": 11
+				}
+			]
+		},
+		{
+			"character": "warrior",
+			"combat_time": 295.82,
+			"damage_dealt": 16925.44,
+			"damage_taken": 233.51,
+			"enemies_defeated": 138,
+			"frame_guard_hit": false,
+			"health_remaining": 25.74,
+			"reached_wave": 11,
+			"run": 7,
+			"seed": 73006,
+			"upgrades": [
+				"warrior_f_attack_defense",
+				"warrior_f_projectile_guard",
+				"attack_damage_rare",
+				"skill_cooldown_rare",
+				"warrior_q_damage",
+				"max_health_rare",
+				"warrior_e_shield",
+				"warrior_e_shield_guard",
+				"attack_damage_epic",
+				"attack_cooldown_rare"
+			],
+			"victory": true,
+			"waves": [
+				{
+					"cleared": true,
+					"damage": 184.0,
+					"damage_taken": 0.0,
+					"time": 10.69,
+					"wave": 1
+				},
+				{
+					"cleared": true,
+					"damage": 356.4,
+					"damage_taken": 20.25,
+					"time": 14.03,
+					"wave": 2
+				},
+				{
+					"cleared": true,
+					"damage": 750.2,
+					"damage_taken": 0.0,
+					"time": 24.67,
+					"wave": 3
+				},
+				{
+					"cleared": true,
+					"damage": 878.5,
+					"damage_taken": 0.0,
+					"time": 23.27,
+					"wave": 4
+				},
+				{
+					"cleared": true,
+					"damage": 1115.4,
+					"damage_taken": 0.0,
+					"time": 22.7,
+					"wave": 5
+				},
+				{
+					"cleared": true,
+					"damage": 1023.52,
+					"damage_taken": 39.0,
+					"time": 15.78,
+					"wave": 6
+				},
+				{
+					"cleared": true,
+					"damage": 2021.0,
+					"damage_taken": 0.0,
+					"time": 28.06,
+					"wave": 7
+				},
+				{
+					"cleared": true,
+					"damage": 2235.3,
+					"damage_taken": 36.0,
+					"time": 28.33,
 					"wave": 8
 				},
 				{
 					"cleared": true,
 					"damage": 2662.0,
 					"damage_taken": 0.0,
-					"time": 41.32,
+					"time": 34.55,
 					"wave": 9
 				},
 				{
-					"cleared": false,
-					"damage": 2324.51,
-					"damage_taken": 63.0,
-					"time": 58.85,
+					"cleared": true,
+					"damage": 4688.42,
+					"damage_taken": 57.75,
+					"time": 56.59,
 					"wave": 10
+				},
+				{
+					"cleared": true,
+					"damage": 1010.7,
+					"damage_taken": 80.5,
+					"time": 24.82,
+					"wave": 11
 				}
 			]
 		},
 		{
-			"character": "archer",
-			"combat_time": 272.1,
-			"damage_dealt": 14231.66,
-			"damage_taken": 93.7,
-			"enemies_defeated": 121,
+			"character": "warrior",
+			"combat_time": 334.54,
+			"damage_dealt": 19039.94,
+			"damage_taken": 191.53,
+			"enemies_defeated": 138,
 			"frame_guard_hit": false,
-			"health_remaining": 40.3,
-			"reached_wave": 10,
-			"run": 2,
-			"seed": 74001,
+			"health_remaining": 40.21,
+			"reached_wave": 11,
+			"run": 8,
+			"seed": 73007,
 			"upgrades": [
-				"archer_f_critical",
-				"archer_f_weakpoint",
-				"attack_cooldown_rare",
-				"move_speed_rare",
-				"max_health_rare",
-				"archer_f_damage",
+				"warrior_q_damage",
+				"warrior_f_projectile_guard",
+				"warrior_e_counter",
+				"warrior_e_perfect_guard",
+				"skill_cooldown_rare",
 				"attack_damage_rare",
-				"archer_q_quickdraw",
-				"archer_e_trap"
+				"lifesteal_rare",
+				"warrior_f_extra_blade",
+				"warrior_q_range",
+				"warrior_f_attack_defense"
+			],
+			"victory": true,
+			"waves": [
+				{
+					"cleared": true,
+					"damage": 184.0,
+					"damage_taken": 0.0,
+					"time": 11.4,
+					"wave": 1
+				},
+				{
+					"cleared": true,
+					"damage": 356.4,
+					"damage_taken": 11.7,
+					"time": 14.34,
+					"wave": 2
+				},
+				{
+					"cleared": true,
+					"damage": 750.2,
+					"damage_taken": 5.25,
+					"time": 20.3,
+					"wave": 3
+				},
+				{
+					"cleared": true,
+					"damage": 878.5,
+					"damage_taken": 0.0,
+					"time": 32.44,
+					"wave": 4
+				},
+				{
+					"cleared": true,
+					"damage": 1115.4,
+					"damage_taken": 0.0,
+					"time": 19.62,
+					"wave": 5
+				},
+				{
+					"cleared": true,
+					"damage": 1066.4,
+					"damage_taken": 30.0,
+					"time": 22.16,
+					"wave": 6
+				},
+				{
+					"cleared": true,
+					"damage": 2021.0,
+					"damage_taken": 0.0,
+					"time": 36.63,
+					"wave": 7
+				},
+				{
+					"cleared": true,
+					"damage": 2602.56,
+					"damage_taken": 25.2,
+					"time": 39.64,
+					"wave": 8
+				},
+				{
+					"cleared": true,
+					"damage": 2662.0,
+					"damage_taken": 26.0,
+					"time": 32.34,
+					"wave": 9
+				},
+				{
+					"cleared": true,
+					"damage": 6392.78,
+					"damage_taken": 0.0,
+					"time": 58.69,
+					"wave": 10
+				},
+				{
+					"cleared": true,
+					"damage": 1010.7,
+					"damage_taken": 93.38,
+					"time": 34.46,
+					"wave": 11
+				}
+			]
+		},
+		{
+			"character": "warrior",
+			"combat_time": 284.41,
+			"damage_dealt": 17144.55,
+			"damage_taken": 271.07,
+			"enemies_defeated": 136,
+			"frame_guard_hit": false,
+			"health_remaining": 0.0,
+			"reached_wave": 11,
+			"run": 9,
+			"seed": 73008,
+			"upgrades": [
+				"warrior_f_extra_blade",
+				"warrior_q_range",
+				"warrior_f_attack_defense",
+				"warrior_e_shield",
+				"warrior_q_damage",
+				"warrior_e_shield_guard",
+				"warrior_f_projectile_guard",
+				"attack_damage_epic",
+				"attack_cooldown_rare",
+				"lifesteal_rare"
 			],
 			"victory": false,
 			"waves": [
@@ -398,56 +831,1047 @@
 					"cleared": true,
 					"damage": 184.0,
 					"damage_taken": 0.0,
-					"time": 4.31,
+					"time": 12.31,
 					"wave": 1
 				},
 				{
 					"cleared": true,
 					"damage": 356.4,
 					"damage_taken": 0.0,
-					"time": 6.47,
+					"time": 12.97,
 					"wave": 2
 				},
 				{
 					"cleared": true,
 					"damage": 750.2,
-					"damage_taken": 0.0,
-					"time": 10.87,
+					"damage_taken": 10.5,
+					"time": 21.89,
 					"wave": 3
 				},
 				{
 					"cleared": true,
 					"damage": 878.5,
 					"damage_taken": 0.0,
-					"time": 22.8,
+					"time": 21.67,
 					"wave": 4
 				},
 				{
 					"cleared": true,
 					"damage": 1115.4,
-					"damage_taken": 0.0,
-					"time": 20.65,
+					"damage_taken": 40.45,
+					"time": 28.87,
 					"wave": 5
 				},
 				{
 					"cleared": true,
 					"damage": 1066.4,
+					"damage_taken": 30.0,
+					"time": 18.05,
+					"wave": 6
+				},
+				{
+					"cleared": true,
+					"damage": 2021.0,
+					"damage_taken": 4.29,
+					"time": 25.75,
+					"wave": 7
+				},
+				{
+					"cleared": true,
+					"damage": 2265.3,
+					"damage_taken": 27.0,
+					"time": 28.35,
+					"wave": 8
+				},
+				{
+					"cleared": true,
+					"damage": 2530.0,
 					"damage_taken": 0.0,
-					"time": 17.97,
+					"time": 25.21,
+					"wave": 9
+				},
+				{
+					"cleared": true,
+					"damage": 5147.17,
+					"damage_taken": 0.0,
+					"time": 45.56,
+					"wave": 10
+				},
+				{
+					"cleared": false,
+					"damage": 830.17,
+					"damage_taken": 102.82,
+					"time": 30.2,
+					"wave": 11
+				}
+			]
+		},
+		{
+			"character": "warrior",
+			"combat_time": 312.42,
+			"damage_dealt": 17554.65,
+			"damage_taken": 180.95,
+			"enemies_defeated": 138,
+			"frame_guard_hit": false,
+			"health_remaining": 49.28,
+			"reached_wave": 11,
+			"run": 10,
+			"seed": 73009,
+			"upgrades": [
+				"warrior_e_counter",
+				"warrior_e_perfect_guard",
+				"warrior_q_range",
+				"warrior_f_projectile_guard",
+				"warrior_f_extra_blade",
+				"warrior_q_damage",
+				"warrior_f_attack_defense",
+				"skill_cooldown_rare",
+				"attack_damage_rare",
+				"skill_cooldown_common"
+			],
+			"victory": true,
+			"waves": [
+				{
+					"cleared": true,
+					"damage": 184.0,
+					"damage_taken": 0.0,
+					"time": 10.49,
+					"wave": 1
+				},
+				{
+					"cleared": true,
+					"damage": 356.4,
+					"damage_taken": 9.0,
+					"time": 13.96,
+					"wave": 2
+				},
+				{
+					"cleared": true,
+					"damage": 750.2,
+					"damage_taken": 21.0,
+					"time": 21.59,
+					"wave": 3
+				},
+				{
+					"cleared": true,
+					"damage": 878.5,
+					"damage_taken": 0.0,
+					"time": 22.76,
+					"wave": 4
+				},
+				{
+					"cleared": true,
+					"damage": 1115.4,
+					"damage_taken": 20.23,
+					"time": 34.33,
+					"wave": 5
+				},
+				{
+					"cleared": true,
+					"damage": 1064.5,
+					"damage_taken": 0.0,
+					"time": 14.34,
 					"wave": 6
 				},
 				{
 					"cleared": true,
 					"damage": 2021.0,
 					"damage_taken": 0.0,
-					"time": 39.2,
+					"time": 39.97,
+					"wave": 7
+				},
+				{
+					"cleared": true,
+					"damage": 2202.6,
+					"damage_taken": 79.2,
+					"time": 35.96,
+					"wave": 8
+				},
+				{
+					"cleared": true,
+					"damage": 2602.7,
+					"damage_taken": 14.63,
+					"time": 34.74,
+					"wave": 9
+				},
+				{
+					"cleared": true,
+					"damage": 5368.65,
+					"damage_taken": 0.0,
+					"time": 43.78,
+					"wave": 10
+				},
+				{
+					"cleared": true,
+					"damage": 1010.7,
+					"damage_taken": 36.9,
+					"time": 27.52,
+					"wave": 11
+				}
+			]
+		},
+		{
+			"character": "archer",
+			"combat_time": 252.99,
+			"damage_dealt": 14826.16,
+			"damage_taken": 96.5,
+			"enemies_defeated": 125,
+			"frame_guard_hit": false,
+			"health_remaining": 18.0,
+			"reached_wave": 10,
+			"run": 1,
+			"seed": 74000,
+			"upgrades": [
+				"archer_q_quickdraw",
+				"archer_f_weakpoint",
+				"archer_f_critical",
+				"attack_damage_epic",
+				"archer_f_damage",
+				"attack_cooldown_rare",
+				"archer_e_trap",
+				"archer_q_damage",
+				"archer_e_execution_trap"
+			],
+			"victory": false,
+			"waves": [
+				{
+					"cleared": true,
+					"damage": 184.0,
+					"damage_taken": 0.0,
+					"time": 5.56,
+					"wave": 1
+				},
+				{
+					"cleared": true,
+					"damage": 356.4,
+					"damage_taken": 0.0,
+					"time": 5.93,
+					"wave": 2
+				},
+				{
+					"cleared": true,
+					"damage": 750.2,
+					"damage_taken": 0.0,
+					"time": 11.78,
+					"wave": 3
+				},
+				{
+					"cleared": true,
+					"damage": 878.5,
+					"damage_taken": 0.0,
+					"time": 24.21,
+					"wave": 4
+				},
+				{
+					"cleared": true,
+					"damage": 1115.4,
+					"damage_taken": 0.0,
+					"time": 12.7,
+					"wave": 5
+				},
+				{
+					"cleared": true,
+					"damage": 1066.4,
+					"damage_taken": 0.0,
+					"time": 15.12,
+					"wave": 6
+				},
+				{
+					"cleared": true,
+					"damage": 2021.0,
+					"damage_taken": 0.0,
+					"time": 32.89,
 					"wave": 7
 				},
 				{
 					"cleared": true,
 					"damage": 2055.3,
 					"damage_taken": 0.0,
-					"time": 37.53,
+					"time": 39.05,
+					"wave": 8
+				},
+				{
+					"cleared": true,
+					"damage": 2662.0,
+					"damage_taken": 19.5,
+					"time": 33.67,
+					"wave": 9
+				},
+				{
+					"cleared": false,
+					"damage": 3736.96,
+					"damage_taken": 77.0,
+					"time": 58.82,
+					"wave": 10
+				}
+			]
+		},
+		{
+			"character": "archer",
+			"combat_time": 223.98,
+			"damage_dealt": 12346.64,
+			"damage_taken": 117.6,
+			"enemies_defeated": 114,
+			"frame_guard_hit": false,
+			"health_remaining": 0.0,
+			"reached_wave": 10,
+			"run": 2,
+			"seed": 74001,
+			"upgrades": [
+				"archer_e_mark",
+				"archer_q_quickdraw",
+				"archer_q_damage",
+				"archer_f_damage",
+				"lifesteal_common",
+				"archer_f_critical",
+				"attack_damage_common",
+				"archer_f_weakpoint",
+				"attack_cooldown_common"
+			],
+			"victory": false,
+			"waves": [
+				{
+					"cleared": true,
+					"damage": 184.0,
+					"damage_taken": 0.0,
+					"time": 4.14,
+					"wave": 1
+				},
+				{
+					"cleared": true,
+					"damage": 356.4,
+					"damage_taken": 0.0,
+					"time": 6.8,
+					"wave": 2
+				},
+				{
+					"cleared": true,
+					"damage": 750.2,
+					"damage_taken": 0.0,
+					"time": 11.67,
+					"wave": 3
+				},
+				{
+					"cleared": true,
+					"damage": 878.5,
+					"damage_taken": 0.0,
+					"time": 22.77,
+					"wave": 4
+				},
+				{
+					"cleared": true,
+					"damage": 1115.4,
+					"damage_taken": 0.0,
+					"time": 19.17,
+					"wave": 5
+				},
+				{
+					"cleared": true,
+					"damage": 1066.4,
+					"damage_taken": 0.0,
+					"time": 15.83,
+					"wave": 6
+				},
+				{
+					"cleared": true,
+					"damage": 2021.0,
+					"damage_taken": 0.0,
+					"time": 41.35,
+					"wave": 7
+				},
+				{
+					"cleared": true,
+					"damage": 2055.3,
+					"damage_taken": 0.0,
+					"time": 33.71,
+					"wave": 8
+				},
+				{
+					"cleared": true,
+					"damage": 2662.0,
+					"damage_taken": 0.0,
+					"time": 33.69,
+					"wave": 9
+				},
+				{
+					"cleared": false,
+					"damage": 1257.44,
+					"damage_taken": 117.6,
+					"time": 23.92,
+					"wave": 10
+				}
+			]
+		},
+		{
+			"character": "archer",
+			"combat_time": 272.56,
+			"damage_dealt": 14153.65,
+			"damage_taken": 129.44,
+			"enemies_defeated": 119,
+			"frame_guard_hit": false,
+			"health_remaining": 0.57,
+			"reached_wave": 10,
+			"run": 3,
+			"seed": 74002,
+			"upgrades": [
+				"archer_f_damage",
+				"archer_q_damage",
+				"archer_q_quickdraw",
+				"archer_e_mark",
+				"attack_cooldown_common",
+				"archer_f_weakpoint",
+				"archer_e_mark_transfer",
+				"skill_cooldown_common",
+				"attack_damage_common"
+			],
+			"victory": false,
+			"waves": [
+				{
+					"cleared": true,
+					"damage": 184.0,
+					"damage_taken": 0.0,
+					"time": 3.42,
+					"wave": 1
+				},
+				{
+					"cleared": true,
+					"damage": 356.4,
+					"damage_taken": 0.0,
+					"time": 6.48,
+					"wave": 2
+				},
+				{
+					"cleared": true,
+					"damage": 750.2,
+					"damage_taken": 0.0,
+					"time": 12.76,
+					"wave": 3
+				},
+				{
+					"cleared": true,
+					"damage": 878.5,
+					"damage_taken": 0.0,
+					"time": 22.64,
+					"wave": 4
+				},
+				{
+					"cleared": true,
+					"damage": 1115.4,
+					"damage_taken": 0.0,
+					"time": 18.57,
+					"wave": 5
+				},
+				{
+					"cleared": true,
+					"damage": 1066.4,
+					"damage_taken": 15.0,
+					"time": 17.58,
+					"wave": 6
+				},
+				{
+					"cleared": true,
+					"damage": 2021.0,
+					"damage_taken": 0.0,
+					"time": 36.64,
+					"wave": 7
+				},
+				{
+					"cleared": true,
+					"damage": 2055.3,
+					"damage_taken": 0.0,
+					"time": 43.58,
+					"wave": 8
+				},
+				{
+					"cleared": true,
+					"damage": 2662.0,
+					"damage_taken": 58.44,
+					"time": 39.41,
+					"wave": 9
+				},
+				{
+					"cleared": false,
+					"damage": 3064.45,
+					"damage_taken": 56.0,
+					"time": 58.83,
+					"wave": 10
+				}
+			]
+		},
+		{
+			"character": "archer",
+			"combat_time": 270.81,
+			"damage_dealt": 14518.63,
+			"damage_taken": 18.0,
+			"enemies_defeated": 124,
+			"frame_guard_hit": false,
+			"health_remaining": 95.0,
+			"reached_wave": 10,
+			"run": 4,
+			"seed": 74003,
+			"upgrades": [
+				"archer_q_quickdraw",
+				"archer_f_critical",
+				"archer_e_trap",
+				"archer_e_execution_trap",
+				"archer_f_damage",
+				"archer_f_weakpoint",
+				"attack_damage_rare",
+				"skill_cooldown_rare",
+				"move_speed_rare"
+			],
+			"victory": false,
+			"waves": [
+				{
+					"cleared": true,
+					"damage": 184.0,
+					"damage_taken": 0.0,
+					"time": 4.77,
+					"wave": 1
+				},
+				{
+					"cleared": true,
+					"damage": 356.4,
+					"damage_taken": 0.0,
+					"time": 6.29,
+					"wave": 2
+				},
+				{
+					"cleared": true,
+					"damage": 750.2,
+					"damage_taken": 0.0,
+					"time": 11.96,
+					"wave": 3
+				},
+				{
+					"cleared": true,
+					"damage": 878.5,
+					"damage_taken": 0.0,
+					"time": 24.4,
+					"wave": 4
+				},
+				{
+					"cleared": true,
+					"damage": 1115.4,
+					"damage_taken": 0.0,
+					"time": 18.04,
+					"wave": 5
+				},
+				{
+					"cleared": true,
+					"damage": 1066.4,
+					"damage_taken": 0.0,
+					"time": 20.5,
+					"wave": 6
+				},
+				{
+					"cleared": true,
+					"damage": 2021.0,
+					"damage_taken": 0.0,
+					"time": 41.69,
+					"wave": 7
+				},
+				{
+					"cleared": true,
+					"damage": 2055.3,
+					"damage_taken": 18.0,
+					"time": 37.31,
+					"wave": 8
+				},
+				{
+					"cleared": true,
+					"damage": 2662.0,
+					"damage_taken": 0.0,
+					"time": 35.0,
+					"wave": 9
+				},
+				{
+					"cleared": false,
+					"damage": 3429.43,
+					"damage_taken": 0.0,
+					"time": 58.91,
+					"wave": 10
+				}
+			]
+		},
+		{
+			"character": "archer",
+			"combat_time": 273.62,
+			"damage_dealt": 16182.7,
+			"damage_taken": 105.6,
+			"enemies_defeated": 138,
+			"frame_guard_hit": false,
+			"health_remaining": 25.4,
+			"reached_wave": 11,
+			"run": 5,
+			"seed": 74004,
+			"upgrades": [
+				"archer_f_critical",
+				"attack_range_rare",
+				"archer_q_quickdraw",
+				"skill_cooldown_rare",
+				"archer_f_weakpoint",
+				"attack_cooldown_rare",
+				"attack_damage_epic",
+				"attack_damage_rare",
+				"archer_q_damage",
+				"archer_f_damage"
+			],
+			"victory": true,
+			"waves": [
+				{
+					"cleared": true,
+					"damage": 184.0,
+					"damage_taken": 0.0,
+					"time": 4.78,
+					"wave": 1
+				},
+				{
+					"cleared": true,
+					"damage": 356.4,
+					"damage_taken": 0.0,
+					"time": 6.14,
+					"wave": 2
+				},
+				{
+					"cleared": true,
+					"damage": 750.2,
+					"damage_taken": 0.0,
+					"time": 12.53,
+					"wave": 3
+				},
+				{
+					"cleared": true,
+					"damage": 878.5,
+					"damage_taken": 16.0,
+					"time": 25.36,
+					"wave": 4
+				},
+				{
+					"cleared": true,
+					"damage": 1115.4,
+					"damage_taken": 0.0,
+					"time": 15.94,
+					"wave": 5
+				},
+				{
+					"cleared": true,
+					"damage": 1066.4,
+					"damage_taken": 0.0,
+					"time": 17.13,
+					"wave": 6
+				},
+				{
+					"cleared": true,
+					"damage": 2021.0,
+					"damage_taken": 0.0,
+					"time": 41.79,
+					"wave": 7
+				},
+				{
+					"cleared": true,
+					"damage": 2055.3,
+					"damage_taken": 0.0,
+					"time": 37.29,
+					"wave": 8
+				},
+				{
+					"cleared": true,
+					"damage": 2662.0,
+					"damage_taken": 0.0,
+					"time": 26.52,
+					"wave": 9
+				},
+				{
+					"cleared": true,
+					"damage": 4082.8,
+					"damage_taken": 89.6,
+					"time": 58.28,
+					"wave": 10
+				},
+				{
+					"cleared": true,
+					"damage": 1010.7,
+					"damage_taken": 0.0,
+					"time": 14.88,
+					"wave": 11
+				}
+			]
+		},
+		{
+			"character": "archer",
+			"combat_time": 273.21,
+			"damage_dealt": 14358.78,
+			"damage_taken": 106.2,
+			"enemies_defeated": 123,
+			"frame_guard_hit": false,
+			"health_remaining": 83.8,
+			"reached_wave": 10,
+			"run": 6,
+			"seed": 74005,
+			"upgrades": [
+				"archer_e_trap",
+				"archer_q_damage",
+				"archer_f_weakpoint",
+				"archer_q_quickdraw",
+				"archer_e_execution_trap",
+				"archer_f_damage",
+				"archer_f_critical",
+				"attack_damage_epic",
+				"max_health_rare"
+			],
+			"victory": false,
+			"waves": [
+				{
+					"cleared": true,
+					"damage": 184.0,
+					"damage_taken": 0.0,
+					"time": 4.45,
+					"wave": 1
+				},
+				{
+					"cleared": true,
+					"damage": 356.4,
+					"damage_taken": 0.0,
+					"time": 6.1,
+					"wave": 2
+				},
+				{
+					"cleared": true,
+					"damage": 750.2,
+					"damage_taken": 0.0,
+					"time": 12.06,
+					"wave": 3
+				},
+				{
+					"cleared": true,
+					"damage": 878.5,
+					"damage_taken": 0.0,
+					"time": 24.12,
+					"wave": 4
+				},
+				{
+					"cleared": true,
+					"damage": 1115.4,
+					"damage_taken": 36.0,
+					"time": 18.38,
+					"wave": 5
+				},
+				{
+					"cleared": true,
+					"damage": 1066.4,
+					"damage_taken": 0.0,
+					"time": 20.69,
+					"wave": 6
+				},
+				{
+					"cleared": true,
+					"damage": 2021.0,
+					"damage_taken": 0.0,
+					"time": 39.71,
+					"wave": 7
+				},
+				{
+					"cleared": true,
+					"damage": 2055.3,
+					"damage_taken": 49.2,
+					"time": 42.11,
+					"wave": 8
+				},
+				{
+					"cleared": true,
+					"damage": 2662.0,
+					"damage_taken": 0.0,
+					"time": 34.09,
+					"wave": 9
+				},
+				{
+					"cleared": false,
+					"damage": 3269.58,
+					"damage_taken": 21.0,
+					"time": 58.89,
+					"wave": 10
+				}
+			]
+		},
+		{
+			"character": "archer",
+			"combat_time": 266.93,
+			"damage_dealt": 16324.3,
+			"damage_taken": 70.0,
+			"enemies_defeated": 138,
+			"frame_guard_hit": false,
+			"health_remaining": 45.0,
+			"reached_wave": 11,
+			"run": 7,
+			"seed": 74006,
+			"upgrades": [
+				"archer_f_damage",
+				"archer_f_critical",
+				"archer_f_weakpoint",
+				"archer_e_mark",
+				"archer_e_mark_transfer",
+				"attack_damage_rare",
+				"archer_q_damage",
+				"attack_damage_epic",
+				"archer_q_quickdraw",
+				"skill_cooldown_common"
+			],
+			"victory": true,
+			"waves": [
+				{
+					"cleared": true,
+					"damage": 184.0,
+					"damage_taken": 0.0,
+					"time": 4.47,
+					"wave": 1
+				},
+				{
+					"cleared": true,
+					"damage": 356.4,
+					"damage_taken": 0.0,
+					"time": 6.49,
+					"wave": 2
+				},
+				{
+					"cleared": true,
+					"damage": 750.2,
+					"damage_taken": 0.0,
+					"time": 12.09,
+					"wave": 3
+				},
+				{
+					"cleared": true,
+					"damage": 878.5,
+					"damage_taken": 0.0,
+					"time": 24.29,
+					"wave": 4
+				},
+				{
+					"cleared": true,
+					"damage": 1115.4,
+					"damage_taken": 0.0,
+					"time": 19.4,
+					"wave": 5
+				},
+				{
+					"cleared": true,
+					"damage": 1066.4,
+					"damage_taken": 0.0,
+					"time": 19.55,
+					"wave": 6
+				},
+				{
+					"cleared": true,
+					"damage": 2021.0,
+					"damage_taken": 0.0,
+					"time": 40.25,
+					"wave": 7
+				},
+				{
+					"cleared": true,
+					"damage": 2055.3,
+					"damage_taken": 0.0,
+					"time": 32.33,
+					"wave": 8
+				},
+				{
+					"cleared": true,
+					"damage": 2662.0,
+					"damage_taken": 0.0,
+					"time": 26.58,
+					"wave": 9
+				},
+				{
+					"cleared": true,
+					"damage": 4224.4,
+					"damage_taken": 70.0,
+					"time": 57.86,
+					"wave": 10
+				},
+				{
+					"cleared": true,
+					"damage": 1010.7,
+					"damage_taken": 0.0,
+					"time": 10.74,
+					"wave": 11
+				}
+			]
+		},
+		{
+			"character": "archer",
+			"combat_time": 258.65,
+			"damage_dealt": 14039.54,
+			"damage_taken": 26.0,
+			"enemies_defeated": 120,
+			"frame_guard_hit": false,
+			"health_remaining": 108.0,
+			"reached_wave": 10,
+			"run": 8,
+			"seed": 74007,
+			"upgrades": [
+				"archer_f_critical",
+				"attack_range_rare",
+				"archer_q_damage",
+				"attack_damage_rare",
+				"max_health_rare",
+				"archer_e_mark",
+				"archer_f_damage",
+				"archer_q_quickdraw",
+				"archer_e_mark_transfer"
+			],
+			"victory": false,
+			"waves": [
+				{
+					"cleared": true,
+					"damage": 184.0,
+					"damage_taken": 0.0,
+					"time": 4.29,
+					"wave": 1
+				},
+				{
+					"cleared": true,
+					"damage": 356.4,
+					"damage_taken": 0.0,
+					"time": 6.85,
+					"wave": 2
+				},
+				{
+					"cleared": true,
+					"damage": 750.2,
+					"damage_taken": 0.0,
+					"time": 13.38,
+					"wave": 3
+				},
+				{
+					"cleared": true,
+					"damage": 878.5,
+					"damage_taken": 0.0,
+					"time": 22.75,
+					"wave": 4
+				},
+				{
+					"cleared": true,
+					"damage": 1115.4,
+					"damage_taken": 0.0,
+					"time": 16.25,
+					"wave": 5
+				},
+				{
+					"cleared": true,
+					"damage": 1066.4,
+					"damage_taken": 0.0,
+					"time": 17.63,
+					"wave": 6
+				},
+				{
+					"cleared": true,
+					"damage": 2021.0,
+					"damage_taken": 0.0,
+					"time": 32.77,
+					"wave": 7
+				},
+				{
+					"cleared": true,
+					"damage": 2055.3,
+					"damage_taken": 0.0,
+					"time": 38.63,
+					"wave": 8
+				},
+				{
+					"cleared": true,
+					"damage": 2662.0,
+					"damage_taken": 26.0,
+					"time": 34.0,
+					"wave": 9
+				},
+				{
+					"cleared": false,
+					"damage": 2950.34,
+					"damage_taken": 0.0,
+					"time": 58.56,
+					"wave": 10
+				}
+			]
+		},
+		{
+			"character": "archer",
+			"combat_time": 279.42,
+			"damage_dealt": 14279.42,
+			"damage_taken": 116.0,
+			"enemies_defeated": 122,
+			"frame_guard_hit": false,
+			"health_remaining": 11.0,
+			"reached_wave": 10,
+			"run": 9,
+			"seed": 74008,
+			"upgrades": [
+				"archer_f_critical",
+				"archer_q_damage",
+				"archer_f_weakpoint",
+				"archer_e_trap",
+				"archer_q_quickdraw",
+				"archer_e_execution_trap",
+				"archer_f_damage",
+				"attack_range_epic",
+				"attack_damage_rare"
+			],
+			"victory": false,
+			"waves": [
+				{
+					"cleared": true,
+					"damage": 184.0,
+					"damage_taken": 0.0,
+					"time": 4.46,
+					"wave": 1
+				},
+				{
+					"cleared": true,
+					"damage": 356.4,
+					"damage_taken": 0.0,
+					"time": 7.33,
+					"wave": 2
+				},
+				{
+					"cleared": true,
+					"damage": 750.2,
+					"damage_taken": 0.0,
+					"time": 12.23,
+					"wave": 3
+				},
+				{
+					"cleared": true,
+					"damage": 878.5,
+					"damage_taken": 16.0,
+					"time": 24.93,
+					"wave": 4
+				},
+				{
+					"cleared": true,
+					"damage": 1115.4,
+					"damage_taken": 0.0,
+					"time": 17.46,
+					"wave": 5
+				},
+				{
+					"cleared": true,
+					"damage": 1066.4,
+					"damage_taken": 0.0,
+					"time": 19.33,
+					"wave": 6
+				},
+				{
+					"cleared": true,
+					"damage": 2021.0,
+					"damage_taken": 0.0,
+					"time": 40.57,
+					"wave": 7
+				},
+				{
+					"cleared": true,
+					"damage": 2055.3,
+					"damage_taken": 0.0,
+					"time": 41.33,
 					"wave": 8
 				},
 				{
@@ -459,34 +1883,34 @@
 				},
 				{
 					"cleared": false,
-					"damage": 3142.46,
-					"damage_taken": 56.0,
-					"time": 58.98,
+					"damage": 3190.22,
+					"damage_taken": 84.0,
+					"time": 59.0,
 					"wave": 10
 				}
 			]
 		},
 		{
 			"character": "archer",
-			"combat_time": 219.12,
-			"damage_dealt": 12203.44,
-			"damage_taken": 129.0,
-			"enemies_defeated": 114,
+			"combat_time": 251.23,
+			"damage_dealt": 14694.32,
+			"damage_taken": 68.6,
+			"enemies_defeated": 125,
 			"frame_guard_hit": false,
-			"health_remaining": 0.0,
+			"health_remaining": 26.4,
 			"reached_wave": 10,
-			"run": 3,
-			"seed": 74002,
+			"run": 10,
+			"seed": 74009,
 			"upgrades": [
 				"archer_f_weakpoint",
-				"archer_f_critical",
-				"attack_damage_rare",
-				"archer_q_quickdraw",
-				"archer_f_damage",
-				"skill_cooldown_rare",
-				"attack_cooldown_rare",
+				"attack_damage_epic",
 				"archer_q_damage",
-				"archer_e_trap"
+				"archer_e_mark",
+				"archer_f_damage",
+				"archer_e_mark_transfer",
+				"attack_cooldown_epic",
+				"archer_f_critical",
+				"archer_q_quickdraw"
 			],
 			"victory": false,
 			"waves": [
@@ -494,95 +1918,95 @@
 					"cleared": true,
 					"damage": 184.0,
 					"damage_taken": 0.0,
-					"time": 5.29,
+					"time": 4.56,
 					"wave": 1
 				},
 				{
 					"cleared": true,
 					"damage": 356.4,
 					"damage_taken": 0.0,
-					"time": 7.41,
+					"time": 7.61,
 					"wave": 2
 				},
 				{
 					"cleared": true,
 					"damage": 750.2,
 					"damage_taken": 0.0,
-					"time": 12.46,
+					"time": 10.39,
 					"wave": 3
 				},
 				{
 					"cleared": true,
 					"damage": 878.5,
 					"damage_taken": 0.0,
-					"time": 21.4,
+					"time": 22.08,
 					"wave": 4
 				},
 				{
 					"cleared": true,
 					"damage": 1115.4,
 					"damage_taken": 0.0,
-					"time": 17.8,
+					"time": 13.56,
 					"wave": 5
 				},
 				{
 					"cleared": true,
 					"damage": 1066.4,
 					"damage_taken": 0.0,
-					"time": 16.35,
+					"time": 14.66,
 					"wave": 6
 				},
 				{
 					"cleared": true,
 					"damage": 2021.0,
 					"damage_taken": 0.0,
-					"time": 37.87,
+					"time": 34.75,
 					"wave": 7
 				},
 				{
 					"cleared": true,
 					"damage": 2055.3,
 					"damage_taken": 0.0,
-					"time": 38.91,
+					"time": 36.53,
 					"wave": 8
 				},
 				{
 					"cleared": true,
 					"damage": 2662.0,
 					"damage_taken": 0.0,
-					"time": 33.05,
+					"time": 35.02,
 					"wave": 9
 				},
 				{
 					"cleared": false,
-					"damage": 1114.24,
-					"damage_taken": 105.0,
-					"time": 16.12,
+					"damage": 3605.12,
+					"damage_taken": 0.0,
+					"time": 59.15,
 					"wave": 10
 				}
 			]
 		},
 		{
 			"character": "mage",
-			"combat_time": 212.71,
-			"damage_dealt": 16362.46,
-			"damage_taken": 122.8,
+			"combat_time": 213.83,
+			"damage_dealt": 16356.34,
+			"damage_taken": 162.7,
 			"enemies_defeated": 138,
 			"frame_guard_hit": false,
-			"health_remaining": 53.2,
+			"health_remaining": 116.42,
 			"reached_wave": 11,
 			"run": 1,
 			"seed": 75000,
 			"upgrades": [
-				"mage_e_field",
-				"mage_q_radius",
-				"mage_q_damage",
-				"mage_f_infusion",
 				"mage_f_expansion",
-				"attack_damage_common",
-				"mage_e_accumulation",
-				"skill_cooldown_common",
+				"mage_f_infusion",
 				"skill_cooldown_rare",
+				"attack_cooldown_rare",
+				"lifesteal_rare",
+				"mage_e_field",
+				"mage_e_accumulation",
+				"mage_q_damage",
+				"attack_damage_rare",
 				"mage_f_finisher"
 			],
 			"victory": true,
@@ -591,102 +2015,102 @@
 					"cleared": true,
 					"damage": 184.0,
 					"damage_taken": 0.0,
-					"time": 4.65,
+					"time": 5.47,
 					"wave": 1
 				},
 				{
 					"cleared": true,
 					"damage": 356.4,
 					"damage_taken": 0.0,
-					"time": 7.17,
+					"time": 7.83,
 					"wave": 2
 				},
 				{
 					"cleared": true,
 					"damage": 750.2,
 					"damage_taken": 0.0,
-					"time": 14.79,
+					"time": 14.18,
 					"wave": 3
 				},
 				{
 					"cleared": true,
 					"damage": 878.5,
 					"damage_taken": 0.0,
-					"time": 17.67,
+					"time": 16.11,
 					"wave": 4
 				},
 				{
 					"cleared": true,
 					"damage": 1115.4,
 					"damage_taken": 0.0,
-					"time": 16.39,
+					"time": 14.56,
 					"wave": 5
 				},
 				{
 					"cleared": true,
 					"damage": 1066.4,
 					"damage_taken": 0.0,
-					"time": 16.59,
+					"time": 16.0,
 					"wave": 6
 				},
 				{
 					"cleared": true,
 					"damage": 2021.0,
-					"damage_taken": 0.0,
-					"time": 28.3,
+					"damage_taken": 22.0,
+					"time": 24.5,
 					"wave": 7
 				},
 				{
 					"cleared": true,
-					"damage": 2093.46,
+					"damage": 2228.94,
 					"damage_taken": 36.0,
-					"time": 24.35,
+					"time": 24.73,
 					"wave": 8
 				},
 				{
 					"cleared": true,
 					"damage": 2662.0,
 					"damage_taken": 0.0,
-					"time": 24.95,
+					"time": 26.0,
 					"wave": 9
 				},
 				{
 					"cleared": true,
-					"damage": 4224.4,
-					"damage_taken": 61.6,
-					"time": 31.08,
+					"damage": 4082.8,
+					"damage_taken": 84.0,
+					"time": 37.7,
 					"wave": 10
 				},
 				{
 					"cleared": true,
 					"damage": 1010.7,
-					"damage_taken": 25.2,
-					"time": 14.24,
+					"damage_taken": 20.7,
+					"time": 12.9,
 					"wave": 11
 				}
 			]
 		},
 		{
 			"character": "mage",
-			"combat_time": 223.6,
-			"damage_dealt": 16324.3,
-			"damage_taken": 170.5,
+			"combat_time": 202.29,
+			"damage_dealt": 16318.02,
+			"damage_taken": 61.7,
 			"enemies_defeated": 138,
 			"frame_guard_hit": false,
-			"health_remaining": 91.94,
+			"health_remaining": 99.3,
 			"reached_wave": 11,
 			"run": 2,
 			"seed": 75001,
 			"upgrades": [
-				"mage_q_damage",
 				"mage_e_field",
-				"mage_f_expansion",
-				"mage_q_radius",
-				"lifesteal_common",
-				"attack_cooldown_common",
-				"skill_cooldown_common",
-				"max_health_common",
 				"mage_f_finisher",
+				"mage_q_damage",
+				"mage_q_radius",
+				"mage_e_accumulation",
+				"mage_f_infusion",
+				"attack_range_epic",
+				"attack_damage_rare",
+				"mage_f_expansion",
 				"attack_damage_common"
 			],
 			"victory": true,
@@ -695,28 +2119,859 @@
 					"cleared": true,
 					"damage": 184.0,
 					"damage_taken": 0.0,
-					"time": 4.98,
+					"time": 5.87,
 					"wave": 1
 				},
 				{
 					"cleared": true,
 					"damage": 356.4,
 					"damage_taken": 0.0,
-					"time": 9.0,
+					"time": 7.21,
 					"wave": 2
 				},
 				{
 					"cleared": true,
 					"damage": 750.2,
 					"damage_taken": 0.0,
-					"time": 15.25,
+					"time": 14.67,
 					"wave": 3
 				},
 				{
 					"cleared": true,
 					"damage": 878.5,
 					"damage_taken": 0.0,
-					"time": 14.91,
+					"time": 14.4,
+					"wave": 4
+				},
+				{
+					"cleared": true,
+					"damage": 1115.4,
+					"damage_taken": 0.0,
+					"time": 17.66,
+					"wave": 5
+				},
+				{
+					"cleared": true,
+					"damage": 1066.4,
+					"damage_taken": 15.0,
+					"time": 14.82,
+					"wave": 6
+				},
+				{
+					"cleared": true,
+					"damage": 2021.0,
+					"damage_taken": 0.0,
+					"time": 25.25,
+					"wave": 7
+				},
+				{
+					"cleared": true,
+					"damage": 2055.3,
+					"damage_taken": 0.0,
+					"time": 22.03,
+					"wave": 8
+				},
+				{
+					"cleared": true,
+					"damage": 2662.0,
+					"damage_taken": 26.0,
+					"time": 24.35,
+					"wave": 9
+				},
+				{
+					"cleared": true,
+					"damage": 4218.12,
+					"damage_taken": 0.0,
+					"time": 27.78,
+					"wave": 10
+				},
+				{
+					"cleared": true,
+					"damage": 1010.7,
+					"damage_taken": 20.7,
+					"time": 13.48,
+					"wave": 11
+				}
+			]
+		},
+		{
+			"character": "mage",
+			"combat_time": 203.07,
+			"damage_dealt": 16334.9,
+			"damage_taken": 133.0,
+			"enemies_defeated": 138,
+			"frame_guard_hit": false,
+			"health_remaining": 89.65,
+			"reached_wave": 11,
+			"run": 3,
+			"seed": 75002,
+			"upgrades": [
+				"mage_f_expansion",
+				"mage_q_damage",
+				"mage_e_field",
+				"mage_q_radius",
+				"mage_f_infusion",
+				"lifesteal_common",
+				"mage_f_finisher",
+				"attack_damage_epic",
+				"mage_e_accumulation",
+				"attack_damage_common"
+			],
+			"victory": true,
+			"waves": [
+				{
+					"cleared": true,
+					"damage": 184.0,
+					"damage_taken": 0.0,
+					"time": 5.14,
+					"wave": 1
+				},
+				{
+					"cleared": true,
+					"damage": 356.4,
+					"damage_taken": 0.0,
+					"time": 7.09,
+					"wave": 2
+				},
+				{
+					"cleared": true,
+					"damage": 750.2,
+					"damage_taken": 0.0,
+					"time": 14.25,
+					"wave": 3
+				},
+				{
+					"cleared": true,
+					"damage": 878.5,
+					"damage_taken": 0.0,
+					"time": 16.39,
+					"wave": 4
+				},
+				{
+					"cleared": true,
+					"damage": 1115.4,
+					"damage_taken": 0.0,
+					"time": 15.97,
+					"wave": 5
+				},
+				{
+					"cleared": true,
+					"damage": 1066.4,
+					"damage_taken": 0.0,
+					"time": 14.58,
+					"wave": 6
+				},
+				{
+					"cleared": true,
+					"damage": 2021.0,
+					"damage_taken": 22.0,
+					"time": 25.35,
+					"wave": 7
+				},
+				{
+					"cleared": true,
+					"damage": 2085.3,
+					"damage_taken": 0.0,
+					"time": 24.74,
+					"wave": 8
+				},
+				{
+					"cleared": true,
+					"damage": 2662.0,
+					"damage_taken": 26.0,
+					"time": 22.75,
+					"wave": 9
+				},
+				{
+					"cleared": true,
+					"damage": 4205.0,
+					"damage_taken": 49.0,
+					"time": 31.17,
+					"wave": 10
+				},
+				{
+					"cleared": true,
+					"damage": 1010.7,
+					"damage_taken": 36.0,
+					"time": 12.44,
+					"wave": 11
+				}
+			]
+		},
+		{
+			"character": "mage",
+			"combat_time": 190.2,
+			"damage_dealt": 16356.3,
+			"damage_taken": 193.0,
+			"enemies_defeated": 137,
+			"frame_guard_hit": false,
+			"health_remaining": 0.0,
+			"reached_wave": 11,
+			"run": 4,
+			"seed": 75003,
+			"upgrades": [
+				"mage_e_chain",
+				"mage_q_radius",
+				"mage_f_finisher",
+				"mage_f_infusion",
+				"mage_q_damage",
+				"mage_e_conduction",
+				"mage_f_expansion",
+				"attack_damage_rare",
+				"skill_cooldown_common",
+				"attack_damage_common"
+			],
+			"victory": false,
+			"waves": [
+				{
+					"cleared": true,
+					"damage": 184.0,
+					"damage_taken": 0.0,
+					"time": 4.57,
+					"wave": 1
+				},
+				{
+					"cleared": true,
+					"damage": 356.4,
+					"damage_taken": 0.0,
+					"time": 6.82,
+					"wave": 2
+				},
+				{
+					"cleared": true,
+					"damage": 750.2,
+					"damage_taken": 0.0,
+					"time": 12.5,
+					"wave": 3
+				},
+				{
+					"cleared": true,
+					"damage": 878.5,
+					"damage_taken": 0.0,
+					"time": 15.98,
+					"wave": 4
+				},
+				{
+					"cleared": true,
+					"damage": 1115.4,
+					"damage_taken": 0.0,
+					"time": 14.34,
+					"wave": 5
+				},
+				{
+					"cleared": true,
+					"damage": 1066.4,
+					"damage_taken": 0.0,
+					"time": 13.44,
+					"wave": 6
+				},
+				{
+					"cleared": true,
+					"damage": 2021.0,
+					"damage_taken": 0.0,
+					"time": 19.19,
+					"wave": 7
+				},
+				{
+					"cleared": true,
+					"damage": 2073.3,
+					"damage_taken": 48.0,
+					"time": 19.44,
+					"wave": 8
+				},
+				{
+					"cleared": true,
+					"damage": 2662.0,
+					"damage_taken": 19.5,
+					"time": 26.48,
+					"wave": 9
+				},
+				{
+					"cleared": true,
+					"damage": 4292.4,
+					"damage_taken": 21.0,
+					"time": 27.65,
+					"wave": 10
+				},
+				{
+					"cleared": false,
+					"damage": 956.7,
+					"damage_taken": 76.5,
+					"time": 15.71,
+					"wave": 11
+				}
+			]
+		},
+		{
+			"character": "mage",
+			"combat_time": 205.48,
+			"damage_dealt": 16291.02,
+			"damage_taken": 128.0,
+			"enemies_defeated": 138,
+			"frame_guard_hit": false,
+			"health_remaining": 64.4,
+			"reached_wave": 11,
+			"run": 5,
+			"seed": 75004,
+			"upgrades": [
+				"mage_f_infusion",
+				"skill_cooldown_rare",
+				"mage_f_expansion",
+				"mage_f_finisher",
+				"mage_q_damage",
+				"mage_e_chain",
+				"mage_q_radius",
+				"max_health_common",
+				"skill_cooldown_common",
+				"attack_cooldown_common"
+			],
+			"victory": true,
+			"waves": [
+				{
+					"cleared": true,
+					"damage": 184.0,
+					"damage_taken": 0.0,
+					"time": 4.28,
+					"wave": 1
+				},
+				{
+					"cleared": true,
+					"damage": 356.4,
+					"damage_taken": 0.0,
+					"time": 7.84,
+					"wave": 2
+				},
+				{
+					"cleared": true,
+					"damage": 750.2,
+					"damage_taken": 0.0,
+					"time": 13.91,
+					"wave": 3
+				},
+				{
+					"cleared": true,
+					"damage": 878.5,
+					"damage_taken": 0.0,
+					"time": 15.09,
+					"wave": 4
+				},
+				{
+					"cleared": true,
+					"damage": 1115.4,
+					"damage_taken": 0.0,
+					"time": 11.6,
+					"wave": 5
+				},
+				{
+					"cleared": true,
+					"damage": 1066.4,
+					"damage_taken": 0.0,
+					"time": 16.91,
+					"wave": 6
+				},
+				{
+					"cleared": true,
+					"damage": 2021.0,
+					"damage_taken": 0.0,
+					"time": 24.51,
+					"wave": 7
+				},
+				{
+					"cleared": true,
+					"damage": 2061.62,
+					"damage_taken": 18.0,
+					"time": 21.3,
+					"wave": 8
+				},
+				{
+					"cleared": true,
+					"damage": 2662.0,
+					"damage_taken": 26.0,
+					"time": 27.59,
+					"wave": 9
+				},
+				{
+					"cleared": true,
+					"damage": 4184.8,
+					"damage_taken": 84.0,
+					"time": 31.59,
+					"wave": 10
+				},
+				{
+					"cleared": true,
+					"damage": 1010.7,
+					"damage_taken": 0.0,
+					"time": 15.2,
+					"wave": 11
+				}
+			]
+		},
+		{
+			"character": "mage",
+			"combat_time": 188.86,
+			"damage_dealt": 16358.3,
+			"damage_taken": 152.64,
+			"enemies_defeated": 138,
+			"frame_guard_hit": false,
+			"health_remaining": 47.36,
+			"reached_wave": 11,
+			"run": 6,
+			"seed": 75005,
+			"upgrades": [
+				"mage_f_infusion",
+				"mage_e_field",
+				"mage_e_accumulation",
+				"mage_q_damage",
+				"attack_damage_rare",
+				"mage_q_radius",
+				"mage_f_expansion",
+				"skill_cooldown_rare",
+				"skill_cooldown_common",
+				"mage_f_finisher"
+			],
+			"victory": true,
+			"waves": [
+				{
+					"cleared": true,
+					"damage": 184.0,
+					"damage_taken": 0.0,
+					"time": 5.81,
+					"wave": 1
+				},
+				{
+					"cleared": true,
+					"damage": 356.4,
+					"damage_taken": 0.0,
+					"time": 6.8,
+					"wave": 2
+				},
+				{
+					"cleared": true,
+					"damage": 750.2,
+					"damage_taken": 0.0,
+					"time": 13.67,
+					"wave": 3
+				},
+				{
+					"cleared": true,
+					"damage": 878.5,
+					"damage_taken": 0.0,
+					"time": 16.81,
+					"wave": 4
+				},
+				{
+					"cleared": true,
+					"damage": 1115.4,
+					"damage_taken": 0.0,
+					"time": 13.69,
+					"wave": 5
+				},
+				{
+					"cleared": true,
+					"damage": 1066.4,
+					"damage_taken": 0.0,
+					"time": 13.35,
+					"wave": 6
+				},
+				{
+					"cleared": true,
+					"damage": 2021.0,
+					"damage_taken": 49.45,
+					"time": 21.47,
+					"wave": 7
+				},
+				{
+					"cleared": true,
+					"damage": 2055.3,
+					"damage_taken": 42.0,
+					"time": 18.8,
+					"wave": 8
+				},
+				{
+					"cleared": true,
+					"damage": 2662.0,
+					"damage_taken": 0.0,
+					"time": 22.2,
+					"wave": 9
+				},
+				{
+					"cleared": true,
+					"damage": 4258.4,
+					"damage_taken": 0.0,
+					"time": 29.38,
+					"wave": 10
+				},
+				{
+					"cleared": true,
+					"damage": 1010.7,
+					"damage_taken": 61.2,
+					"time": 14.74,
+					"wave": 11
+				}
+			]
+		},
+		{
+			"character": "mage",
+			"combat_time": 188.15,
+			"damage_dealt": 16287.9,
+			"damage_taken": 225.23,
+			"enemies_defeated": 136,
+			"frame_guard_hit": false,
+			"health_remaining": 0.0,
+			"reached_wave": 11,
+			"run": 7,
+			"seed": 75006,
+			"upgrades": [
+				"mage_e_chain",
+				"mage_f_finisher",
+				"mage_q_radius",
+				"attack_damage_epic",
+				"mage_q_damage",
+				"mage_f_infusion",
+				"mage_e_conduction",
+				"max_health_rare",
+				"mage_f_expansion",
+				"max_health_common"
+			],
+			"victory": false,
+			"waves": [
+				{
+					"cleared": true,
+					"damage": 184.0,
+					"damage_taken": 0.0,
+					"time": 4.64,
+					"wave": 1
+				},
+				{
+					"cleared": true,
+					"damage": 356.4,
+					"damage_taken": 0.0,
+					"time": 8.41,
+					"wave": 2
+				},
+				{
+					"cleared": true,
+					"damage": 750.2,
+					"damage_taken": 0.0,
+					"time": 14.4,
+					"wave": 3
+				},
+				{
+					"cleared": true,
+					"damage": 878.5,
+					"damage_taken": 0.0,
+					"time": 14.8,
+					"wave": 4
+				},
+				{
+					"cleared": true,
+					"damage": 1115.4,
+					"damage_taken": 0.0,
+					"time": 12.33,
+					"wave": 5
+				},
+				{
+					"cleared": true,
+					"damage": 1066.4,
+					"damage_taken": 0.0,
+					"time": 10.48,
+					"wave": 6
+				},
+				{
+					"cleared": true,
+					"damage": 2021.0,
+					"damage_taken": 22.0,
+					"time": 19.35,
+					"wave": 7
+				},
+				{
+					"cleared": true,
+					"damage": 2055.3,
+					"damage_taken": 0.0,
+					"time": 21.12,
+					"wave": 8
+				},
+				{
+					"cleared": true,
+					"damage": 2662.0,
+					"damage_taken": 0.0,
+					"time": 25.62,
+					"wave": 9
+				},
+				{
+					"cleared": true,
+					"damage": 4335.6,
+					"damage_taken": 124.53,
+					"time": 29.98,
+					"wave": 10
+				},
+				{
+					"cleared": false,
+					"damage": 863.1,
+					"damage_taken": 56.7,
+					"time": 12.44,
+					"wave": 11
+				}
+			]
+		},
+		{
+			"character": "mage",
+			"combat_time": 209.26,
+			"damage_dealt": 16372.3,
+			"damage_taken": 58.0,
+			"enemies_defeated": 138,
+			"frame_guard_hit": false,
+			"health_remaining": 109.05,
+			"reached_wave": 11,
+			"run": 8,
+			"seed": 75007,
+			"upgrades": [
+				"mage_f_expansion",
+				"mage_f_finisher",
+				"mage_q_damage",
+				"mage_f_infusion",
+				"lifesteal_epic",
+				"mage_e_chain",
+				"mage_q_radius",
+				"mage_e_conduction",
+				"attack_cooldown_common",
+				"attack_range_common"
+			],
+			"victory": true,
+			"waves": [
+				{
+					"cleared": true,
+					"damage": 184.0,
+					"damage_taken": 0.0,
+					"time": 4.07,
+					"wave": 1
+				},
+				{
+					"cleared": true,
+					"damage": 356.4,
+					"damage_taken": 0.0,
+					"time": 7.96,
+					"wave": 2
+				},
+				{
+					"cleared": true,
+					"damage": 750.2,
+					"damage_taken": 0.0,
+					"time": 13.53,
+					"wave": 3
+				},
+				{
+					"cleared": true,
+					"damage": 878.5,
+					"damage_taken": 0.0,
+					"time": 14.99,
+					"wave": 4
+				},
+				{
+					"cleared": true,
+					"damage": 1115.4,
+					"damage_taken": 0.0,
+					"time": 16.59,
+					"wave": 5
+				},
+				{
+					"cleared": true,
+					"damage": 1066.4,
+					"damage_taken": 0.0,
+					"time": 14.36,
+					"wave": 6
+				},
+				{
+					"cleared": true,
+					"damage": 2021.0,
+					"damage_taken": 22.0,
+					"time": 27.4,
+					"wave": 7
+				},
+				{
+					"cleared": true,
+					"damage": 2085.3,
+					"damage_taken": 0.0,
+					"time": 22.97,
+					"wave": 8
+				},
+				{
+					"cleared": true,
+					"damage": 2662.0,
+					"damage_taken": 0.0,
+					"time": 22.82,
+					"wave": 9
+				},
+				{
+					"cleared": true,
+					"damage": 4242.4,
+					"damage_taken": 0.0,
+					"time": 35.76,
+					"wave": 10
+				},
+				{
+					"cleared": true,
+					"damage": 1010.7,
+					"damage_taken": 36.0,
+					"time": 15.74,
+					"wave": 11
+				}
+			]
+		},
+		{
+			"character": "mage",
+			"combat_time": 198.43,
+			"damage_dealt": 16634.98,
+			"damage_taken": 39.0,
+			"enemies_defeated": 138,
+			"frame_guard_hit": false,
+			"health_remaining": 120.0,
+			"reached_wave": 11,
+			"run": 9,
+			"seed": 75008,
+			"upgrades": [
+				"mage_f_infusion",
+				"attack_cooldown_rare",
+				"mage_f_expansion",
+				"mage_q_radius",
+				"mage_e_field",
+				"mage_q_damage",
+				"mage_e_accumulation",
+				"mage_f_finisher",
+				"lifesteal_rare",
+				"attack_damage_rare"
+			],
+			"victory": true,
+			"waves": [
+				{
+					"cleared": true,
+					"damage": 184.0,
+					"damage_taken": 0.0,
+					"time": 5.47,
+					"wave": 1
+				},
+				{
+					"cleared": true,
+					"damage": 356.4,
+					"damage_taken": 0.0,
+					"time": 6.72,
+					"wave": 2
+				},
+				{
+					"cleared": true,
+					"damage": 750.2,
+					"damage_taken": 0.0,
+					"time": 13.93,
+					"wave": 3
+				},
+				{
+					"cleared": true,
+					"damage": 878.5,
+					"damage_taken": 0.0,
+					"time": 15.88,
+					"wave": 4
+				},
+				{
+					"cleared": true,
+					"damage": 1115.4,
+					"damage_taken": 0.0,
+					"time": 14.54,
+					"wave": 5
+				},
+				{
+					"cleared": true,
+					"damage": 1066.4,
+					"damage_taken": 0.0,
+					"time": 16.84,
+					"wave": 6
+				},
+				{
+					"cleared": true,
+					"damage": 2021.0,
+					"damage_taken": 0.0,
+					"time": 23.91,
+					"wave": 7
+				},
+				{
+					"cleared": true,
+					"damage": 2100.78,
+					"damage_taken": 18.0,
+					"time": 20.01,
+					"wave": 8
+				},
+				{
+					"cleared": true,
+					"damage": 2662.0,
+					"damage_taken": 0.0,
+					"time": 22.82,
+					"wave": 9
+				},
+				{
+					"cleared": true,
+					"damage": 4489.6,
+					"damage_taken": 21.0,
+					"time": 31.36,
+					"wave": 10
+				},
+				{
+					"cleared": true,
+					"damage": 1010.7,
+					"damage_taken": 0.0,
+					"time": 15.03,
+					"wave": 11
+				}
+			]
+		},
+		{
+			"character": "mage",
+			"combat_time": 137.21,
+			"damage_dealt": 11153.28,
+			"damage_taken": 196.6,
+			"enemies_defeated": 107,
+			"frame_guard_hit": false,
+			"health_remaining": 0.0,
+			"reached_wave": 10,
+			"run": 10,
+			"seed": 75009,
+			"upgrades": [
+				"mage_f_finisher",
+				"mage_e_chain",
+				"mage_f_infusion",
+				"mage_e_conduction",
+				"mage_f_expansion",
+				"mage_q_radius",
+				"skill_cooldown_rare",
+				"mage_q_damage",
+				"attack_damage_rare"
+			],
+			"victory": false,
+			"waves": [
+				{
+					"cleared": true,
+					"damage": 184.0,
+					"damage_taken": 0.0,
+					"time": 4.32,
+					"wave": 1
+				},
+				{
+					"cleared": true,
+					"damage": 356.4,
+					"damage_taken": 0.0,
+					"time": 7.59,
+					"wave": 2
+				},
+				{
+					"cleared": true,
+					"damage": 750.2,
+					"damage_taken": 0.0,
+					"time": 14.82,
+					"wave": 3
+				},
+				{
+					"cleared": true,
+					"damage": 878.5,
+					"damage_taken": 0.0,
+					"time": 11.65,
 					"wave": 4
 				},
 				{
@@ -729,276 +2984,332 @@
 				{
 					"cleared": true,
 					"damage": 1066.4,
-					"damage_taken": 15.0,
-					"time": 14.15,
+					"damage_taken": 0.0,
+					"time": 9.22,
 					"wave": 6
 				},
 				{
 					"cleared": true,
 					"damage": 2021.0,
-					"damage_taken": 66.0,
-					"time": 29.57,
+					"damage_taken": 22.0,
+					"time": 21.52,
 					"wave": 7
 				},
 				{
 					"cleared": true,
 					"damage": 2055.3,
-					"damage_taken": 0.0,
-					"time": 23.11,
+					"damage_taken": 24.0,
+					"time": 21.04,
 					"wave": 8
 				},
 				{
 					"cleared": true,
 					"damage": 2662.0,
-					"damage_taken": 0.0,
-					"time": 27.63,
+					"damage_taken": 26.0,
+					"time": 26.3,
 					"wave": 9
 				},
 				{
-					"cleared": true,
-					"damage": 4224.4,
-					"damage_taken": 49.0,
-					"time": 39.1,
+					"cleared": false,
+					"damage": 64.08,
+					"damage_taken": 96.6,
+					"time": 1.01,
 					"wave": 10
-				},
-				{
-					"cleared": true,
-					"damage": 1010.7,
-					"damage_taken": 40.5,
-					"time": 17.18,
-					"wave": 11
-				}
-			]
-		},
-		{
-			"character": "mage",
-			"combat_time": 192.48,
-			"damage_dealt": 16182.7,
-			"damage_taken": 58.6,
-			"enemies_defeated": 138,
-			"frame_guard_hit": false,
-			"health_remaining": 99.4,
-			"reached_wave": 11,
-			"run": 3,
-			"seed": 75002,
-			"upgrades": [
-				"attack_damage_epic",
-				"mage_f_expansion",
-				"mage_f_infusion",
-				"mage_q_damage",
-				"skill_cooldown_rare",
-				"mage_q_radius",
-				"attack_range_rare",
-				"attack_cooldown_rare",
-				"mage_e_field",
-				"mage_e_accumulation"
-			],
-			"victory": true,
-			"waves": [
-				{
-					"cleared": true,
-					"damage": 184.0,
-					"damage_taken": 0.0,
-					"time": 6.28,
-					"wave": 1
-				},
-				{
-					"cleared": true,
-					"damage": 356.4,
-					"damage_taken": 0.0,
-					"time": 8.09,
-					"wave": 2
-				},
-				{
-					"cleared": true,
-					"damage": 750.2,
-					"damage_taken": 0.0,
-					"time": 12.66,
-					"wave": 3
-				},
-				{
-					"cleared": true,
-					"damage": 878.5,
-					"damage_taken": 0.0,
-					"time": 12.72,
-					"wave": 4
-				},
-				{
-					"cleared": true,
-					"damage": 1115.4,
-					"damage_taken": 0.0,
-					"time": 15.3,
-					"wave": 5
-				},
-				{
-					"cleared": true,
-					"damage": 1066.4,
-					"damage_taken": 0.0,
-					"time": 12.92,
-					"wave": 6
-				},
-				{
-					"cleared": true,
-					"damage": 2021.0,
-					"damage_taken": 0.0,
-					"time": 22.12,
-					"wave": 7
-				},
-				{
-					"cleared": true,
-					"damage": 2055.3,
-					"damage_taken": 18.0,
-					"time": 24.78,
-					"wave": 8
-				},
-				{
-					"cleared": true,
-					"damage": 2662.0,
-					"damage_taken": 0.0,
-					"time": 21.87,
-					"wave": 9
-				},
-				{
-					"cleared": true,
-					"damage": 4082.8,
-					"damage_taken": 40.6,
-					"time": 30.37,
-					"wave": 10
-				},
-				{
-					"cleared": true,
-					"damage": 1010.7,
-					"damage_taken": 0.0,
-					"time": 10.6,
-					"wave": 11
 				}
 			]
 		},
 		{
 			"character": "lancer",
-			"combat_time": 279.31,
-			"damage_dealt": 18335.48,
-			"damage_taken": 498.43,
-			"enemies_defeated": 138,
+			"combat_time": 244.63,
+			"damage_dealt": 14450.92,
+			"damage_taken": 238.43,
+			"enemies_defeated": 112,
 			"frame_guard_hit": false,
-			"health_remaining": 9.94,
-			"reached_wave": 11,
+			"health_remaining": 0.0,
+			"reached_wave": 10,
 			"run": 1,
 			"seed": 76000,
 			"upgrades": [
+				"lancer_f_finisher",
 				"lancer_f_pull",
-				"max_health_rare",
-				"skill_cooldown_rare",
-				"lifesteal_rare",
+				"lancer_e_spear",
 				"lancer_q_damage",
-				"attack_damage_rare",
-				"move_speed_rare",
 				"lancer_q_range",
-				"attack_cooldown_rare",
-				"lancer_f_finisher"
+				"lancer_f_reach",
+				"lancer_e_return",
+				"skill_cooldown_epic",
+				"attack_damage_common"
 			],
-			"victory": true,
+			"victory": false,
 			"waves": [
 				{
 					"cleared": true,
 					"damage": 184.0,
 					"damage_taken": 0.0,
-					"time": 13.03,
+					"time": 13.12,
 					"wave": 1
 				},
 				{
 					"cleared": true,
 					"damage": 356.4,
 					"damage_taken": 0.0,
-					"time": 11.5,
+					"time": 11.91,
 					"wave": 2
 				},
 				{
 					"cleared": true,
 					"damage": 750.2,
 					"damage_taken": 0.0,
-					"time": 21.35,
+					"time": 21.73,
 					"wave": 3
 				},
 				{
 					"cleared": true,
 					"damage": 878.5,
 					"damage_taken": 0.0,
-					"time": 29.04,
+					"time": 21.99,
 					"wave": 4
 				},
 				{
 					"cleared": true,
 					"damage": 1115.4,
-					"damage_taken": 26.1,
-					"time": 19.81,
+					"damage_taken": 0.0,
+					"time": 18.3,
 					"wave": 5
 				},
 				{
 					"cleared": true,
 					"damage": 1066.4,
-					"damage_taken": 15.0,
-					"time": 15.13,
+					"damage_taken": 45.0,
+					"time": 20.89,
 					"wave": 6
 				},
 				{
 					"cleared": true,
 					"damage": 2021.0,
 					"damage_taken": 0.0,
-					"time": 28.7,
+					"time": 37.06,
 					"wave": 7
 				},
 				{
 					"cleared": true,
-					"damage": 2235.3,
-					"damage_taken": 72.0,
-					"time": 24.94,
+					"damage": 2418.06,
+					"damage_taken": 36.0,
+					"time": 35.32,
 					"wave": 8
 				},
 				{
 					"cleared": true,
-					"damage": 2662.0,
-					"damage_taken": 39.0,
-					"time": 25.9,
+					"damage": 2560.0,
+					"damage_taken": 45.5,
+					"time": 25.65,
 					"wave": 9
 				},
 				{
-					"cleared": true,
-					"damage": 6055.58,
-					"damage_taken": 141.33,
-					"time": 52.27,
+					"cleared": false,
+					"damage": 3100.96,
+					"damage_taken": 111.93,
+					"time": 26.32,
 					"wave": 10
-				},
-				{
-					"cleared": true,
-					"damage": 1010.7,
-					"damage_taken": 141.3,
-					"time": 23.57,
-					"wave": 11
 				}
 			]
 		},
 		{
 			"character": "lancer",
-			"combat_time": 269.13,
-			"damage_dealt": 16403.79,
-			"damage_taken": 317.4,
-			"enemies_defeated": 137,
+			"combat_time": 187.1,
+			"damage_dealt": 10102.76,
+			"damage_taken": 220.39,
+			"enemies_defeated": 100,
 			"frame_guard_hit": false,
 			"health_remaining": 0.0,
-			"reached_wave": 11,
+			"reached_wave": 9,
 			"run": 2,
 			"seed": 76001,
 			"upgrades": [
-				"lancer_f_reach",
-				"lancer_e_charge",
-				"lancer_e_double_sweep",
 				"lancer_f_pull",
 				"lancer_q_damage",
 				"lancer_q_range",
-				"lifesteal_rare",
-				"skill_cooldown_common",
+				"lancer_f_finisher",
 				"attack_damage_rare",
+				"lancer_e_charge",
+				"lancer_e_double_sweep",
+				"skill_cooldown_rare"
+			],
+			"victory": false,
+			"waves": [
+				{
+					"cleared": true,
+					"damage": 184.0,
+					"damage_taken": 0.0,
+					"time": 13.12,
+					"wave": 1
+				},
+				{
+					"cleared": true,
+					"damage": 356.4,
+					"damage_taken": 18.0,
+					"time": 19.21,
+					"wave": 2
+				},
+				{
+					"cleared": true,
+					"damage": 750.2,
+					"damage_taken": 10.5,
+					"time": 18.43,
+					"wave": 3
+				},
+				{
+					"cleared": true,
+					"damage": 878.5,
+					"damage_taken": 0.0,
+					"time": 25.38,
+					"wave": 4
+				},
+				{
+					"cleared": true,
+					"damage": 1115.4,
+					"damage_taken": 40.45,
+					"time": 22.53,
+					"wave": 5
+				},
+				{
+					"cleared": true,
+					"damage": 963.2,
+					"damage_taken": 15.0,
+					"time": 16.11,
+					"wave": 6
+				},
+				{
+					"cleared": true,
+					"damage": 2021.0,
+					"damage_taken": 0.0,
+					"time": 29.1,
+					"wave": 7
+				},
+				{
+					"cleared": true,
+					"damage": 2085.3,
+					"damage_taken": 0.0,
+					"time": 19.27,
+					"wave": 8
+				},
+				{
+					"cleared": false,
+					"damage": 1748.76,
+					"damage_taken": 136.44,
+					"time": 12.74,
+					"wave": 9
+				}
+			]
+		},
+		{
+			"character": "lancer",
+			"combat_time": 209.09,
+			"damage_dealt": 11032.61,
+			"damage_taken": 228.94,
+			"enemies_defeated": 94,
+			"frame_guard_hit": false,
+			"health_remaining": 0.0,
+			"reached_wave": 9,
+			"run": 3,
+			"seed": 76002,
+			"upgrades": [
+				"lancer_f_pull",
+				"lancer_e_spear",
+				"lancer_f_reach",
+				"lancer_q_range",
+				"lancer_q_damage",
+				"lancer_e_return",
+				"attack_damage_rare",
+				"attack_damage_common"
+			],
+			"victory": false,
+			"waves": [
+				{
+					"cleared": true,
+					"damage": 184.0,
+					"damage_taken": 0.0,
+					"time": 10.79,
+					"wave": 1
+				},
+				{
+					"cleared": true,
+					"damage": 356.4,
+					"damage_taken": 0.0,
+					"time": 12.47,
+					"wave": 2
+				},
+				{
+					"cleared": true,
+					"damage": 750.2,
+					"damage_taken": 0.0,
+					"time": 23.2,
+					"wave": 3
+				},
+				{
+					"cleared": true,
+					"damage": 878.5,
+					"damage_taken": 12.0,
+					"time": 16.61,
+					"wave": 4
+				},
+				{
+					"cleared": true,
+					"damage": 1115.4,
+					"damage_taken": 0.0,
+					"time": 22.6,
+					"wave": 5
+				},
+				{
+					"cleared": true,
+					"damage": 1066.4,
+					"damage_taken": 15.0,
+					"time": 22.66,
+					"wave": 6
+				},
+				{
+					"cleared": true,
+					"damage": 2021.0,
+					"damage_taken": 0.0,
+					"time": 35.59,
+					"wave": 7
+				},
+				{
+					"cleared": true,
+					"damage": 2792.89,
+					"damage_taken": 72.0,
+					"time": 33.03,
+					"wave": 8
+				},
+				{
+					"cleared": false,
+					"damage": 1867.82,
+					"damage_taken": 103.94,
+					"time": 22.19,
+					"wave": 9
+				}
+			]
+		},
+		{
+			"character": "lancer",
+			"combat_time": 221.57,
+			"damage_dealt": 13443.81,
+			"damage_taken": 238.73,
+			"enemies_defeated": 118,
+			"frame_guard_hit": false,
+			"health_remaining": 0.0,
+			"reached_wave": 10,
+			"run": 4,
+			"seed": 76003,
+			"upgrades": [
+				"lancer_f_reach",
+				"lancer_e_charge",
+				"lancer_q_range",
+				"lancer_q_damage",
+				"lancer_e_double_sweep",
+				"attack_cooldown_common",
+				"skill_cooldown_common",
+				"move_speed_common",
 				"lancer_f_finisher"
 			],
 			"victory": false,
@@ -1007,101 +3318,382 @@
 					"cleared": true,
 					"damage": 184.0,
 					"damage_taken": 0.0,
-					"time": 13.15,
+					"time": 13.0,
 					"wave": 1
 				},
 				{
 					"cleared": true,
 					"damage": 356.4,
-					"damage_taken": 18.0,
-					"time": 12.45,
+					"damage_taken": 9.0,
+					"time": 17.75,
 					"wave": 2
 				},
 				{
 					"cleared": true,
 					"damage": 750.2,
-					"damage_taken": 0.0,
-					"time": 20.79,
+					"damage_taken": 30.8,
+					"time": 23.18,
 					"wave": 3
 				},
 				{
 					"cleared": true,
 					"damage": 878.5,
 					"damage_taken": 0.0,
-					"time": 24.38,
+					"time": 23.71,
 					"wave": 4
 				},
 				{
 					"cleared": true,
 					"damage": 1115.4,
-					"damage_taken": 0.0,
-					"time": 16.01,
+					"damage_taken": 18.0,
+					"time": 22.71,
 					"wave": 5
 				},
 				{
 					"cleared": true,
-					"damage": 963.2,
-					"damage_taken": 60.0,
-					"time": 20.43,
+					"damage": 993.2,
+					"damage_taken": 0.0,
+					"time": 11.95,
 					"wave": 6
 				},
 				{
 					"cleared": true,
 					"damage": 2021.0,
 					"damage_taken": 0.0,
-					"time": 30.78,
+					"time": 27.58,
 					"wave": 7
 				},
 				{
 					"cleared": true,
-					"damage": 2400.6,
-					"damage_taken": 24.0,
-					"time": 28.72,
+					"damage": 2132.73,
+					"damage_taken": 36.0,
+					"time": 27.82,
 					"wave": 8
 				},
 				{
 					"cleared": true,
-					"damage": 2530.0,
+					"damage": 2662.0,
+					"damage_taken": 26.0,
+					"time": 27.67,
+					"wave": 9
+				},
+				{
+					"cleared": false,
+					"damage": 2350.38,
+					"damage_taken": 118.93,
+					"time": 15.09,
+					"wave": 10
+				}
+			]
+		},
+		{
+			"character": "lancer",
+			"combat_time": 227.5,
+			"damage_dealt": 9530.6,
+			"damage_taken": 238.2,
+			"enemies_defeated": 91,
+			"frame_guard_hit": false,
+			"health_remaining": 0.0,
+			"reached_wave": 9,
+			"run": 5,
+			"seed": 76004,
+			"upgrades": [
+				"lancer_e_spear",
+				"lancer_q_range",
+				"lancer_e_return",
+				"lancer_f_reach",
+				"lancer_q_damage",
+				"max_health_common",
+				"lancer_f_pull",
+				"attack_cooldown_common"
+			],
+			"victory": false,
+			"waves": [
+				{
+					"cleared": true,
+					"damage": 184.0,
+					"damage_taken": 0.0,
+					"time": 13.1,
+					"wave": 1
+				},
+				{
+					"cleared": true,
+					"damage": 356.4,
+					"damage_taken": 27.0,
+					"time": 16.12,
+					"wave": 2
+				},
+				{
+					"cleared": true,
+					"damage": 750.2,
+					"damage_taken": 10.5,
+					"time": 22.92,
+					"wave": 3
+				},
+				{
+					"cleared": true,
+					"damage": 878.5,
+					"damage_taken": 12.0,
+					"time": 34.06,
+					"wave": 4
+				},
+				{
+					"cleared": true,
+					"damage": 1115.4,
+					"damage_taken": 0.0,
+					"time": 27.94,
+					"wave": 5
+				},
+				{
+					"cleared": true,
+					"damage": 1066.4,
+					"damage_taken": 15.0,
+					"time": 25.98,
+					"wave": 6
+				},
+				{
+					"cleared": true,
+					"damage": 2021.0,
+					"damage_taken": 0.0,
+					"time": 36.85,
+					"wave": 7
+				},
+				{
+					"cleared": true,
+					"damage": 2088.3,
+					"damage_taken": 115.2,
+					"time": 30.59,
+					"wave": 8
+				},
+				{
+					"cleared": false,
+					"damage": 1070.4,
+					"damage_taken": 58.5,
+					"time": 10.43,
+					"wave": 9
+				}
+			]
+		},
+		{
+			"character": "lancer",
+			"combat_time": 251.34,
+			"damage_dealt": 16545.35,
+			"damage_taken": 192.6,
+			"enemies_defeated": 137,
+			"frame_guard_hit": false,
+			"health_remaining": 0.0,
+			"reached_wave": 11,
+			"run": 6,
+			"seed": 76005,
+			"upgrades": [
+				"attack_damage_rare",
+				"lancer_f_pull",
+				"lancer_e_charge",
+				"lancer_e_double_sweep",
+				"attack_cooldown_rare",
+				"move_speed_rare",
+				"lancer_q_damage",
+				"lancer_f_reach",
+				"lancer_q_range",
+				"lancer_f_finisher"
+			],
+			"victory": false,
+			"waves": [
+				{
+					"cleared": true,
+					"damage": 184.0,
+					"damage_taken": 0.0,
+					"time": 13.14,
+					"wave": 1
+				},
+				{
+					"cleared": true,
+					"damage": 356.4,
+					"damage_taken": 0.0,
+					"time": 11.75,
+					"wave": 2
+				},
+				{
+					"cleared": true,
+					"damage": 750.2,
+					"damage_taken": 10.5,
+					"time": 22.57,
+					"wave": 3
+				},
+				{
+					"cleared": true,
+					"damage": 878.5,
+					"damage_taken": 0.0,
+					"time": 30.06,
+					"wave": 4
+				},
+				{
+					"cleared": true,
+					"damage": 1115.4,
+					"damage_taken": 0.0,
+					"time": 20.85,
+					"wave": 5
+				},
+				{
+					"cleared": true,
+					"damage": 1060.64,
+					"damage_taken": 0.0,
+					"time": 16.53,
+					"wave": 6
+				},
+				{
+					"cleared": true,
+					"damage": 2021.0,
+					"damage_taken": 0.0,
+					"time": 23.15,
+					"wave": 7
+				},
+				{
+					"cleared": true,
+					"damage": 2311.24,
+					"damage_taken": 24.0,
+					"time": 23.84,
+					"wave": 8
+				},
+				{
+					"cleared": true,
+					"damage": 2564.8,
 					"damage_taken": 19.5,
-					"time": 28.42,
+					"time": 24.56,
 					"wave": 9
 				},
 				{
 					"cleared": true,
-					"damage": 4258.4,
-					"damage_taken": 42.0,
-					"time": 37.38,
+					"damage": 4364.47,
+					"damage_taken": 0.0,
+					"time": 28.94,
 					"wave": 10
 				},
 				{
 					"cleared": false,
-					"damage": 946.09,
-					"damage_taken": 153.9,
-					"time": 23.77,
+					"damage": 938.7,
+					"damage_taken": 138.6,
+					"time": 22.21,
 					"wave": 11
 				}
 			]
 		},
 		{
 			"character": "lancer",
-			"combat_time": 301.94,
-			"damage_dealt": 17395.2,
-			"damage_taken": 429.76,
+			"combat_time": 245.51,
+			"damage_dealt": 17018.15,
+			"damage_taken": 311.47,
+			"enemies_defeated": 130,
+			"frame_guard_hit": false,
+			"health_remaining": 34.35,
+			"reached_wave": 10,
+			"run": 7,
+			"seed": 76006,
+			"upgrades": [
+				"lancer_f_pull",
+				"lancer_e_charge",
+				"lancer_e_double_sweep",
+				"attack_cooldown_rare",
+				"lancer_q_damage",
+				"lancer_f_reach",
+				"lancer_q_range",
+				"lifesteal_rare",
+				"lancer_f_finisher"
+			],
+			"victory": false,
+			"waves": [
+				{
+					"cleared": true,
+					"damage": 184.0,
+					"damage_taken": 0.0,
+					"time": 8.01,
+					"wave": 1
+				},
+				{
+					"cleared": true,
+					"damage": 356.4,
+					"damage_taken": 36.0,
+					"time": 21.19,
+					"wave": 2
+				},
+				{
+					"cleared": true,
+					"damage": 750.2,
+					"damage_taken": 0.0,
+					"time": 20.58,
+					"wave": 3
+				},
+				{
+					"cleared": true,
+					"damage": 878.5,
+					"damage_taken": 12.0,
+					"time": 12.42,
+					"wave": 4
+				},
+				{
+					"cleared": true,
+					"damage": 1115.4,
+					"damage_taken": 0.0,
+					"time": 21.88,
+					"wave": 5
+				},
+				{
+					"cleared": true,
+					"damage": 1066.4,
+					"damage_taken": 0.0,
+					"time": 16.02,
+					"wave": 6
+				},
+				{
+					"cleared": true,
+					"damage": 2021.0,
+					"damage_taken": 0.0,
+					"time": 21.53,
+					"wave": 7
+				},
+				{
+					"cleared": true,
+					"damage": 2215.5,
+					"damage_taken": 54.0,
+					"time": 27.24,
+					"wave": 8
+				},
+				{
+					"cleared": true,
+					"damage": 2530.0,
+					"damage_taken": 77.94,
+					"time": 26.06,
+					"wave": 9
+				},
+				{
+					"cleared": false,
+					"damage": 5900.75,
+					"damage_taken": 131.53,
+					"time": 59.4,
+					"wave": 10
+				}
+			]
+		},
+		{
+			"character": "lancer",
+			"combat_time": 236.58,
+			"damage_dealt": 16852.1,
+			"damage_taken": 279.9,
 			"enemies_defeated": 138,
 			"frame_guard_hit": false,
-			"health_remaining": 76.2,
+			"health_remaining": 14.2,
 			"reached_wave": 11,
-			"run": 3,
-			"seed": 76002,
+			"run": 8,
+			"seed": 76007,
 			"upgrades": [
-				"lancer_f_finisher",
 				"lancer_f_pull",
-				"lifesteal_epic",
-				"lancer_q_damage",
 				"lancer_q_range",
-				"lancer_e_spear",
+				"lancer_f_finisher",
+				"lancer_e_charge",
+				"lancer_q_damage",
 				"lancer_f_reach",
-				"skill_cooldown_common",
+				"max_health_epic",
+				"lancer_e_double_sweep",
 				"attack_damage_common",
 				"attack_damage_epic"
 			],
@@ -1111,120 +3703,312 @@
 					"cleared": true,
 					"damage": 184.0,
 					"damage_taken": 0.0,
-					"time": 13.05,
+					"time": 10.23,
 					"wave": 1
 				},
 				{
 					"cleared": true,
 					"damage": 356.4,
-					"damage_taken": 18.0,
-					"time": 12.4,
+					"damage_taken": 0.0,
+					"time": 12.45,
 					"wave": 2
 				},
 				{
 					"cleared": true,
 					"damage": 750.2,
-					"damage_taken": 0.0,
-					"time": 20.35,
+					"damage_taken": 10.5,
+					"time": 19.68,
 					"wave": 3
 				},
 				{
 					"cleared": true,
 					"damage": 878.5,
-					"damage_taken": 0.0,
-					"time": 15.84,
+					"damage_taken": 12.0,
+					"time": 18.87,
 					"wave": 4
 				},
 				{
 					"cleared": true,
 					"damage": 1115.4,
-					"damage_taken": 40.45,
-					"time": 26.15,
+					"damage_taken": 0.0,
+					"time": 22.11,
 					"wave": 5
 				},
 				{
 					"cleared": true,
-					"damage": 1023.2,
-					"damage_taken": 60.0,
-					"time": 19.47,
+					"damage": 1066.4,
+					"damage_taken": 30.0,
+					"time": 14.9,
 					"wave": 6
 				},
 				{
 					"cleared": true,
 					"damage": 2021.0,
 					"damage_taken": 0.0,
-					"time": 36.59,
+					"time": 27.21,
 					"wave": 7
 				},
 				{
 					"cleared": true,
-					"damage": 2823.18,
-					"damage_taken": 114.0,
-					"time": 44.13,
+					"damage": 2628.3,
+					"damage_taken": 72.0,
+					"time": 24.02,
 					"wave": 8
 				},
 				{
 					"cleared": true,
 					"damage": 2530.0,
 					"damage_taken": 19.5,
-					"time": 33.81,
+					"time": 23.06,
 					"wave": 9
 				},
 				{
 					"cleared": true,
-					"damage": 4702.62,
-					"damage_taken": 89.6,
-					"time": 41.77,
+					"damage": 4311.2,
+					"damage_taken": 21.0,
+					"time": 31.2,
 					"wave": 10
 				},
 				{
 					"cleared": true,
 					"damage": 1010.7,
-					"damage_taken": 88.2,
-					"time": 24.73,
+					"damage_taken": 90.9,
+					"time": 19.14,
+					"wave": 11
+				}
+			]
+		},
+		{
+			"character": "lancer",
+			"combat_time": 204.42,
+			"damage_dealt": 10410.4,
+			"damage_taken": 277.9,
+			"enemies_defeated": 101,
+			"frame_guard_hit": false,
+			"health_remaining": 0.0,
+			"reached_wave": 9,
+			"run": 9,
+			"seed": 76008,
+			"upgrades": [
+				"lancer_e_charge",
+				"lancer_f_reach",
+				"lancer_q_range",
+				"lancer_q_damage",
+				"attack_damage_common",
+				"lancer_f_pull",
+				"max_health_common",
+				"attack_cooldown_common"
+			],
+			"victory": false,
+			"waves": [
+				{
+					"cleared": true,
+					"damage": 184.0,
+					"damage_taken": 0.0,
+					"time": 13.86,
+					"wave": 1
+				},
+				{
+					"cleared": true,
+					"damage": 356.4,
+					"damage_taken": 18.0,
+					"time": 11.07,
+					"wave": 2
+				},
+				{
+					"cleared": true,
+					"damage": 750.2,
+					"damage_taken": 20.3,
+					"time": 18.91,
+					"wave": 3
+				},
+				{
+					"cleared": true,
+					"damage": 878.5,
+					"damage_taken": 28.8,
+					"time": 31.43,
+					"wave": 4
+				},
+				{
+					"cleared": true,
+					"damage": 1115.4,
+					"damage_taken": 26.1,
+					"time": 25.32,
+					"wave": 5
+				},
+				{
+					"cleared": true,
+					"damage": 996.2,
+					"damage_taken": 15.0,
+					"time": 16.25,
+					"wave": 6
+				},
+				{
+					"cleared": true,
+					"damage": 2021.0,
+					"damage_taken": 0.0,
+					"time": 31.03,
+					"wave": 7
+				},
+				{
+					"cleared": true,
+					"damage": 2235.3,
+					"damage_taken": 54.0,
+					"time": 26.35,
+					"wave": 8
+				},
+				{
+					"cleared": false,
+					"damage": 1873.4,
+					"damage_taken": 115.7,
+					"time": 19.67,
+					"wave": 9
+				}
+			]
+		},
+		{
+			"character": "lancer",
+			"combat_time": 304.83,
+			"damage_dealt": 17594.95,
+			"damage_taken": 322.5,
+			"enemies_defeated": 138,
+			"frame_guard_hit": false,
+			"health_remaining": 36.77,
+			"reached_wave": 11,
+			"run": 10,
+			"seed": 76009,
+			"upgrades": [
+				"lancer_f_pull",
+				"attack_cooldown_rare",
+				"lancer_q_damage",
+				"lancer_q_range",
+				"attack_damage_rare",
+				"lancer_f_finisher",
+				"lifesteal_rare",
+				"lancer_e_spear",
+				"lancer_e_return",
+				"max_health_rare"
+			],
+			"victory": true,
+			"waves": [
+				{
+					"cleared": true,
+					"damage": 184.0,
+					"damage_taken": 0.0,
+					"time": 8.14,
+					"wave": 1
+				},
+				{
+					"cleared": true,
+					"damage": 356.4,
+					"damage_taken": 18.0,
+					"time": 14.92,
+					"wave": 2
+				},
+				{
+					"cleared": true,
+					"damage": 750.2,
+					"damage_taken": 0.0,
+					"time": 23.1,
+					"wave": 3
+				},
+				{
+					"cleared": true,
+					"damage": 878.5,
+					"damage_taken": 16.8,
+					"time": 28.84,
+					"wave": 4
+				},
+				{
+					"cleared": true,
+					"damage": 1115.4,
+					"damage_taken": 0.0,
+					"time": 17.45,
+					"wave": 5
+				},
+				{
+					"cleared": true,
+					"damage": 1066.4,
+					"damage_taken": 15.0,
+					"time": 20.1,
+					"wave": 6
+				},
+				{
+					"cleared": true,
+					"damage": 2021.0,
+					"damage_taken": 0.0,
+					"time": 30.26,
+					"wave": 7
+				},
+				{
+					"cleared": true,
+					"damage": 2307.49,
+					"damage_taken": 18.0,
+					"time": 35.14,
+					"wave": 8
+				},
+				{
+					"cleared": true,
+					"damage": 2662.0,
+					"damage_taken": 26.0,
+					"time": 35.99,
+					"wave": 9
+				},
+				{
+					"cleared": true,
+					"damage": 5242.86,
+					"damage_taken": 91.0,
+					"time": 49.76,
+					"wave": 10
+				},
+				{
+					"cleared": true,
+					"damage": 1010.7,
+					"damage_taken": 137.7,
+					"time": 28.87,
 					"wave": 11
 				}
 			]
 		}
 	],
-	"runs_per_character": 3,
+	"runs_per_character": 10,
 	"simulation_speed": 20.0,
 	"summary": {
 		"archer": {
-			"average_combat_time": 258.51,
-			"average_damage": 13282.94,
-			"average_damage_taken": 95.23,
-			"average_reached_wave": 10.0,
-			"runs": 3,
-			"win_rate": 0.0,
-			"wins": 0
+			"average_combat_time": 262.34,
+			"average_damage": 14572.41,
+			"average_damage_taken": 85.39,
+			"average_reached_wave": 10.2,
+			"runs": 10,
+			"win_rate": 0.2,
+			"wins": 2
 		},
 		"lancer": {
-			"average_combat_time": 283.46,
-			"average_damage": 17378.16,
-			"average_damage_taken": 415.2,
-			"average_reached_wave": 11.0,
-			"runs": 3,
-			"win_rate": 0.667,
+			"average_combat_time": 233.26,
+			"average_damage": 13698.16,
+			"average_damage_taken": 254.91,
+			"average_reached_wave": 9.9,
+			"runs": 10,
+			"win_rate": 0.2,
 			"wins": 2
 		},
 		"mage": {
-			"average_combat_time": 209.6,
-			"average_damage": 16289.82,
-			"average_damage_taken": 117.3,
-			"average_reached_wave": 11.0,
-			"runs": 3,
-			"win_rate": 1.0,
-			"wins": 3
+			"average_combat_time": 193.68,
+			"average_damage": 15846.33,
+			"average_damage_taken": 134.99,
+			"average_reached_wave": 10.9,
+			"runs": 10,
+			"win_rate": 0.7,
+			"wins": 7
 		},
 		"warrior": {
-			"average_combat_time": 226.61,
-			"average_damage": 12992.89,
-			"average_damage_taken": 243.86,
-			"average_reached_wave": 9.33,
-			"runs": 3,
-			"win_rate": 0.333,
-			"wins": 1
+			"average_combat_time": 291.24,
+			"average_damage": 16851.97,
+			"average_damage_taken": 231.78,
+			"average_reached_wave": 10.6,
+			"runs": 10,
+			"win_rate": 0.5,
+			"wins": 5
 		}
 	}
 }

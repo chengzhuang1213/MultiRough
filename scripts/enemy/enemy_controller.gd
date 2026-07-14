@@ -63,6 +63,7 @@ var preferred_range := 0.0
 var projectile_damage := 8.0
 var enemy_type := TYPE_MELEE
 var is_boss := false
+var network_id := -1
 var arena_bounds := Rect2(Vector2(-480, -270), Vector2(960, 540))
 
 var _target: Node2D
@@ -556,6 +557,23 @@ func heal(amount: float) -> float:
 	health = minf(max_health, health + amount)
 	_update_health_bar()
 	return health - old_health
+
+func make_authority_state() -> Dictionary:
+	return {
+		"enemy_id": network_id,
+		"enemy_type": enemy_type,
+		"position": global_position,
+		"health": health,
+		"maximum_health": max_health,
+	}
+
+func apply_authority_state(state: Dictionary) -> void:
+	network_id = int(state.get("enemy_id", network_id))
+	global_position = state.get("position", global_position) as Vector2
+	max_health = maxf(1.0, float(state.get("maximum_health", max_health)))
+	health = clampf(float(state.get("health", health)), 0.0, max_health)
+	_is_dying = false
+	_update_health_bar()
 
 func _die() -> void:
 	if _is_dying:

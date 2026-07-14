@@ -465,9 +465,16 @@ func _check_combat_event_frame() -> void:
 	player.free()
 
 func _check_authority_snapshot_contract() -> void:
-	var player_state: Dictionary = AuthorityContractScript.make_player_state(1, Vector2.ZERO, 100.0, 120.0, false)
-	var snapshot: Dictionary = AuthorityContractScript.make_snapshot(1, "WAVE_ACTIVE", 0, [player_state], [])
+	var cooldowns := {"attack": 0.1, "dash": 0.2, "skill": 0.3, "fan": 0.4, "ultimate": 0.5, "secondary": 0.6}
+	var player_state: Dictionary = AuthorityContractScript.make_player_state(1, Vector2.ZERO, 100.0, 120.0, false, cooldowns)
+	var enemy_state: Dictionary = AuthorityContractScript.make_enemy_state(1, "melee", Vector2(40.0, 20.0), 35.0, 46.0)
+	var snapshot: Dictionary = AuthorityContractScript.make_snapshot(1, "WAVE_ACTIVE", 0, [player_state], [enemy_state], 59.0, 1.0, {"enemies_defeated": 2})
 	_expect(AuthorityContractScript.validate_snapshot(snapshot), "authority snapshot contract is invalid")
+	_expect(int(snapshot.get("version", 0)) == 2, "authority snapshot version was not advanced")
+	_expect(is_equal_approx(float(snapshot.get("wave_time_left", 0.0)), 59.0), "authority snapshot omitted wave time")
+	var duplicate_enemy_snapshot := snapshot.duplicate(true)
+	duplicate_enemy_snapshot["enemies"] = [enemy_state, enemy_state.duplicate(true)]
+	_expect(not AuthorityContractScript.validate_snapshot(duplicate_enemy_snapshot), "authority snapshot accepted duplicate enemy ids")
 
 func _expect(condition: bool, message: String) -> void:
 	if not condition:
