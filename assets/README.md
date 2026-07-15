@@ -22,3 +22,11 @@ Top-level folders currently available:
 - `UI Elements/`
 - `Units/`
 
+## Project UI assets
+
+- Unified Verdant theme: `res://assets/ui/theme/verdant_pixel/`
+- Character-select stat and skill icons: `res://assets/ui/character_select/`
+- Active landscape character cards: `res://assets/original/characters/<class>/<class>_card_select_redraw_v1.png`
+- Legacy character cards remain in their original `*_card_v*.png` paths and are retained by `CHARACTER_CARD_ART_LEGACY` in `scripts/gameplay/main_game.gd`.
+
+The four active landscape cards import with mipmaps and are displayed with linear mipmapped filtering. Pixel-art UI textures continue to use the project's nearest-neighbor default.

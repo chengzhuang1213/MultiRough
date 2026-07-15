@@ -186,8 +186,21 @@ Death > Hit > Cast/Attack > Dash/Defend > Run > Idle
 
 - 当前统一主题为 `assets/ui/theme/verdant_pixel/`，九宫格边距记录在 `theme_manifest.json`。
 - `scripts/ui/verdant_ui_theme.gd` 统一管理面板、Tooltip、标题牌、按钮四态、输入框、HUD 条框、技能槽和分隔线。
+- 主菜单、选角、战斗 HUD、升级和结算分别由 `scenes/ui/` 下的独立场景与 `scripts/ui/` 下的同名组件管理；组件只负责显示与发出操作信号。
+- `scripts/gameplay/main_game.gd` 继续协调游戏状态、联机、波次和胜负，并把当前数据传给 UI 组件，不再直接构建各界面的控件树。
 - 主菜单、选人、升级、结算与玩家 HUD 必须从统一主题继承；职业卡面和升级稀有度卡面继续保留各自专属美术。
 - UI 资源或主题修改后运行现有全部无画面测试（包括 `ui_theme_checks.gd`），并实例化主场景检查纹理 StyleBox 是否实际生效。
+
+### 当前 UI 布局基线
+
+- 设计视口为 `1280×720`。主菜单面板为 `800×640`，输入框与主操作按钮高度统一为 `64`，避免主题边框挤压文字。
+- 选角面板为 `1180×700`；单人卡片高度为 `420`，联机紧凑卡片高度为 `340`。单人卡片行在标题区后保留独立下移间距。
+- 选角 Q/E/F 区域使用各职业真实技能图标并保留按键角标，不再使用纯文字占位。
+- 当前选角卡面使用四张 `*_card_select_redraw_v1.png` 横向构图；旧版 `*_card_v*.png` 仍由 `CHARACTER_CARD_ART_LEGACY` 保留，不删除、不覆盖。
+- 选角卡面使用线性 mipmap 缩放，其他像素 UI 继续使用项目默认最近邻过滤，避免高清卡面缩小时发糊或产生明显锯齿。
+- 战斗 HUD 基准宽度为 `440`，生命条高度为 `24`，动作槽约为 `58×54`；战斗信息保持完整，但尽量减少对下方战场的遮挡。
+- 升级界面和结算界面继续使用独立 UI 组件；进入升级选择时隐藏战斗 HUD，选择完成后恢复。
+- `design-qa.md` 记录本轮截图问题、代码修正和未完成的视觉验收。按照当前用户要求，Codex 不启动游戏、不查看运行画面；最终视觉确认由用户执行。
 
 ## 6. 联机规则
 
@@ -220,6 +233,7 @@ Death > Hit > Cast/Attack > Dash/Defend > Run > Idle
 
 ```powershell
 python tools/validate_character_sprites.py
+Godot_v4.7-stable_win64.exe --headless --path . --script res://tests/ui_theme_checks.gd
 Godot_v4.7-stable_win64.exe --headless --path . --script res://tests/logic_checks.gd
 Godot_v4.7-stable_win64.exe --headless --path . --script res://tests/character_combat_checks.gd
 Godot_v4.7-stable_win64.exe --headless --path . --script res://tests/enemy_behavior_checks.gd
@@ -230,6 +244,7 @@ git diff --check
 检查范围：
 
 - 四职业资源尺寸、帧数、空帧、脚底、锚点和残片。
+- 主菜单、单人/联机选角、升级、结算和战斗 HUD 的控件边界、文字安全高度、卡面资源、图标资源和紧凑尺寸。
 - 四职业普攻与 Q/E/F 行为。
 - 战斗 HUD 为四职业加载各自的普攻、闪避、右键和 Q/E/F 图标，并显示对应冷却遮罩。
 - 四职业基础被动、普通波倒计时和 Boss 倒计时。

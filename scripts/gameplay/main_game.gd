@@ -9,14 +9,14 @@ const CombatManagerScript := preload("res://scripts/gameplay/combat_manager.gd")
 const PlayerRosterScript := preload("res://scripts/player/player_roster.gd")
 const AuthorityContractScript := preload("res://scripts/network/authority_contract.gd")
 const VerdantUIThemeScript := preload("res://scripts/ui/verdant_ui_theme.gd")
+const MainMenuUIScene := preload("res://scenes/ui/main_menu_ui.tscn")
+const CharacterSelectUIScene := preload("res://scenes/ui/character_select_ui.tscn")
+const CombatHUDUIScene := preload("res://scenes/ui/combat_hud_ui.tscn")
+const UpgradeUIScene := preload("res://scenes/ui/upgrade_ui.tscn")
+const ResultUIScene := preload("res://scenes/ui/result_ui.tscn")
 
 const ARENA_BOUNDS := Rect2(Vector2(-960, -540), Vector2(1920, 1080))
 const VIEWPORT_SIZE := Vector2(1280, 720)
-const UPGRADE_PANEL_WIDTH := 980.0
-const UPGRADE_PANEL_HEIGHT := 460.0
-const NEXT_WAVE_BUTTON_WIDTH := 220.0
-const NEXT_WAVE_BUTTON_HEIGHT := 56.0
-const PLAYER_HUD_WIDTH := 560.0
 const PLAYER_HUD_OCCLUDED_ALPHA := 0.20
 const PLAYER_HUD_FADE_OUT_TIME := 0.12
 const PLAYER_HUD_FADE_IN_TIME := 0.20
@@ -45,11 +45,17 @@ const CORNER_PROP_PATHS := [
 ]
 const WAVE_DEFS := WaveManagerScript.DEFAULT_WAVES
 const CHARACTER_ORDER := GameRulesScript.CHARACTER_ORDER
-const CHARACTER_CARD_ART := {
+const CHARACTER_CARD_ART_LEGACY := {
 	"warrior": "res://assets/original/characters/warrior/warrior_card_v4.png",
 	"archer": "res://assets/original/characters/archer/archer_card_v2.png",
 	"lancer": "res://assets/original/characters/lancer/lancer_card_v2.png",
 	"mage": "res://assets/original/characters/mage/mage_card_v2.png",
+}
+const CHARACTER_CARD_ART := {
+	"warrior": "res://assets/original/characters/warrior/warrior_card_select_redraw_v1.png",
+	"archer": "res://assets/original/characters/archer/archer_card_select_redraw_v1.png",
+	"lancer": "res://assets/original/characters/lancer/lancer_card_select_redraw_v1.png",
+	"mage": "res://assets/original/characters/mage/mage_card_select_redraw_v1.png",
 }
 const CHARACTER_CARD_ACCENTS := {
 	"warrior": Color(0.95, 0.38, 0.42),
@@ -165,13 +171,19 @@ var enemies_label: Label
 var player_huds: Array = []
 var player_hud_alpha := 1.0
 var player_hud_fade_release_left := 0.0
-var upgrade_panel: PanelContainer
+var upgrade_panel: Control
 var upgrade_content: VBoxContainer
 var start_next_wave_button: Button
 var result_panel: PanelContainer
 var result_label: Label
 var restart_button: Button
 var return_to_menu_button: Button
+var main_menu_ui
+var character_select_ui
+var combat_hud_ui
+var upgrade_ui
+var result_ui
+var upgrade_ui_player_index := 1
 var combat_manager
 var player_roster
 
@@ -308,167 +320,54 @@ func _build_ui() -> void:
 	ui_root.theme = VerdantUIThemeScript.build_theme()
 	ui_layer.add_child(ui_root)
 
-	hud_left = VBoxContainer.new()
-	hud_left.position = Vector2(16, 16)
-	hud_left.visible = false
-	hud_left.add_theme_constant_override("separation", 6)
-	ui_root.add_child(hud_left)
+	combat_hud_ui = CombatHUDUIScene.instantiate()
+	ui_root.add_child(combat_hud_ui)
+	combat_hud_ui.next_wave_requested.connect(_on_start_next_wave_pressed)
+	combat_hud_ui.return_to_menu_requested.connect(_on_return_to_menu_pressed)
+	combat_hud_ui.create_player_hud(player_roster)
+	hud_left = combat_hud_ui.hud_left
+	hud_right = combat_hud_ui.hud_right
+	status_label = combat_hud_ui.status_label
+	wave_label = combat_hud_ui.wave_label
+	enemies_label = combat_hud_ui.enemies_label
+	player_hud = combat_hud_ui.player_hud
+	start_next_wave_button = combat_hud_ui.start_next_wave_button
+	return_to_menu_button = combat_hud_ui.return_to_menu_button
 
-	status_label = Label.new()
-	hud_left.add_child(status_label)
+	main_menu_ui = MainMenuUIScene.instantiate()
+	ui_root.add_child(main_menu_ui)
+	main_menu_ui.single_player_requested.connect(_start_single_player)
+	main_menu_ui.host_requested.connect(_start_network_host)
+	main_menu_ui.join_requested.connect(_start_network_client)
+	main_menu_panel = main_menu_ui
+	main_menu_content = main_menu_ui.content
+	network_ip_edit = main_menu_ui.network_ip_edit
+	network_status_label = main_menu_ui.network_status_label
 
-	wave_label = Label.new()
-	hud_left.add_child(wave_label)
+	character_select_ui = CharacterSelectUIScene.instantiate()
+	ui_root.add_child(character_select_ui)
+	character_select_ui.active_slot_requested.connect(_set_character_select_active_slot)
+	character_select_ui.character_requested.connect(_select_active_character)
+	character_select_ui.start_requested.connect(_confirm_character_select)
+	character_select_panel = character_select_ui
+	character_select_content = character_select_ui.content
 
-	enemies_label = Label.new()
-	hud_left.add_child(enemies_label)
+	upgrade_ui = UpgradeUIScene.instantiate()
+	ui_root.add_child(upgrade_ui)
+	upgrade_ui.setup(UPGRADE_CARD_ART, CHARACTER_STAT_ICONS, _format_upgrade_current, get_character_skill_icon_path)
+	upgrade_ui.upgrade_selected.connect(_on_upgrade_ui_selected)
+	upgrade_panel = upgrade_ui
+	upgrade_content = upgrade_ui.content
 
-	player_hud = PanelContainer.new()
-	player_hud.visible = false
-	player_hud.custom_minimum_size = Vector2(PLAYER_HUD_WIDTH, 0.0)
-	ui_root.add_child(player_hud)
-
-	_create_player_hud(player_hud, ["普攻", "Q", "E", "F"])
-
-	hud_right = VBoxContainer.new()
-	hud_right.position = Vector2(16, 16)
-	hud_right.visible = false
-	hud_right.add_theme_constant_override("separation", 6)
-	ui_root.add_child(hud_right)
-
-	main_menu_panel = PanelContainer.new()
-	main_menu_panel.custom_minimum_size = Vector2(440, 340)
-	ui_root.add_child(main_menu_panel)
-	main_menu_content = _attach_panel_content(main_menu_panel, 34, 28, 34, 28)
-	main_menu_content.add_theme_constant_override("separation", 14)
-
-	main_menu_content.add_child(_build_title_plate("MultiRough", Vector2(360, 72), 34))
-	main_menu_content.add_child(_build_ui_separator(Vector2(360, 22)))
-
-	var single_button: Button = Button.new()
-	single_button.text = "单人模式"
-	single_button.custom_minimum_size = Vector2(360, 54)
-	single_button.pressed.connect(_start_single_player)
-	main_menu_content.add_child(single_button)
-
-	var network_row: HBoxContainer = HBoxContainer.new()
-	network_row.add_theme_constant_override("separation", 8)
-	main_menu_content.add_child(network_row)
-
-	network_ip_edit = LineEdit.new()
-	network_ip_edit.placeholder_text = "房主 IP，如 192.168.1.78"
-	network_ip_edit.text = ""
-	network_ip_edit.custom_minimum_size = Vector2(184, 52)
-	network_row.add_child(network_ip_edit)
-
-	var host_button: Button = Button.new()
-	host_button.text = "创建联机"
-	host_button.custom_minimum_size = Vector2(82, 52)
-	host_button.pressed.connect(_start_network_host)
-	network_row.add_child(host_button)
-
-	var join_button: Button = Button.new()
-	join_button.text = "加入"
-	join_button.custom_minimum_size = Vector2(82, 52)
-	join_button.pressed.connect(_start_network_client)
-	network_row.add_child(join_button)
-
-	network_status_label = Label.new()
-	network_status_label.text = ""
-	network_status_label.custom_minimum_size = Vector2(360, 0.0)
-	network_status_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	main_menu_content.add_child(network_status_label)
-
-	character_select_panel = PanelContainer.new()
-	character_select_panel.custom_minimum_size = Vector2(1180, 700)
-	character_select_panel.visible = false
-	ui_root.add_child(character_select_panel)
-	character_select_content = _attach_panel_content(character_select_panel, 24, 14, 24, 14)
-	character_select_content.add_theme_constant_override("separation", 10)
-
-	upgrade_panel = PanelContainer.new()
-	upgrade_panel.position = (VIEWPORT_SIZE - Vector2(UPGRADE_PANEL_WIDTH, UPGRADE_PANEL_HEIGHT)) * 0.5
-	upgrade_panel.custom_minimum_size = Vector2(UPGRADE_PANEL_WIDTH, UPGRADE_PANEL_HEIGHT)
-	upgrade_panel.visible = false
-	ui_root.add_child(upgrade_panel)
-	upgrade_content = _attach_panel_content(upgrade_panel, 24, 18, 24, 18)
-	upgrade_content.add_theme_constant_override("separation", 12)
-
-	start_next_wave_button = Button.new()
-	start_next_wave_button.text = "开启下一波"
-	start_next_wave_button.position = Vector2(
-		(VIEWPORT_SIZE.x - NEXT_WAVE_BUTTON_WIDTH) * 0.5,
-		VIEWPORT_SIZE.y - 92.0
-	)
-	start_next_wave_button.custom_minimum_size = Vector2(NEXT_WAVE_BUTTON_WIDTH, NEXT_WAVE_BUTTON_HEIGHT)
-	start_next_wave_button.visible = false
-	start_next_wave_button.disabled = true
-	start_next_wave_button.pressed.connect(_on_start_next_wave_pressed)
-	ui_root.add_child(start_next_wave_button)
-
-	result_panel = PanelContainer.new()
-	result_panel.custom_minimum_size = Vector2(430, 290)
-	result_panel.visible = false
-	ui_root.add_child(result_panel)
-	var result_content := _attach_panel_content(result_panel, 36, 28, 36, 28)
-	result_label = Label.new()
-	result_label.custom_minimum_size = Vector2(350, 210)
-	result_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	result_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	result_label.add_theme_font_size_override("font_size", 28)
-	result_content.add_child(result_label)
-
-	restart_button = Button.new()
-	restart_button.text = "重新开始"
-	restart_button.position = Vector2(548, 510)
-	restart_button.custom_minimum_size = Vector2(184, 56)
-	restart_button.visible = false
-	restart_button.pressed.connect(_on_restart_pressed)
-	ui_root.add_child(restart_button)
-
-	return_to_menu_button = Button.new()
-	return_to_menu_button.text = "返回主菜单"
-	return_to_menu_button.custom_minimum_size = Vector2(160, 52)
-	return_to_menu_button.visible = false
-	return_to_menu_button.pressed.connect(_on_return_to_menu_pressed)
-	ui_root.add_child(return_to_menu_button)
+	result_ui = ResultUIScene.instantiate()
+	ui_root.add_child(result_ui)
+	result_ui.restart_requested.connect(_on_restart_pressed)
+	result_panel = result_ui.panel
+	result_label = result_ui.result_label
+	restart_button = result_ui.restart_button
 
 	_layout_ui()
 	_update_status()
-
-func _attach_panel_content(panel: PanelContainer, left: int, top: int, right: int, bottom: int) -> VBoxContainer:
-	var margin := MarginContainer.new()
-	margin.add_theme_constant_override("margin_left", left)
-	margin.add_theme_constant_override("margin_top", top)
-	margin.add_theme_constant_override("margin_right", right)
-	margin.add_theme_constant_override("margin_bottom", bottom)
-	panel.add_child(margin)
-	var content := VBoxContainer.new()
-	margin.add_child(content)
-	return content
-
-func _build_title_plate(text: String, minimum_size: Vector2, font_size: int) -> PanelContainer:
-	var plate := PanelContainer.new()
-	plate.custom_minimum_size = minimum_size
-	plate.add_theme_stylebox_override("panel", VerdantUIThemeScript.make_title_style())
-	plate.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	var label := Label.new()
-	label.text = text
-	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	label.add_theme_font_size_override("font_size", font_size)
-	label.add_theme_color_override("font_outline_color", VerdantUIThemeScript.TEXT_OUTLINE)
-	label.add_theme_constant_override("outline_size", 3)
-	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	plate.add_child(label)
-	return plate
-
-func _build_ui_separator(minimum_size: Vector2) -> HSeparator:
-	var separator := HSeparator.new()
-	separator.custom_minimum_size = minimum_size
-	separator.add_theme_stylebox_override("separator", VerdantUIThemeScript.make_separator_style())
-	separator.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	return separator
 
 func _get_viewport_size() -> Vector2:
 	var viewport_size: Vector2 = get_viewport_rect().size
@@ -478,39 +377,16 @@ func _get_viewport_size() -> Vector2:
 
 func _layout_ui() -> void:
 	var viewport_size: Vector2 = _get_viewport_size()
-	if hud_left != null:
-		hud_left.position = Vector2(16, 16)
-	if hud_right != null:
-		hud_right.position = Vector2(16, 16)
-	if player_hud != null:
-		player_hud.position = Vector2(
-			maxf(16.0, (viewport_size.x - PLAYER_HUD_WIDTH) * 0.5),
-			maxf(16.0, viewport_size.y - _get_hud_height(player_hud) - 16.0)
-		)
+	if combat_hud_ui != null:
+		combat_hud_ui.layout(viewport_size)
 	if main_menu_panel != null:
 		main_menu_panel.position = (viewport_size - main_menu_panel.custom_minimum_size) * 0.5
 	if character_select_panel != null:
 		character_select_panel.position = (viewport_size - character_select_panel.custom_minimum_size) * 0.5
-	if upgrade_panel != null:
-		upgrade_panel.position = (viewport_size - upgrade_panel.custom_minimum_size) * 0.5
-	if start_next_wave_button != null:
-		start_next_wave_button.position = Vector2(
-			(viewport_size.x - NEXT_WAVE_BUTTON_WIDTH) * 0.5,
-			viewport_size.y - 92.0
-		)
-	if return_to_menu_button != null:
-		return_to_menu_button.position = Vector2(
-			maxf(16.0, viewport_size.x - return_to_menu_button.custom_minimum_size.x - 16.0),
-			16.0
-		)
-	if result_panel != null and restart_button != null:
-		_position_result_panel()
-
-func _get_hud_height(hud: Control) -> float:
-	var height: float = hud.size.y
-	if height <= 0.0:
-		return 128.0
-	return height
+	if upgrade_ui != null:
+		upgrade_ui.layout(viewport_size)
+	if result_ui != null:
+		result_ui.layout(viewport_size)
 
 func _update_player_hud_occlusion(delta: float) -> void:
 	if player_hud == null or not player_hud.visible or not _is_combat_active():
@@ -541,11 +417,10 @@ func _has_actor_behind_player_hud() -> bool:
 				return true
 	return false
 
-func _create_player_hud(parent: PanelContainer, skill_labels: Array[String]) -> void:
-	player_roster.create_hud(parent, skill_labels)
-
 func _show_main_menu() -> void:
 	game_state = GameStateScript.LOBBY
+	if result_ui != null:
+		result_ui.hide_result()
 	if main_menu_panel != null:
 		main_menu_panel.visible = true
 	if character_select_panel != null:
@@ -664,7 +539,9 @@ func _on_network_server_disconnected() -> void:
 
 func _set_network_status(text: String) -> void:
 	network_status_text = text
-	if network_status_label != null:
+	if main_menu_ui != null:
+		main_menu_ui.set_status(text)
+	elif network_status_label != null:
 		network_status_label.text = text
 
 @rpc("authority", "reliable")
@@ -713,199 +590,32 @@ func _show_character_select(player_count: int) -> void:
 	_layout_ui()
 
 func _rebuild_character_select_panel() -> void:
-	character_select_rows.clear()
-	character_select_slot_buttons.clear()
-	for child in character_select_content.get_children():
-		character_select_content.remove_child(child)
-		child.queue_free()
 	if _is_network_game():
 		character_select_active_slot = local_peer_player_index - 1
 	else:
 		character_select_active_slot = clampi(character_select_active_slot, 0, pending_player_count - 1)
+	character_select_ui.rebuild(_get_character_select_ui_context())
+	character_select_rows = character_select_ui.rows
+	character_select_slot_buttons = character_select_ui.slot_buttons
+	character_select_start_button = character_select_ui.start_button
 
-	character_select_content.add_child(_build_title_plate(
-		"联机房间" if _is_network_game() else "选择角色",
-		Vector2(1120, 58),
-		30
-	))
-
-	if _is_network_game():
-		var room_status: Label = Label.new()
-		room_status.text = network_status_text
-		room_status.custom_minimum_size = Vector2(1120, 28)
-		room_status.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		room_status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		character_select_content.add_child(room_status)
-
-	if pending_player_count > 1:
-		var slot_row: HBoxContainer = HBoxContainer.new()
-		slot_row.custom_minimum_size = Vector2(1120, 52)
-		slot_row.alignment = BoxContainer.ALIGNMENT_CENTER
-		slot_row.add_theme_constant_override("separation", 12)
-		character_select_content.add_child(slot_row)
-		for slot_index in range(pending_player_count):
-			var slot_button: Button = Button.new()
-			slot_button.custom_minimum_size = Vector2(240, 52)
-			slot_button.pressed.connect(_set_character_select_active_slot.bind(slot_index))
-			slot_row.add_child(slot_button)
-			character_select_slot_buttons.append(slot_button)
-
-	var card_row: HBoxContainer = HBoxContainer.new()
-	card_row.custom_minimum_size = Vector2(1120, 452)
-	card_row.alignment = BoxContainer.ALIGNMENT_CENTER
-	card_row.add_theme_constant_override("separation", 18)
-	character_select_content.add_child(card_row)
-	for character_id in CHARACTER_ORDER:
-		var card_data := _build_character_card(str(character_id))
-		card_row.add_child(card_data["button"] as Button)
-		character_select_rows.append(card_data)
-
-	character_select_start_button = Button.new()
-	character_select_start_button.custom_minimum_size = Vector2(1120, 60)
-	character_select_start_button.pressed.connect(_confirm_character_select)
-	character_select_content.add_child(character_select_start_button)
-	_refresh_character_select_buttons()
-
-func _build_character_card(character_id: String) -> Dictionary:
-	var config: Dictionary = CHARACTER_CONFIGS.get(character_id, CHARACTER_CONFIGS["warrior"])
-	var button: Button = Button.new()
-	button.custom_minimum_size = Vector2(266, 452)
-	button.clip_contents = true
-	button.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
-	button.pressed.connect(_select_active_character.bind(character_id))
-
-	var art: TextureRect = TextureRect.new()
-	art.texture = load(str(CHARACTER_CARD_ART.get(character_id, ""))) as Texture2D
-	art.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	art.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
-	art.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	art.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	button.add_child(art)
-
-	var margin: MarginContainer = MarginContainer.new()
-	margin.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	margin.add_theme_constant_override("margin_left", 12)
-	margin.add_theme_constant_override("margin_top", 12)
-	margin.add_theme_constant_override("margin_right", 12)
-	margin.add_theme_constant_override("margin_bottom", 12)
-	margin.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	button.add_child(margin)
-
-	var content: VBoxContainer = VBoxContainer.new()
-	content.add_theme_constant_override("separation", 8)
-	content.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	margin.add_child(content)
-
-	var title_panel: PanelContainer = PanelContainer.new()
-	title_panel.custom_minimum_size = Vector2(242, 42)
-	title_panel.add_theme_stylebox_override("panel", _make_character_info_style(Color(0.03, 0.05, 0.07, 0.84)))
-	title_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	content.add_child(title_panel)
-
-	var title_label: Label = Label.new()
-	title_label.text = _get_character_name(character_id)
-	title_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	title_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	title_label.add_theme_font_size_override("font_size", 24)
-	title_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	title_panel.add_child(title_label)
-
-	var art_space: Control = Control.new()
-	art_space.custom_minimum_size = Vector2(0, 202)
-	art_space.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	content.add_child(art_space)
-
-	var stats_panel: PanelContainer = PanelContainer.new()
-	stats_panel.custom_minimum_size = Vector2(242, 88)
-	stats_panel.add_theme_stylebox_override("panel", _make_character_info_style(Color(0.03, 0.05, 0.07, 0.88)))
-	stats_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	content.add_child(stats_panel)
-
-	var stats_grid: GridContainer = GridContainer.new()
-	stats_grid.columns = 2
-	stats_grid.add_theme_constant_override("h_separation", 8)
-	stats_grid.add_theme_constant_override("v_separation", 4)
-	stats_grid.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	stats_panel.add_child(stats_grid)
-	stats_grid.add_child(_build_character_stat("health", "生命 %d" % roundi(float(config.get("max_health", 0.0)))))
-	stats_grid.add_child(_build_character_stat("attack", "攻击 %d" % roundi(float(config.get("attack_damage", 0.0)))))
-	stats_grid.add_child(_build_character_stat("speed", "移速 %d" % roundi(float(config.get("move_speed", 0.0)))))
-	stats_grid.add_child(_build_character_stat("cooldown", "间隔 %.2f秒" % float(config.get("attack_cooldown", 0.0))))
-
-	var skills: HBoxContainer = HBoxContainer.new()
-	skills.custom_minimum_size = Vector2(242, 58)
-	skills.alignment = BoxContainer.ALIGNMENT_CENTER
-	skills.add_theme_constant_override("separation", 6)
-	skills.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	content.add_child(skills)
-	for skill_key in ["Q", "E", "F"]:
-		skills.add_child(_build_character_skill_key(character_id, skill_key, CHARACTER_CARD_ACCENTS.get(character_id, Color.WHITE)))
-
+func _get_character_select_ui_context() -> Dictionary:
 	return {
-		"character_id": character_id,
-		"button": button,
-		"title_label": title_label,
+		"player_count": pending_player_count,
+		"is_network": _is_network_game(),
+		"local_peer_index": local_peer_player_index,
+		"network_status": network_status_text,
+		"network_mode": network_mode,
+		"peer_joined": network_peer_joined,
+		"active_slot": character_select_active_slot,
+		"selected_ids": selected_character_ids.duplicate(),
+		"character_order": CHARACTER_ORDER,
+		"character_configs": CHARACTER_CONFIGS,
+		"card_art": CHARACTER_CARD_ART,
+		"card_accents": CHARACTER_CARD_ACCENTS,
+		"skill_icons": CHARACTER_SKILL_ICONS,
+		"stat_icons": CHARACTER_STAT_ICONS,
 	}
-
-func _build_character_stat(icon_key: String, text: String) -> HBoxContainer:
-	var row: HBoxContainer = HBoxContainer.new()
-	row.custom_minimum_size = Vector2(113, 32)
-	row.add_theme_constant_override("separation", 6)
-	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	var icon: TextureRect = TextureRect.new()
-	icon.texture = load(str(CHARACTER_STAT_ICONS.get(icon_key, ""))) as Texture2D
-	icon.custom_minimum_size = Vector2(28, 28)
-	icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	row.add_child(icon)
-	var label: Label = Label.new()
-	label.text = text
-	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	label.add_theme_font_size_override("font_size", 15)
-	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	row.add_child(label)
-	return row
-
-func _build_character_skill_key(character_id: String, skill_key: String, accent: Color) -> PanelContainer:
-	var panel: PanelContainer = PanelContainer.new()
-	panel.custom_minimum_size = Vector2(76, 58)
-	panel.clip_contents = true
-	var style := VerdantUIThemeScript.make_skill_slot_style(Color(0.82, 0.86, 0.78, 1.0).lerp(accent, 0.18))
-	style.content_margin_left = 7
-	style.content_margin_top = 7
-	style.content_margin_right = 7
-	style.content_margin_bottom = 7
-	panel.add_theme_stylebox_override("panel", style)
-	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	var icon: TextureRect = TextureRect.new()
-	var character_icons: Dictionary = CHARACTER_SKILL_ICONS.get(character_id, {})
-	icon.texture = load(str(character_icons.get(skill_key, ""))) as Texture2D
-	icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
-	icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	panel.add_child(icon)
-	var label: Label = Label.new()
-	label.text = skill_key
-	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
-	label.vertical_alignment = VERTICAL_ALIGNMENT_TOP
-	label.add_theme_font_size_override("font_size", 15)
-	label.add_theme_color_override("font_color", Color.WHITE)
-	label.add_theme_color_override("font_outline_color", Color(0.02, 0.02, 0.03, 0.95))
-	label.add_theme_constant_override("outline_size", 4)
-	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	panel.add_child(label)
-	return panel
-
-func _make_character_info_style(color: Color) -> StyleBoxFlat:
-	var style: StyleBoxFlat = StyleBoxFlat.new()
-	style.bg_color = color
-	style.set_corner_radius_all(4)
-	style.content_margin_left = 8
-	style.content_margin_top = 5
-	style.content_margin_right = 8
-	style.content_margin_bottom = 5
-	return style
 
 func _set_character_select_active_slot(slot_index: int) -> void:
 	if slot_index < 0 or slot_index >= pending_player_count:
@@ -931,57 +641,9 @@ func _select_character(slot_index: int, character_id: String) -> void:
 	_refresh_character_select_buttons()
 
 func _refresh_character_select_buttons() -> void:
-	for slot_index in range(character_select_slot_buttons.size()):
-		var slot_button: Button = character_select_slot_buttons[slot_index] as Button
-		var active := slot_index == character_select_active_slot
-		slot_button.text = "%sP%d  %s" % ["> " if active else "", slot_index + 1, _get_character_name(_get_selected_character_id(slot_index))]
-		slot_button.disabled = _is_network_game() and slot_index != local_peer_player_index - 1
-		_style_character_slot_button(slot_button, active)
-	var active_character_id := _get_selected_character_id(character_select_active_slot)
-	for card_data in character_select_rows:
-		var character_id: String = str(card_data.get("character_id", "warrior"))
-		var button: Button = card_data.get("button") as Button
-		var title_label: Label = card_data.get("title_label") as Label
-		var selected := character_id == active_character_id
-		if title_label != null:
-			title_label.text = ("> " if selected else "") + _get_character_name(character_id)
-		_style_character_card_button(button, selected, CHARACTER_CARD_ACCENTS.get(character_id, Color.WHITE))
-	if character_select_start_button != null:
-		if network_mode == "host":
-			character_select_start_button.text = "开始联机" if network_peer_joined else "等待朋友加入"
-			character_select_start_button.disabled = not network_peer_joined
-		elif network_mode == "client":
-			character_select_start_button.text = "等待房主开始"
-			character_select_start_button.disabled = true
-		else:
-			character_select_start_button.text = "开始"
-			character_select_start_button.disabled = false
-
-func _style_character_card_button(button: Button, selected: bool, accent: Color) -> void:
-	if button == null:
+	if character_select_ui == null:
 		return
-	var normal := VerdantUIThemeScript.make_panel_style(Color.WHITE if selected else Color(0.70, 0.72, 0.68, 1.0))
-	var hover := VerdantUIThemeScript.make_panel_style(Color(0.90, 0.96, 0.90, 1.0).lerp(accent, 0.10))
-	var pressed := VerdantUIThemeScript.make_panel_style(Color(0.72, 0.78, 0.70, 1.0).lerp(accent, 0.08))
-	for style in [normal, hover, pressed]:
-		style.content_margin_left = 6
-		style.content_margin_top = 6
-		style.content_margin_right = 6
-		style.content_margin_bottom = 6
-	button.add_theme_stylebox_override("normal", normal)
-	button.add_theme_stylebox_override("hover", hover)
-	button.add_theme_stylebox_override("pressed", pressed)
-	button.add_theme_stylebox_override("focus", hover)
-	button.modulate = Color.WHITE if selected else Color(0.88, 0.90, 0.86, 1.0)
-
-func _style_character_slot_button(button: Button, active: bool) -> void:
-	var style := VerdantUIThemeScript.make_button_style(
-		VerdantUIThemeScript.BUTTON_HOVER_TEXTURE if active else VerdantUIThemeScript.BUTTON_NORMAL_TEXTURE
-	)
-	button.add_theme_stylebox_override("normal", style)
-	button.add_theme_stylebox_override("hover", VerdantUIThemeScript.make_button_style(VerdantUIThemeScript.BUTTON_HOVER_TEXTURE))
-	button.add_theme_stylebox_override("pressed", VerdantUIThemeScript.make_button_style(VerdantUIThemeScript.BUTTON_PRESSED_TEXTURE))
-	button.add_theme_stylebox_override("disabled", VerdantUIThemeScript.make_button_style(VerdantUIThemeScript.BUTTON_DISABLED_TEXTURE))
+	character_select_ui.refresh(_get_character_select_ui_context())
 
 func _confirm_character_select() -> void:
 	if network_mode == "client":
@@ -1001,6 +663,8 @@ func _confirm_character_select() -> void:
 	_start_game(pending_player_count)
 
 func _start_game(player_count: int) -> void:
+	if result_ui != null:
+		result_ui.hide_result()
 	if _uses_external_player_input():
 		seed(NETWORK_SYNC_SEED)
 	local_player_count = player_count
@@ -1254,9 +918,13 @@ func _start_next_wave() -> void:
 	_clear_upgrade_panel()
 	_clear_projectiles()
 	upgrade_panel.visible = false
+	if combat_hud_ui != null:
+		combat_hud_ui.set_combat_visible(true)
+	if return_to_menu_button != null:
+		return_to_menu_button.visible = true
 	start_next_wave_button.visible = false
 	start_next_wave_button.disabled = true
-	result_panel.visible = false
+	result_ui.hide_result()
 	waiting_for_next_wave_input = false
 	_reset_upgrade_slots()
 
@@ -1919,10 +1587,14 @@ func _prepare_upgrade_select() -> void:
 		slot["selected"] = false
 		slot["selection_pending"] = false
 	_clear_upgrade_panel()
+	if combat_hud_ui != null:
+		combat_hud_ui.set_combat_visible(false)
+	if return_to_menu_button != null:
+		return_to_menu_button.visible = false
 	start_next_wave_button.visible = false
 	start_next_wave_button.disabled = true
 	waiting_for_next_wave_input = false
-	result_panel.visible = false
+	result_ui.hide_result()
 
 @rpc("authority", "reliable")
 func _network_begin_upgrade_select(upgrade_sets: Array) -> void:
@@ -1954,34 +1626,18 @@ func _heal_surviving_players_after_wave() -> void:
 			existing_player.heal(WAVE_CLEAR_HEAL_AMOUNT)
 
 func _build_single_player_upgrade_panel(player_index: int = 1) -> void:
-	var panel_width: float = 1120.0
-	var panel_height: float = 600.0
-	_configure_upgrade_panel(panel_width, panel_height)
 	var slot: Dictionary = _get_local_player_slot(player_index)
 	var target_player: PlayerController = slot.get("player") as PlayerController
-	upgrade_content.add_child(_build_title_plate(
+	upgrade_ui_player_index = player_index
+	upgrade_ui.show_options(
 		"%s · 选择升级" % _get_character_name(target_player.character_id if target_player != null else "warrior"),
-		Vector2(panel_width - 48.0, 62.0),
-		28
-	))
-	upgrade_content.add_child(_build_ui_separator(Vector2(panel_width - 48.0, 18.0)))
+		slot.get("upgrades", []),
+		target_player,
+		_get_viewport_size()
+	)
 
-	var cards: HBoxContainer = HBoxContainer.new()
-	cards.custom_minimum_size = Vector2(panel_width - 48.0, 470)
-	cards.alignment = BoxContainer.ALIGNMENT_CENTER
-	cards.add_theme_constant_override("separation", 20)
-	upgrade_content.add_child(cards)
-
-	var upgrades: Array = slot.get("upgrades", [])
-	for upgrade_value in upgrades:
-		var upgrade: Dictionary = upgrade_value as Dictionary
-		var button := _build_upgrade_card(upgrade, target_player, Vector2(340, 470))
-		button.pressed.connect(_select_upgrade.bind(player_index, upgrade))
-		cards.add_child(button)
-
-func _configure_upgrade_panel(width: float, height: float) -> void:
-	upgrade_panel.custom_minimum_size = Vector2(width, height)
-	upgrade_panel.position = (_get_viewport_size() - upgrade_panel.custom_minimum_size) * 0.5
+func _on_upgrade_ui_selected(upgrade: Dictionary) -> void:
+	_select_upgrade(upgrade_ui_player_index, upgrade)
 
 func _revive_dead_players_for_next_wave() -> void:
 	var revive_position: Vector2 = _get_alive_players_center()
@@ -1990,173 +1646,6 @@ func _revive_dead_players_for_next_wave() -> void:
 			existing_player.global_position = revive_position + Vector2(randf_range(-42.0, 42.0), randf_range(-28.0, 28.0))
 			existing_player.global_position = existing_player.global_position.clamp(ARENA_BOUNDS.position, ARENA_BOUNDS.end)
 			existing_player.revive(GameRulesScript.REVIVE_HEALTH_RATIO)
-
-func _build_upgrade_card(upgrade: Dictionary, target_player: PlayerController, card_size: Vector2) -> Button:
-	var rarity: String = str(upgrade.get("rarity", "Common"))
-	var accent := _get_upgrade_rarity_color(rarity)
-	var button: Button = Button.new()
-	button.custom_minimum_size = card_size
-	button.clip_contents = true
-	button.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
-	button.tooltip_text = "%s\n%s\n当前：%s" % [
-		str(upgrade.get("title", "升级")),
-		str(upgrade.get("description", "")),
-		_format_upgrade_current(upgrade, target_player),
-	]
-	_style_upgrade_card_button(button, accent)
-
-	var background: TextureRect = TextureRect.new()
-	background.texture = load(str(UPGRADE_CARD_ART.get(rarity, UPGRADE_CARD_ART["Common"]))) as Texture2D
-	background.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	background.stretch_mode = TextureRect.STRETCH_SCALE
-	background.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	background.offset_left = 3
-	background.offset_top = 3
-	background.offset_right = -3
-	background.offset_bottom = -3
-	background.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	button.add_child(background)
-
-	var margin: MarginContainer = MarginContainer.new()
-	margin.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	margin.add_theme_constant_override("margin_left", 28)
-	margin.add_theme_constant_override("margin_top", 24)
-	margin.add_theme_constant_override("margin_right", 28)
-	margin.add_theme_constant_override("margin_bottom", 24)
-	margin.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	button.add_child(margin)
-
-	var content: VBoxContainer = VBoxContainer.new()
-	content.add_theme_constant_override("separation", 9)
-	content.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	margin.add_child(content)
-
-	var rarity_label: Label = Label.new()
-	rarity_label.text = _format_rarity(rarity)
-	rarity_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	rarity_label.add_theme_font_size_override("font_size", 16)
-	rarity_label.add_theme_color_override("font_color", accent)
-	rarity_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	content.add_child(rarity_label)
-
-	var badge_center: CenterContainer = CenterContainer.new()
-	badge_center.custom_minimum_size = Vector2(0, 112)
-	badge_center.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	badge_center.add_child(_build_upgrade_card_badge(upgrade, accent))
-	content.add_child(badge_center)
-
-	var title: Label = Label.new()
-	title.text = str(upgrade.get("title", "升级"))
-	title.custom_minimum_size = Vector2(0, 54)
-	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	title.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	title.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	title.add_theme_font_size_override("font_size", 21)
-	title.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	content.add_child(title)
-
-	var separator: HSeparator = HSeparator.new()
-	separator.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	content.add_child(separator)
-
-	var description: Label = Label.new()
-	description.text = str(upgrade.get("description", ""))
-	description.custom_minimum_size = Vector2(0, 76)
-	description.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	description.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	description.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	description.add_theme_font_size_override("font_size", 16)
-	description.add_theme_color_override("font_color", Color(0.88, 0.90, 0.92, 1.0))
-	description.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	content.add_child(description)
-
-	var spacer: Control = Control.new()
-	spacer.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	spacer.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	content.add_child(spacer)
-
-	var current: Label = Label.new()
-	current.text = "当前：%s" % _format_upgrade_current(upgrade, target_player)
-	current.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	current.add_theme_font_size_override("font_size", 15)
-	current.add_theme_color_override("font_color", Color(0.70, 0.84, 0.78, 1.0))
-	current.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	content.add_child(current)
-	return button
-
-func _build_upgrade_card_badge(upgrade: Dictionary, accent: Color) -> Control:
-	var size := Vector2(104, 104)
-	var skill_slot: String = str(upgrade.get("skill_slot", ""))
-	if not skill_slot.is_empty():
-		var panel: PanelContainer = PanelContainer.new()
-		panel.custom_minimum_size = size
-		var style := VerdantUIThemeScript.make_skill_slot_style(Color(0.86, 0.90, 0.82, 1.0).lerp(accent, 0.12))
-		style.content_margin_left = 10
-		style.content_margin_top = 10
-		style.content_margin_right = 10
-		style.content_margin_bottom = 10
-		panel.add_theme_stylebox_override("panel", style)
-		panel.clip_contents = true
-		panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		var icon: TextureRect = TextureRect.new()
-		icon.texture = load(get_character_skill_icon_path(str(upgrade.get("character_id", "")), skill_slot)) as Texture2D
-		icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-		icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
-		icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		panel.add_child(icon)
-		var label: Label = Label.new()
-		label.text = skill_slot.to_upper()
-		label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
-		label.vertical_alignment = VERTICAL_ALIGNMENT_TOP
-		label.add_theme_font_size_override("font_size", 22)
-		label.add_theme_color_override("font_color", Color.WHITE)
-		label.add_theme_color_override("font_outline_color", Color(0.015, 0.02, 0.035, 0.98))
-		label.add_theme_constant_override("outline_size", 5)
-		label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		panel.add_child(label)
-		return panel
-	var icon: TextureRect = TextureRect.new()
-	icon.texture = load(_get_upgrade_stat_icon_path(str(upgrade.get("stat", "")))) as Texture2D
-	icon.custom_minimum_size = size
-	icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	return icon
-
-func _get_upgrade_stat_icon_path(stat: String) -> String:
-	if stat in ["max_health", "heal_percent", "lifesteal"]:
-		return str(CHARACTER_STAT_ICONS["health"])
-	if stat in ["move_speed", "dash_cooldown", "dash_charges"]:
-		return str(CHARACTER_STAT_ICONS["speed"])
-	if stat.ends_with("cooldown") or stat.ends_with("duration"):
-		return str(CHARACTER_STAT_ICONS["cooldown"])
-	return str(CHARACTER_STAT_ICONS["attack"])
-
-func _get_upgrade_rarity_color(rarity: String) -> Color:
-	match rarity:
-		"Rare":
-			return Color(0.32, 0.88, 1.0, 1.0)
-		"Epic":
-			return Color(1.0, 0.34, 0.28, 1.0)
-		_:
-			return Color(0.88, 0.90, 0.92, 1.0)
-
-func _style_upgrade_card_button(button: Button, accent: Color) -> void:
-	var normal: StyleBoxFlat = StyleBoxFlat.new()
-	normal.bg_color = Color(0, 0, 0, 0)
-	normal.border_color = Color(0, 0, 0, 0)
-	normal.set_border_width_all(2)
-	normal.set_corner_radius_all(6)
-	var hover: StyleBoxFlat = normal.duplicate()
-	hover.bg_color = Color(accent.r, accent.g, accent.b, 0.05)
-	hover.border_color = accent
-	hover.set_border_width_all(4)
-	var pressed: StyleBoxFlat = hover.duplicate()
-	pressed.bg_color = Color(accent.r, accent.g, accent.b, 0.10)
-	button.add_theme_stylebox_override("normal", normal)
-	button.add_theme_stylebox_override("hover", hover)
-	button.add_theme_stylebox_override("pressed", pressed)
-	button.add_theme_stylebox_override("focus", hover)
 
 func _select_upgrade(player_index: int, upgrade: Dictionary) -> void:
 	if game_state != GameStateScript.UPGRADE_SELECT:
@@ -2270,10 +1759,7 @@ func _enter_victory() -> void:
 	wave_time_left = 0.0
 	_clear_remaining_enemies()
 	_clear_effects()
-	_position_result_panel()
-	result_label.text = _format_result_text("胜利")
-	result_panel.visible = true
-	restart_button.visible = true
+	result_ui.show_result(_format_result_text("胜利"), _get_viewport_size())
 	_update_status()
 
 func _enter_defeat(reason: String = "失败") -> void:
@@ -2283,16 +1769,12 @@ func _enter_defeat(reason: String = "失败") -> void:
 	wave_time_left = 0.0
 	_clear_remaining_enemies()
 	_clear_effects()
-	_position_result_panel()
-	result_label.text = _format_result_text(reason)
-	result_panel.visible = true
-	restart_button.visible = true
+	result_ui.show_result(_format_result_text(reason), _get_viewport_size())
 	_update_status()
 
 func _on_restart_pressed() -> void:
 	_clear_run_state()
-	result_panel.visible = false
-	restart_button.visible = false
+	result_ui.hide_result()
 	_show_main_menu()
 
 func _on_return_to_menu_pressed() -> void:
@@ -2303,17 +1785,12 @@ func _on_return_to_menu_pressed() -> void:
 	local_peer_player_index = 1
 	_set_network_status("")
 	_clear_run_state()
-	result_panel.visible = false
-	restart_button.visible = false
+	result_ui.hide_result()
 	_show_main_menu()
 
 func _position_result_panel() -> void:
-	var viewport_size: Vector2 = _get_viewport_size()
-	result_panel.position = (viewport_size - result_panel.custom_minimum_size) * 0.5 + Vector2(0.0, -36.0)
-	restart_button.position = Vector2(
-		(viewport_size.x - 184.0) * 0.5,
-		viewport_size.y * 0.5 + 150.0
-	)
+	if result_ui != null:
+		result_ui.layout(_get_viewport_size())
 
 func _format_result_text(title: String) -> String:
 	return "%s\n用时：%.1f 秒\n击杀：%d\n造成伤害：%d\n受到伤害：%d" % [
@@ -2394,8 +1871,8 @@ func _clear_persistent_skill_areas() -> void:
 	combat_manager.clear_persistent_skill_areas()
 
 func _clear_upgrade_panel() -> void:
-	for child in upgrade_content.get_children():
-		child.queue_free()
+	if upgrade_ui != null:
+		upgrade_ui.clear_options()
 
 func _update_player_health_labels() -> void:
 	player_roster.update_all_huds()
@@ -2420,15 +1897,6 @@ func _update_status() -> void:
 		]
 	enemies_label.text = "剩余敌人：%d" % enemies.size()
 	_update_player_health_labels()
-
-func _format_upgrade_button(upgrade: Dictionary, target_player: PlayerController = null) -> String:
-	var stat: String = str(upgrade.get("stat", ""))
-	var current_value: String = _format_upgrade_current(upgrade, target_player)
-	return "%s\n%s\n当前：%s" % [
-		upgrade["title"],
-		upgrade["description"],
-		current_value,
-	]
 
 func _format_upgrade_current(upgrade: Dictionary, target_player: PlayerController = null) -> String:
 	if str(upgrade.get("stat", "")) == "behavior_upgrade":
@@ -2503,14 +1971,3 @@ func _format_game_state(state: String) -> String:
 			return "大厅"
 		_:
 			return state
-
-func _format_rarity(rarity: String) -> String:
-	match rarity:
-		"Common":
-			return "普通"
-		"Rare":
-			return "稀有"
-		"Epic":
-			return "史诗"
-		_:
-			return rarity

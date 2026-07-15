@@ -52,19 +52,19 @@ func reset_upgrade_slots() -> void:
 		slot["selected"] = false
 		slot["selection_pending"] = false
 
-func create_hud(parent: PanelContainer, skill_labels: Array[String]) -> void:
-	parent.add_theme_stylebox_override("panel", VerdantUIThemeScript.make_panel_style(Color(1.0, 1.0, 1.0, 0.96)))
+func create_hud(parent: PanelContainer, skill_labels: Array[String], hud_width: float = 440.0) -> void:
+	parent.add_theme_stylebox_override("panel", VerdantUIThemeScript.make_compact_panel_style(Color(1.0, 1.0, 1.0, 0.96)))
 	var margin := MarginContainer.new()
 	for side in ["margin_left", "margin_top", "margin_right", "margin_bottom"]:
-		margin.add_theme_constant_override(side, 14)
+		margin.add_theme_constant_override(side, 8)
 	parent.add_child(margin)
 
 	var content := VBoxContainer.new()
-	content.add_theme_constant_override("separation", 7)
+	content.add_theme_constant_override("separation", 5)
 	margin.add_child(content)
 
 	var health_layer := Control.new()
-	health_layer.custom_minimum_size = Vector2(game.PLAYER_HUD_WIDTH - 40.0, 30.0)
+	health_layer.custom_minimum_size = Vector2(hud_width - 80.0, 24.0)
 	content.add_child(health_layer)
 	var health_bar := ProgressBar.new()
 	health_bar.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -75,7 +75,7 @@ func create_hud(parent: PanelContainer, skill_labels: Array[String]) -> void:
 	health_label.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	health_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	health_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	health_label.add_theme_font_size_override("font_size", 20)
+	health_label.add_theme_font_size_override("font_size", 16)
 	health_label.add_theme_color_override("font_color", Color(0.025, 0.045, 0.075, 1.0))
 	health_label.add_theme_color_override("font_shadow_color", Color(0.8, 1.0, 0.35, 0.42))
 	health_label.add_theme_constant_override("shadow_offset_x", 1)
@@ -83,7 +83,7 @@ func create_hud(parent: PanelContainer, skill_labels: Array[String]) -> void:
 	health_layer.add_child(health_label)
 
 	var actions := HBoxContainer.new()
-	actions.add_theme_constant_override("separation", 6)
+	actions.add_theme_constant_override("separation", 4)
 	content.add_child(actions)
 	var action_names: Array[String] = ["普攻", "闪避", "右键", skill_labels[1], skill_labels[2], skill_labels[3]]
 	var action_panels: Array[PanelContainer] = []
@@ -98,14 +98,14 @@ func create_hud(parent: PanelContainer, skill_labels: Array[String]) -> void:
 	for action_index in range(action_names.size()):
 		var action_name: String = action_names[action_index]
 		var panel := PanelContainer.new()
-		panel.custom_minimum_size = Vector2(82.0, 62.0)
+		panel.custom_minimum_size = Vector2(58.0, 54.0)
 		panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		panel.add_theme_stylebox_override("panel", ready_style)
 		panel.tooltip_text = action_name
 		panel.clip_contents = true
 		actions.add_child(panel)
 		var action_content := Control.new()
-		action_content.custom_minimum_size = Vector2(0.0, 50.0)
+		action_content.custom_minimum_size = Vector2(0.0, 38.0)
 		panel.add_child(action_content)
 		var icon := TextureRect.new()
 		icon.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -131,20 +131,20 @@ func create_hud(parent: PanelContainer, skill_labels: Array[String]) -> void:
 		name_label.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 		name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		name_label.vertical_alignment = VERTICAL_ALIGNMENT_TOP
-		name_label.add_theme_font_size_override("font_size", 17 if action_index >= 3 else 15)
+		name_label.add_theme_font_size_override("font_size", 14 if action_index >= 3 else 12)
 		name_label.add_theme_color_override("font_color", Color(0.96, 0.97, 1.0, 1.0))
 		name_label.add_theme_color_override("font_outline_color", Color(0.015, 0.02, 0.035, 0.98))
-		name_label.add_theme_constant_override("outline_size", 4 if action_index >= 3 else 2)
+		name_label.add_theme_constant_override("outline_size", 3 if action_index >= 3 else 2)
 		name_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		action_content.add_child(name_label)
 		var status_label := Label.new()
 		status_label.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 		status_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		status_label.vertical_alignment = VERTICAL_ALIGNMENT_BOTTOM
-		status_label.add_theme_font_size_override("font_size", 14)
+		status_label.add_theme_font_size_override("font_size", 11)
 		status_label.add_theme_color_override("font_color", Color(0.55, 1.0, 0.08, 1.0))
 		status_label.add_theme_color_override("font_outline_color", Color(0.015, 0.02, 0.035, 0.98))
-		status_label.add_theme_constant_override("outline_size", 4 if action_index >= 3 else 2)
+		status_label.add_theme_constant_override("outline_size", 3 if action_index >= 3 else 2)
 		status_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		action_content.add_child(status_label)
 		action_panels.append(panel)
@@ -156,6 +156,7 @@ func create_hud(parent: PanelContainer, skill_labels: Array[String]) -> void:
 		"skill_labels": skill_labels,
 		"health_label": health_label,
 		"health_bar": health_bar,
+		"health_layer": health_layer,
 		"action_panels": action_panels,
 		"action_name_labels": action_name_labels,
 		"action_status_labels": action_status_labels,

@@ -65,7 +65,7 @@ func _check_complete_single_player_run() -> void:
 	game.player_roster.update_hud(0)
 	_expect(is_equal_approx((cooldown_overlays[0] as ColorRect).anchor_bottom, 0.5), "Q cooldown overlay did not rise with remaining time")
 	player._skill_timer = 0.0
-	var skill_badge: Control = game._build_upgrade_card_badge(UpgradeCatalogScript.BEHAVIOR_POOL[0], Color.WHITE)
+	var skill_badge: Control = game.upgrade_ui.build_badge_preview(UpgradeCatalogScript.BEHAVIOR_POOL[0], Color.WHITE)
 	_expect(skill_badge.get_child_count() >= 1 and (skill_badge.get_child(0) as TextureRect).texture != null, "skill upgrade card did not load its profession icon")
 	skill_badge.queue_free()
 	_check_combat_manager_connections()

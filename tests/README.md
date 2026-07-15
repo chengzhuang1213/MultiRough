@@ -13,6 +13,19 @@ fragments. It also writes `tests/character_sprite_report.json` for inspection.
 Run the non-visual logic checks from the project root:
 
 ```powershell
+godot --headless --path . --script res://tests/ui_theme_checks.gd
+```
+
+The UI checks load the real main scene and verify Verdant theme resources,
+framed-text safety, main-menu controls, single-player and network character-card
+containment, active and legacy portrait paths, mipmapped portrait filtering,
+class-specific Q/E/F icons, the selected badge, upgrade layout, result controls,
+and the compact combat HUD dimensions. These checks validate code and layout
+constraints; they do not replace in-game visual review.
+
+Run the non-visual gameplay logic checks from the project root:
+
+```powershell
 godot --headless --path . --script res://tests/logic_checks.gd
 ```
 

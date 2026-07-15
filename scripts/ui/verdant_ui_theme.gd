@@ -76,6 +76,9 @@ static func build_theme() -> Theme:
 static func make_panel_style(tint: Color = Color.WHITE) -> StyleBoxTexture:
 	return _make_texture_style(PANEL_TEXTURE, Vector4(84, 84, 84, 84), Vector4(34, 30, 34, 30), tint)
 
+static func make_compact_panel_style(tint: Color = Color.WHITE) -> StyleBoxTexture:
+	return _make_texture_style(PANEL_TEXTURE, Vector4(42, 42, 42, 42), Vector4(16, 14, 16, 14), tint)
+
 static func make_tooltip_style() -> StyleBoxTexture:
 	return _make_texture_style(TOOLTIP_TEXTURE, Vector4(36, 28, 36, 28), Vector4(24, 16, 24, 16))
 
