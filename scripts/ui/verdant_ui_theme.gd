@@ -45,7 +45,7 @@ static func build_theme() -> Theme:
 	theme.set_constant("outline_size", "Button", 2)
 	theme.set_font_size("font_size", "Button", 19)
 
-	var input_style := _make_texture_style(INPUT_TEXTURE, Vector4(72, 40, 72, 40), Vector4(36, 18, 36, 18))
+	var input_style := _make_texture_style(INPUT_TEXTURE, Vector4(52, 16, 52, 16), Vector4(28, 9, 28, 9))
 	theme.set_stylebox("normal", "LineEdit", input_style)
 	theme.set_stylebox("focus", "LineEdit", input_style.duplicate())
 	theme.set_stylebox("read_only", "LineEdit", input_style.duplicate())
@@ -77,22 +77,22 @@ static func make_panel_style(tint: Color = Color.WHITE) -> StyleBoxTexture:
 	return _make_texture_style(PANEL_TEXTURE, Vector4(84, 84, 84, 84), Vector4(34, 30, 34, 30), tint)
 
 static func make_tooltip_style() -> StyleBoxTexture:
-	return _make_texture_style(TOOLTIP_TEXTURE, Vector4(72, 72, 72, 72), Vector4(24, 20, 24, 20))
+	return _make_texture_style(TOOLTIP_TEXTURE, Vector4(36, 28, 36, 28), Vector4(24, 16, 24, 16))
 
 static func make_title_style() -> StyleBoxTexture:
-	return _make_texture_style(TITLE_TEXTURE, Vector4(112, 72, 112, 72), Vector4(70, 20, 70, 20))
+	return _make_texture_style(TITLE_TEXTURE, Vector4(64, 20, 64, 20), Vector4(44, 10, 44, 10))
 
 static func make_button_style(texture: Texture2D) -> StyleBoxTexture:
-	return _make_texture_style(texture, Vector4(88, 48, 88, 48), Vector4(34, 15, 34, 15))
+	return _make_texture_style(texture, Vector4(24, 18, 24, 18), Vector4(18, 10, 18, 10))
 
 static func make_hud_bar_style() -> StyleBoxTexture:
-	return _make_texture_style(HUD_BAR_TEXTURE, Vector4(64, 28, 64, 28), Vector4(18, 10, 18, 10))
+	return _make_texture_style(HUD_BAR_TEXTURE, Vector4(44, 10, 44, 10), Vector4(14, 5, 14, 5))
 
 static func make_skill_slot_style(tint: Color = Color.WHITE) -> StyleBoxTexture:
-	return _make_texture_style(SKILL_SLOT_TEXTURE, Vector4(54, 54, 54, 54), Vector4(10, 9, 10, 9), tint)
+	return _make_texture_style(SKILL_SLOT_TEXTURE, Vector4(20, 20, 20, 20), Vector4(8, 8, 8, 8), tint)
 
 static func make_separator_style() -> StyleBoxTexture:
-	return _make_texture_style(SEPARATOR_TEXTURE, Vector4(72, 20, 72, 20), Vector4(0, 8, 0, 8))
+	return _make_texture_style(SEPARATOR_TEXTURE, Vector4(60, 7, 60, 7), Vector4(0, 2, 0, 2))
 
 static func _make_texture_style(texture: Texture2D, texture_margins: Vector4, content_margins: Vector4, tint: Color = Color.WHITE) -> StyleBoxTexture:
 	var style := StyleBoxTexture.new()

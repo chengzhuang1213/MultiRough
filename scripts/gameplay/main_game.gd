@@ -15,7 +15,7 @@ const VIEWPORT_SIZE := Vector2(1280, 720)
 const UPGRADE_PANEL_WIDTH := 980.0
 const UPGRADE_PANEL_HEIGHT := 460.0
 const NEXT_WAVE_BUTTON_WIDTH := 220.0
-const NEXT_WAVE_BUTTON_HEIGHT := 44.0
+const NEXT_WAVE_BUTTON_HEIGHT := 56.0
 const PLAYER_HUD_WIDTH := 560.0
 const PLAYER_HUD_OCCLUDED_ALPHA := 0.20
 const PLAYER_HUD_FADE_OUT_TIME := 0.12
@@ -358,18 +358,18 @@ func _build_ui() -> void:
 	network_ip_edit = LineEdit.new()
 	network_ip_edit.placeholder_text = "房主 IP，如 192.168.1.78"
 	network_ip_edit.text = ""
-	network_ip_edit.custom_minimum_size = Vector2(184, 42)
+	network_ip_edit.custom_minimum_size = Vector2(184, 52)
 	network_row.add_child(network_ip_edit)
 
 	var host_button: Button = Button.new()
 	host_button.text = "创建联机"
-	host_button.custom_minimum_size = Vector2(82, 42)
+	host_button.custom_minimum_size = Vector2(82, 52)
 	host_button.pressed.connect(_start_network_host)
 	network_row.add_child(host_button)
 
 	var join_button: Button = Button.new()
 	join_button.text = "加入"
-	join_button.custom_minimum_size = Vector2(82, 42)
+	join_button.custom_minimum_size = Vector2(82, 52)
 	join_button.pressed.connect(_start_network_client)
 	network_row.add_child(join_button)
 
@@ -383,7 +383,7 @@ func _build_ui() -> void:
 	character_select_panel.custom_minimum_size = Vector2(1180, 700)
 	character_select_panel.visible = false
 	ui_root.add_child(character_select_panel)
-	character_select_content = _attach_panel_content(character_select_panel, 24, 18, 24, 18)
+	character_select_content = _attach_panel_content(character_select_panel, 24, 14, 24, 14)
 	character_select_content.add_theme_constant_override("separation", 10)
 
 	upgrade_panel = PanelContainer.new()
@@ -421,14 +421,14 @@ func _build_ui() -> void:
 	restart_button = Button.new()
 	restart_button.text = "重新开始"
 	restart_button.position = Vector2(548, 510)
-	restart_button.custom_minimum_size = Vector2(184, 48)
+	restart_button.custom_minimum_size = Vector2(184, 56)
 	restart_button.visible = false
 	restart_button.pressed.connect(_on_restart_pressed)
 	ui_root.add_child(restart_button)
 
 	return_to_menu_button = Button.new()
 	return_to_menu_button.text = "返回主菜单"
-	return_to_menu_button.custom_minimum_size = Vector2(132, 40)
+	return_to_menu_button.custom_minimum_size = Vector2(160, 52)
 	return_to_menu_button.visible = false
 	return_to_menu_button.pressed.connect(_on_return_to_menu_pressed)
 	ui_root.add_child(return_to_menu_button)
@@ -739,13 +739,13 @@ func _rebuild_character_select_panel() -> void:
 
 	if pending_player_count > 1:
 		var slot_row: HBoxContainer = HBoxContainer.new()
-		slot_row.custom_minimum_size = Vector2(1120, 42)
+		slot_row.custom_minimum_size = Vector2(1120, 52)
 		slot_row.alignment = BoxContainer.ALIGNMENT_CENTER
 		slot_row.add_theme_constant_override("separation", 12)
 		character_select_content.add_child(slot_row)
 		for slot_index in range(pending_player_count):
 			var slot_button: Button = Button.new()
-			slot_button.custom_minimum_size = Vector2(240, 40)
+			slot_button.custom_minimum_size = Vector2(240, 52)
 			slot_button.pressed.connect(_set_character_select_active_slot.bind(slot_index))
 			slot_row.add_child(slot_button)
 			character_select_slot_buttons.append(slot_button)
@@ -761,7 +761,7 @@ func _rebuild_character_select_panel() -> void:
 		character_select_rows.append(card_data)
 
 	character_select_start_button = Button.new()
-	character_select_start_button.custom_minimum_size = Vector2(1120, 50)
+	character_select_start_button.custom_minimum_size = Vector2(1120, 60)
 	character_select_start_button.pressed.connect(_confirm_character_select)
 	character_select_content.add_child(character_select_start_button)
 	_refresh_character_select_buttons()

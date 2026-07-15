@@ -187,7 +187,7 @@ Death > Hit > Cast/Attack > Dash/Defend > Run > Idle
 - 当前统一主题为 `assets/ui/theme/verdant_pixel/`，九宫格边距记录在 `theme_manifest.json`。
 - `scripts/ui/verdant_ui_theme.gd` 统一管理面板、Tooltip、标题牌、按钮四态、输入框、HUD 条框、技能槽和分隔线。
 - 主菜单、选人、升级、结算与玩家 HUD 必须从统一主题继承；职业卡面和升级稀有度卡面继续保留各自专属美术。
-- UI 资源或主题修改后至少运行四套无画面测试，并实例化主场景检查纹理 StyleBox 是否实际生效。
+- UI 资源或主题修改后运行现有全部无画面测试（包括 `ui_theme_checks.gd`），并实例化主场景检查纹理 StyleBox 是否实际生效。
 
 ## 6. 联机规则
 
