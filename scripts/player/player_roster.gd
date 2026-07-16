@@ -3,6 +3,8 @@ class_name PlayerRoster
 
 const PlayerScript := preload("res://scripts/player/player_controller.gd")
 const VerdantUIThemeScript := preload("res://scripts/ui/verdant_ui_theme.gd")
+const GameRulesScript := preload("res://scripts/gameplay/game_rules.gd")
+const CharacterTooltipPanelScript := preload("res://scripts/ui/character_tooltip_panel.gd")
 
 var game: Node
 var combat
@@ -98,7 +100,7 @@ func create_hud(parent: PanelContainer, skill_labels: Array[String], hud_width: 
 	var cooldown_style := VerdantUIThemeScript.make_skill_slot_style(Color(0.66, 0.62, 0.48, 1.0))
 	for action_index in range(action_names.size()):
 		var action_name: String = action_names[action_index]
-		var panel := PanelContainer.new()
+		var panel := CharacterTooltipPanelScript.new()
 		panel.custom_minimum_size = Vector2(58.0, 54.0)
 		panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		panel.add_theme_stylebox_override("panel", ready_style)
@@ -107,6 +109,7 @@ func create_hud(parent: PanelContainer, skill_labels: Array[String], hud_width: 
 		actions.add_child(panel)
 		var action_content := Control.new()
 		action_content.custom_minimum_size = Vector2(0.0, 38.0)
+		action_content.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		panel.add_child(action_content)
 		var icon := TextureRect.new()
 		icon.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -175,9 +178,13 @@ func assign_hud(index: int, player: PlayerController) -> void:
 	game.player_huds[index]["player"] = player
 	if player != null and is_instance_valid(player):
 		var icons: Array = game.player_huds[index].get("action_icons", [])
+		var panels: Array = game.player_huds[index].get("action_panels", [])
 		var action_keys: Array[String] = ["BASIC", "DODGE", "SECONDARY", "Q", "E", "F"]
 		for action_index in range(mini(icons.size(), action_keys.size())):
 			(icons[action_index] as TextureRect).texture = load(game.get_character_skill_icon_path(player.character_id, action_keys[action_index])) as Texture2D
+			var panel := panels[action_index] as PanelContainer
+			panel.tooltip_text = GameRulesScript.get_action_tooltip(player.character_id, action_keys[action_index])
+			panel.set("tooltip_accent", game.CHARACTER_CARD_ACCENTS.get(player.character_id, Color.WHITE))
 	update_hud(index)
 
 func on_player_health_changed(current: float, maximum: float, player: PlayerController) -> void:

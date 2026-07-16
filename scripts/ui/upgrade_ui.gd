@@ -5,6 +5,7 @@ signal upgrade_selected(upgrade: Dictionary)
 
 const UIFactoryScript := preload("res://scripts/ui/ui_factory.gd")
 const VerdantUIThemeScript := preload("res://scripts/ui/verdant_ui_theme.gd")
+const ReadableTooltipButtonScript := preload("res://scripts/ui/readable_tooltip_button.gd")
 
 const PANEL_SIZE := Vector2(1120, 600)
 const CONTENT_WIDTH := 1000.0
@@ -114,11 +115,17 @@ func _build_card(upgrade: Dictionary, target_player, card_size: Vector2) -> Butt
 	var rarity := str(upgrade.get("rarity", "Common"))
 	var accent := _rarity_color(rarity)
 	var current_text := _current_text(upgrade, target_player)
-	var button := Button.new()
+	var button := ReadableTooltipButtonScript.new()
+	button.tooltip_accent = accent
 	button.custom_minimum_size = card_size
 	button.clip_contents = true
 	button.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
-	button.tooltip_text = "%s\n%s\n当前：%s" % [upgrade.get("title", "升级"), upgrade.get("description", ""), current_text]
+	button.tooltip_text = "%s\n%s\n\n当前：%s\n升级后：%s" % [
+		upgrade.get("title", "升级"),
+		upgrade.get("description", ""),
+		current_text,
+		_compact_effect(upgrade),
+	]
 	_style_card_button(button, accent)
 
 	var background := TextureRect.new()
@@ -209,7 +216,12 @@ func _build_card(upgrade: Dictionary, target_player, card_size: Vector2) -> Butt
 	after.add_theme_font_size_override("font_size", 14)
 	after.add_theme_color_override("font_color", Color(0.20, 0.72, 0.62))
 	result_content.add_child(after)
+	_ignore_card_mouse_input(button)
 	return button
+
+func _ignore_card_mouse_input(card: Button) -> void:
+	for child in card.find_children("*", "Control", true, false):
+		(child as Control).mouse_filter = Control.MOUSE_FILTER_IGNORE
 
 func _build_badge(upgrade: Dictionary, accent: Color) -> Control:
 	var badge_size := Vector2(70, 70)

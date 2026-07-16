@@ -1,12 +1,13 @@
 extends Node2D
 class_name PlayerProjectile
 
-signal hit_enemy(enemy: EnemyController, damage: float)
+signal hit_enemy(enemy: EnemyController, damage: float, is_critical: bool)
 signal reached_max_distance(position: Vector2)
 
 var direction := Vector2.RIGHT
 var speed := 520.0
 var damage := 18.0
+var is_critical := false
 var lifetime := 1.4
 var hit_radius := 18.0
 var enemies: Array = []
@@ -15,6 +16,10 @@ var visual_size := Vector2.ZERO
 var visual_additive := false
 var pierces_enemies := false
 var max_distance := 0.0
+var network_id := -1
+var owner_player_id := 0
+var projectile_type := "player"
+var authority_presentation_only := false
 var _distance_traveled := 0.0
 var _hit_enemy_ids: Dictionary = {}
 
@@ -22,6 +27,13 @@ func _ready() -> void:
 	_build_visual()
 
 func _process(delta: float) -> void:
+	if authority_presentation_only:
+		var presentation_direction := direction.normalized()
+		if presentation_direction == Vector2.ZERO:
+			presentation_direction = Vector2.RIGHT
+		rotation = presentation_direction.angle()
+		global_position += presentation_direction * speed * delta
+		return
 	lifetime -= delta
 	if lifetime <= 0.0:
 		if max_distance > 0.0:
@@ -48,10 +60,42 @@ func _process(delta: float) -> void:
 			continue
 		if global_position.distance_to(enemy.global_position) <= hit_radius:
 			_hit_enemy_ids[enemy.get_instance_id()] = true
-			hit_enemy.emit(enemy, damage)
+			hit_enemy.emit(enemy, damage, is_critical)
 			if not pierces_enemies:
 				queue_free()
 				return
+
+func make_authority_state() -> Dictionary:
+	return {
+		"entity_id": network_id,
+		"type": projectile_type,
+		"owner_player_id": owner_player_id,
+		"position": global_position,
+		"direction": direction,
+		"speed": speed,
+		"lifetime": lifetime,
+		"damage": damage,
+		"is_critical": is_critical,
+		"hit_radius": hit_radius,
+		"visual_texture_path": visual_texture_path,
+		"visual_size": visual_size,
+		"visual_additive": visual_additive,
+		"pierces_enemies": pierces_enemies,
+		"max_distance": max_distance,
+	}
+
+func apply_authority_state(state: Dictionary) -> void:
+	network_id = int(state.get("entity_id", network_id))
+	projectile_type = str(state.get("type", projectile_type))
+	owner_player_id = int(state.get("owner_player_id", owner_player_id))
+	global_position = state.get("position", global_position) as Vector2
+	direction = state.get("direction", direction) as Vector2
+	speed = float(state.get("speed", speed))
+	lifetime = float(state.get("lifetime", lifetime))
+	damage = float(state.get("damage", damage))
+	is_critical = bool(state.get("is_critical", is_critical))
+	hit_radius = float(state.get("hit_radius", hit_radius))
+	max_distance = float(state.get("max_distance", max_distance))
 
 func _build_visual() -> void:
 	if not visual_texture_path.is_empty():

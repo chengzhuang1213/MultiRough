@@ -7,12 +7,15 @@ signal start_requested
 
 const UIFactoryScript := preload("res://scripts/ui/ui_factory.gd")
 const VerdantUIThemeScript := preload("res://scripts/ui/verdant_ui_theme.gd")
+const GameRulesScript := preload("res://scripts/gameplay/game_rules.gd")
+const CharacterTooltipPanelScript := preload("res://scripts/ui/character_tooltip_panel.gd")
 
 const PANEL_SIZE := Vector2(1180, 700)
 const CONTENT_WIDTH := 1080.0
 const CARD_WIDTH := 240.0
 const SINGLE_CARD_HEIGHT := 420.0
 const MULTI_CARD_HEIGHT := 340.0
+const ACTION_HEIGHT := 100.0
 
 var content: VBoxContainer
 var start_button: Button
@@ -65,13 +68,13 @@ func rebuild(new_context: Dictionary) -> void:
 
 	if player_count > 1:
 		var slot_row := HBoxContainer.new()
-		slot_row.custom_minimum_size = Vector2(CONTENT_WIDTH, 60)
+		slot_row.custom_minimum_size = Vector2(CONTENT_WIDTH, ACTION_HEIGHT)
 		slot_row.alignment = BoxContainer.ALIGNMENT_CENTER
 		slot_row.add_theme_constant_override("separation", 12)
 		content.add_child(slot_row)
 		for slot_index in range(player_count):
 			var slot_button := Button.new()
-			slot_button.custom_minimum_size = Vector2(220, 60)
+			slot_button.custom_minimum_size = Vector2(220, ACTION_HEIGHT)
 			slot_button.pressed.connect(func(index := slot_index) -> void: active_slot_requested.emit(index))
 			slot_row.add_child(slot_button)
 			slot_buttons.append(slot_button)
@@ -94,11 +97,11 @@ func rebuild(new_context: Dictionary) -> void:
 		rows.append(card_data)
 
 	var start_center := CenterContainer.new()
-	start_center.custom_minimum_size = Vector2(CONTENT_WIDTH, 60)
+	start_center.custom_minimum_size = Vector2(CONTENT_WIDTH, ACTION_HEIGHT)
 	content.add_child(start_center)
 	start_button = Button.new()
-	start_button.custom_minimum_size = Vector2(430, 60)
-	start_button.add_theme_font_size_override("font_size", 20)
+	start_button.custom_minimum_size = Vector2(430, ACTION_HEIGHT)
+	start_button.add_theme_font_size_override("font_size", 24)
 	start_button.pressed.connect(func() -> void: start_requested.emit())
 	start_center.add_child(start_button)
 	refresh(new_context)
@@ -265,7 +268,9 @@ func _build_stat(text: String) -> PanelContainer:
 	return panel
 
 func _build_skill_key(character_id: String, skill_key: String, compact: bool) -> PanelContainer:
-	var panel := PanelContainer.new()
+	var panel := CharacterTooltipPanelScript.new()
+	panel.tooltip_accent = (context.get("card_accents", {}) as Dictionary).get(character_id, Color.WHITE)
+	panel.tooltip_text = GameRulesScript.get_action_tooltip(character_id, skill_key)
 	panel.custom_minimum_size = Vector2(65, 34 if compact else 52)
 	panel.add_theme_stylebox_override("panel", _make_chip_style(Color(0.025, 0.09, 0.07, 0.92), Color(0.82, 0.66, 0.28)))
 	panel.clip_contents = true
@@ -292,6 +297,8 @@ func _build_skill_key(character_id: String, skill_key: String, compact: bool) ->
 	label.add_theme_constant_override("outline_size", 3)
 	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	panel.add_child(label)
+	for child in panel.find_children("*", "Control", true, false):
+		(child as Control).mouse_filter = Control.MOUSE_FILTER_IGNORE
 	return panel
 
 func _selected_id(slot_index: int) -> String:

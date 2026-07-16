@@ -3,9 +3,9 @@ class_name GameRules
 
 const WAVE_CLEAR_HEAL_AMOUNT := 20.0
 const REVIVE_HEALTH_RATIO := 0.5
-const NORMAL_WAVE_TIME_LIMIT := 60.0
-const BOSS_WAVE_TIME_LIMIT := 120.0
-const PLAYER_DAMAGE_GROWTH_PER_WAVE := 0.08
+const NORMAL_WAVE_TIME_LIMIT := 120.0
+const BOSS_WAVE_TIME_LIMIT := 180.0
+const PLAYER_DAMAGE_GROWTH_PER_WAVE := 0.02
 
 const CHARACTER_ORDER := ["warrior", "archer", "lancer", "mage"]
 const REQUIRED_CHARACTER_STATS := [
@@ -114,9 +114,49 @@ const CHARACTER_CONFIGS := {
 	},
 }
 
+const CHARACTER_ACTION_TOOLTIPS := {
+	"warrior": {
+		"BASIC": "普攻 · 剑击\n前方近战攻击，造成伤害并击退敌人。",
+		"DODGE": "闪避\n快速位移并短暂无敌。",
+		"SECONDARY": "右键 · 持续格挡\n按住后只承受 30% 伤害，松开结束格挡。",
+		"Q": "Q · 战吼\n伤害并牵引附近普通敌人，嘲讽 2 秒；期间自身受到伤害减半。",
+		"E": "E · 反击姿态\n持续 3 秒，反弹敌人伤害并周期震击附近目标。",
+		"F": "F · 环绕刀刃\n召唤环绕刀刃持续攻击身边敌人。",
+	},
+	"archer": {
+		"BASIC": "普攻 · 射箭\n向瞄准方向发射高速箭矢。",
+		"DODGE": "闪避\n快速位移并短暂无敌；弓箭手拥有 2 次充能。",
+		"SECONDARY": "右键 · 三连箭\n向瞄准方向扇形发射 3 支箭。",
+		"Q": "Q · 蓄力箭\n按住蓄力、松开发射；满蓄时伤害最高并可穿透敌人。",
+		"E": "E · 猎人标记\n标记瞄准方向的敌人，提高对该目标造成的伤害。",
+		"F": "F · 箭雨\n在目标区域持续落箭，重复攻击范围内敌人。",
+	},
+	"lancer": {
+		"BASIC": "普攻 · 枪刺\n前方长距离近战攻击；释放技能后会暂时加快普攻。",
+		"DODGE": "闪避\n快速位移并短暂无敌。",
+		"SECONDARY": "右键 · 双向横扫\n同时横扫瞄准方向与身后，同一敌人只受一次伤害。",
+		"Q": "Q · 广域横扫\n对前方大范围敌人造成伤害和轻微击退。",
+		"E": "E · 突进回旋\n向目标方向突进，并在落点造成环形伤害。",
+		"F": "F · 回旋风暴\n生成跟随自身的持续枪阵，周期横扫附近敌人。",
+	},
+	"mage": {
+		"BASIC": "普攻 · 奥术法球\n向瞄准方向发射远程单体法球。",
+		"DODGE": "闪避\n快速位移并短暂无敌。",
+		"SECONDARY": "右键 · 奥术震退\n伤害并击退附近普通敌人，同时使其减速。",
+		"Q": "Q · 爆裂火球\n火球命中敌人或到达最远距离时产生范围爆炸。",
+		"E": "E · 固定法阵\n在目标位置创建持续伤害与减速区域。",
+		"F": "F · 元素风暴\n在大范围内持续伤害全部敌人，并眩晕首次命中的普通敌人。",
+	},
+}
+
 static func get_character_config(character_id: String) -> Dictionary:
 	var fallback: Dictionary = CHARACTER_CONFIGS["warrior"]
 	return (CHARACTER_CONFIGS.get(character_id, fallback) as Dictionary).duplicate(true)
+
+static func get_action_tooltip(character_id: String, action_key: String) -> String:
+	var fallback: Dictionary = CHARACTER_ACTION_TOOLTIPS["warrior"]
+	var tooltips: Dictionary = CHARACTER_ACTION_TOOLTIPS.get(character_id, fallback)
+	return str(tooltips.get(action_key, action_key))
 
 static func get_mode_scaling(player_count: int) -> Dictionary:
 	var multiplayer_run := player_count > 1

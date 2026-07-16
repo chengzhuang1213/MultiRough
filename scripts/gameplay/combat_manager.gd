@@ -31,7 +31,6 @@ const MAGE_ARCANE_REPEL_DAMAGE_MULTIPLIER := 0.50
 const MAGE_ARCANE_REPEL_FORCE := 260.0
 const MAGE_ARCANE_REPEL_SLOW_DURATION := 1.5
 const MAGE_ARCANE_REPEL_SLOW_MULTIPLIER := 0.75
-const MAGE_ARCANE_REPEL_BOSS_SLOW_MULTIPLIER := 0.90
 
 var game: Node
 var character_modules: Dictionary
@@ -44,6 +43,13 @@ func _init(game_node: Node) -> void:
 		"lancer": LancerCombatScript.new(),
 		"mage": MageCombatScript.new(),
 	}
+
+func _has_authority() -> bool:
+	return game == null or not game.has_method("_has_combat_authority") or game._has_combat_authority()
+
+func _register_skill_area(area: Dictionary) -> void:
+	area["network_id"] = game.allocate_combat_entity_id()
+	game.persistent_skill_areas.append(area)
 
 func get_character_module(character_id: String):
 	return character_modules.get(character_id, character_modules["warrior"])
@@ -62,25 +68,30 @@ func has_enemy_in_aim_cone(origin: Vector2, direction: Vector2, max_range: float
 			return true
 	return false
 
-func damage_enemy(enemy: EnemyController, amount: float, attacker: PlayerController, knockback_origin: Vector2 = Vector2.ZERO, knockback_force: float = 90.0, allow_lifesteal: bool = true, cause_stagger: bool = true) -> void:
+func damage_enemy(enemy: EnemyController, amount: float, attacker: PlayerController, knockback_origin: Vector2 = Vector2.ZERO, knockback_force: float = 90.0, allow_lifesteal: bool = true, cause_stagger: bool = true, is_aoe: bool = false, is_critical: bool = false) -> void:
+	if not _has_authority():
+		return
 	if enemy == null or not is_instance_valid(enemy):
 		return
 	var wave_multiplier := attacker.wave_damage_multiplier if attacker != null else 1.0
 	var final_amount := amount * wave_multiplier * enemy.get_damage_multiplier(attacker)
+	if enemy.is_boss and attacker != null and is_critical:
+		var resisted_crit_multiplier := 1.0 + (attacker.crit_multiplier - 1.0) * EnemyController.BOSS_CRITICAL_BONUS_MULTIPLIER
+		final_amount *= resisted_crit_multiplier / maxf(attacker.crit_multiplier, 1.0)
 	var can_transfer_mark := attacker != null and attacker.get_upgrade_level("archer_e_mark_transfer") > 0 and enemy.is_marked_by(attacker)
 	var death_position := enemy.global_position
-	var effective_amount: float = enemy.apply_damage(final_amount, knockback_origin, knockback_force, cause_stagger)
+	var effective_amount: float = enemy.apply_damage(final_amount, knockback_origin, knockback_force, cause_stagger, is_aoe)
 	if allow_lifesteal:
 		apply_lifesteal(attacker, effective_amount)
 	if can_transfer_mark and enemy.health <= 0.0:
 		transfer_hunter_mark(death_position, attacker, enemy)
 
-func damage_enemies_in_radius(origin: Vector2, radius: float, damage: float, attacker: PlayerController) -> void:
+func damage_enemies_in_radius(origin: Vector2, radius: float, damage: float, attacker: PlayerController, is_critical: bool = false) -> void:
 	for enemy in game.enemies.duplicate():
 		if is_instance_valid(enemy) and enemy.global_position.distance_to(origin) <= radius:
-			damage_enemy(enemy, damage, attacker, origin, attacker.attack_knockback if attacker != null else 90.0)
+			damage_enemy(enemy, damage, attacker, origin, attacker.attack_knockback if attacker != null else 90.0, true, true, true, is_critical)
 
-func damage_enemies_in_front(origin: Vector2, direction: Vector2, attack_length: float, half_width: float, damage: float, knockback: float = -1.0, attacker: PlayerController = null) -> void:
+func damage_enemies_in_front(origin: Vector2, direction: Vector2, attack_length: float, half_width: float, damage: float, knockback: float = -1.0, attacker: PlayerController = null, is_critical: bool = false) -> void:
 	var forward := direction.normalized()
 	if forward == Vector2.ZERO:
 		forward = Vector2.RIGHT
@@ -96,13 +107,15 @@ func damage_enemies_in_front(origin: Vector2, direction: Vector2, attack_length:
 		var resolved_knockback := knockback
 		if resolved_knockback < 0.0:
 			resolved_knockback = attacker.attack_knockback if attacker != null else 90.0
-		damage_enemy(enemy, damage, attacker, origin, resolved_knockback)
+		damage_enemy(enemy, damage, attacker, origin, resolved_knockback, true, true, false, is_critical)
 
 func apply_lifesteal(attacker: PlayerController, amount: float) -> void:
 	if attacker != null and is_instance_valid(attacker) and attacker.lifesteal_ratio > 0.0:
 		attacker.heal(amount * attacker.lifesteal_ratio)
 
 func on_enemy_attacked_player(enemy: EnemyController, target: Node2D, damage: float) -> void:
+	if not _has_authority():
+		return
 	var player := target as PlayerController
 	if player == null or player.is_dead:
 		return
@@ -112,7 +125,12 @@ func on_enemy_attacked_player(enemy: EnemyController, target: Node2D, damage: fl
 		game._spawn_effect(enemy.global_position, 28.0, Color(0.35, 0.72, 1.0, 0.28), 0.10)
 
 func on_enemy_projectile_requested(enemy: EnemyController, target: Node2D, origin: Vector2, direction: Vector2, damage: float) -> void:
+	if not _has_authority():
+		return
 	var projectile = EnemyProjectileScript.new()
+	projectile.network_id = game.allocate_combat_entity_id()
+	projectile.owner_enemy_id = enemy.network_id
+	projectile.target_player_id = game.get_player_network_id(target as PlayerController)
 	projectile.global_position = origin
 	projectile.direction = direction
 	projectile.damage = damage
@@ -130,14 +148,23 @@ func _on_enemy_projectile_hit_player(damage: float, target: Node2D, source) -> v
 		player.apply_damage(damage, valid_source)
 
 func on_enemy_area_attack_requested(enemy: EnemyController, origin: Vector2, radius: float, damage: float, windup_time: float) -> void:
+	if not _has_authority():
+		return
 	if game.SHOW_ENEMY_ATTACK_TELEGRAPH:
-		game._spawn_effect(origin, radius, Color(1.0, 0.18, 0.12, 0.22), windup_time)
+		var warning_color := Color(1.0, 0.18, 0.12, 0.22)
+		game._spawn_effect(origin, radius, warning_color, windup_time)
+		game._broadcast_enemy_telegraph("circle", {
+			"origin": origin, "radius": radius,
+			"color": warning_color, "lifetime": windup_time,
+		})
 	var enemy_ref: WeakRef = weakref(enemy)
 	var game_ref: WeakRef = weakref(game)
 	var timer: SceneTreeTimer = game.get_tree().create_timer(windup_time)
 	timer.timeout.connect(func() -> void:
 		var active_game: Node = game_ref.get_ref()
 		if active_game == null or not is_instance_valid(active_game):
+			return
+		if active_game.has_method("_is_combat_active") and not active_game._is_combat_active():
 			return
 		active_game._spawn_effect(origin, radius, Color(1.0, 0.34, 0.20, 0.30), 0.16)
 		var source: EnemyController = null
@@ -151,9 +178,16 @@ func on_enemy_area_attack_requested(enemy: EnemyController, origin: Vector2, rad
 	)
 
 func on_enemy_charge_started(_enemy: EnemyController, origin: Vector2, direction: Vector2, length: float, windup_time: float) -> void:
-	game._spawn_line_skill_effect(origin, direction, length, Color(1.0, 0.24, 0.16, 0.68), windup_time)
+	var warning_color := Color(1.0, 0.24, 0.16, 0.68)
+	game._spawn_line_skill_effect(origin, direction, length, warning_color, windup_time)
+	game._broadcast_enemy_telegraph("line", {
+		"origin": origin, "direction": direction, "length": length,
+		"color": warning_color, "lifetime": windup_time,
+	})
 
 func on_enemy_self_destruct_requested(enemy: EnemyController, origin: Vector2, radius: float, damage: float) -> void:
+	if not _has_authority():
+		return
 	game._spawn_effect(origin, radius, Color(1.0, 0.28, 0.12, 0.38), 0.18)
 	game._spawn_ring_effect(origin, radius, Color(1.0, 0.58, 0.18, 0.90), 0.22)
 	for player in game.players:
@@ -161,9 +195,16 @@ func on_enemy_self_destruct_requested(enemy: EnemyController, origin: Vector2, r
 			player.apply_damage(damage, enemy)
 
 func on_enemy_healing_started(_enemy: EnemyController, origin: Vector2, radius: float, windup_time: float) -> void:
-	game._spawn_ring_effect(origin, radius, Color(0.35, 1.0, 0.48, 0.62), windup_time)
+	var warning_color := Color(0.35, 1.0, 0.48, 0.62)
+	game._spawn_ring_effect(origin, radius, warning_color, windup_time)
+	game._broadcast_enemy_telegraph("ring", {
+		"origin": origin, "radius": radius,
+		"color": warning_color, "lifetime": windup_time,
+	})
 
 func on_enemy_healing_requested(enemy: EnemyController, origin: Vector2, radius: float, amount: float) -> void:
+	if not _has_authority():
+		return
 	game._spawn_effect(origin, radius, Color(0.28, 1.0, 0.46, 0.20), 0.20)
 	for ally in game.enemies.duplicate():
 		if not is_instance_valid(ally) or ally == enemy or ally.global_position.distance_to(origin) > radius:
@@ -203,15 +244,15 @@ func activate_warrior_taunt(owner: PlayerController, radius: float, duration: fl
 			game._spawn_link_effect(enemy.global_position, owner.global_position, Color(1.0, 0.32, 0.16, 0.55), 0.20)
 	game._spawn_ring_effect(owner.global_position, radius, Color(1.0, 0.42, 0.16, 0.75), 0.24)
 
-func damage_and_pull_enemies(origin: Vector2, radius: float, damage: float, owner: PlayerController) -> void:
+func damage_and_pull_enemies(origin: Vector2, radius: float, damage: float, owner: PlayerController, is_critical: bool = false) -> void:
 	for enemy in game.enemies.duplicate():
 		if not is_instance_valid(enemy) or enemy.global_position.distance_to(origin) > radius:
 			continue
 		var pull_origin: Vector2 = enemy.global_position + (enemy.global_position - origin).normalized() * 80.0
 		var pull_force := 0.0 if enemy.is_boss else WARRIOR_Q_PULL_FORCE
-		damage_enemy(enemy, damage, owner, pull_origin, pull_force)
+		damage_enemy(enemy, damage, owner, pull_origin, pull_force, true, true, true, is_critical)
 
-func add_warrior_counter_field(owner: PlayerController, damage: float, duration: float) -> void:
+func add_warrior_counter_field(owner: PlayerController, damage: float, duration: float, is_critical: bool = false) -> void:
 	var root := Node2D.new()
 	root.name = "WarriorCounter_%s" % owner.name
 	root.global_position = owner.global_position
@@ -223,10 +264,10 @@ func add_warrior_counter_field(owner: PlayerController, damage: float, duration:
 	game._animate_effect_rotation(outer_aura, 3.6, true)
 	game._animate_effect_rotation(inner_aura, 2.8, false)
 	game._animate_effect_pulse(outer_aura, 0.24, 0.46, 0.72)
-	game.persistent_skill_areas.append({
+	_register_skill_area({
 		"type": "warrior_counter", "owner": owner, "root": root,
 		"duration_left": duration, "tick_left": 0.0, "interval": 0.60,
-		"radius": 105.0, "damage": damage * 0.18,
+		"radius": 105.0, "damage": damage * 0.18, "is_critical": is_critical,
 	})
 
 func mark_nearest_enemy(origin: Vector2, direction: Vector2, max_range: float, duration: float, multiplier: float, owner: PlayerController) -> void:
@@ -281,7 +322,18 @@ func _attach_archer_mark_vfx(target: EnemyController, duration: float) -> void:
 			root.queue_free()
 	)
 
-func cast_chain_lightning(origin: Vector2, direction: Vector2, damage: float, owner: PlayerController, empowered: bool) -> void:
+func sync_authority_mark_visual(target: EnemyController, marked: bool, duration: float) -> void:
+	if target == null or not is_instance_valid(target):
+		return
+	var existing := target.get_node_or_null("ArcherMarkVFX")
+	if not marked:
+		if existing != null:
+			existing.queue_free()
+		return
+	if existing == null:
+		_attach_archer_mark_vfx(target, maxf(duration, 0.2))
+
+func cast_chain_lightning(origin: Vector2, direction: Vector2, damage: float, owner: PlayerController, empowered: bool, is_critical: bool = false) -> void:
 	game._spawn_textured_effect(origin, MageEVfxTexture, 118.0, 0.24, "MageChainCast")
 	game._spawn_spark_burst(origin, Color(0.42, 0.72, 1.0, 0.94), 10, 46.0, 0.18)
 	var remaining: Array[EnemyController] = []
@@ -312,7 +364,7 @@ func cast_chain_lightning(origin: Vector2, direction: Vector2, damage: float, ow
 		var hit_damage := damage if empowered else damage * pow(0.85, hit_count)
 		_spawn_mage_chain_lightning(current_position, best.global_position)
 		game._spawn_spark_burst(best.global_position, Color(0.34, 0.78, 1.0, 0.94), 7, 32.0, 0.16)
-		damage_enemy(best, hit_damage, owner, current_position, 0.0)
+		damage_enemy(best, hit_damage, owner, current_position, 0.0, true, true, false, is_critical)
 		current_position = best.global_position
 		remaining.erase(best)
 		hit_count += 1
@@ -338,11 +390,11 @@ func _spawn_mage_chain_lightning(start: Vector2, finish: Vector2) -> void:
 	tween.tween_property(sprite, "modulate:a", 0.0, 0.18)
 	tween.finished.connect(Callable(sprite, "queue_free"))
 
-func lancer_dash_spin(owner: PlayerController, direction: Vector2, distance: float, damage: float) -> void:
+func lancer_dash_spin(owner: PlayerController, direction: Vector2, distance: float, damage: float, is_critical: bool = false) -> void:
 	var forward := direction.normalized() if direction != Vector2.ZERO else Vector2.RIGHT
 	var start := owner.global_position
 	owner.global_position = (owner.global_position + forward * distance).clamp(owner.arena_bounds.position, owner.arena_bounds.end)
-	damage_enemies_in_radius(owner.global_position, 120.0, damage, owner)
+	damage_enemies_in_radius(owner.global_position, 120.0, damage, owner, is_critical)
 	game._spawn_effect(owner.global_position, 120.0, Color(0.58, 0.86, 1.0, 0.22), 0.16)
 	_spawn_lancer_dash_vfx(start, owner.global_position, forward)
 
@@ -368,22 +420,28 @@ func _spawn_lancer_dash_vfx(start: Vector2, finish: Vector2, forward: Vector2) -
 	tween.finished.connect(Callable(root, "queue_free"))
 	game._spawn_spark_burst(finish, Color(0.70, 0.96, 1.0, 0.94), 12, 68.0, 0.20)
 
-func schedule_lancer_second_sweep(owner: PlayerController, damage: float) -> void:
+func schedule_lancer_second_sweep(owner: PlayerController, damage: float, is_critical: bool = false) -> void:
 	var timer := game.get_tree().create_timer(0.18)
 	timer.timeout.connect(func() -> void:
 		if owner != null and is_instance_valid(owner) and not owner.is_dead:
 			game._spawn_ring_effect(owner.global_position, 165.0, Color(0.62, 0.90, 1.0, 0.78), 0.20)
 			spawn_lancer_sweep_vfx(owner.global_position, Vector2.RIGHT.rotated(randf_range(0.0, TAU)), 165.0, 90.0)
-			damage_enemies_in_radius(owner.global_position, 165.0, damage * 0.75, owner)
+			damage_enemies_in_radius(owner.global_position, 165.0, damage * 0.75, owner, is_critical)
 	)
 
-func on_player_basic_attack(origin: Vector2, direction: Vector2, length: float, half_width: float, damage: float, attacker: PlayerController) -> void:
-	get_character_module(attacker.character_id).basic_attack(self, origin, direction, length, half_width, damage, attacker)
+func on_player_basic_attack(origin: Vector2, direction: Vector2, length: float, half_width: float, damage: float, is_critical: bool, attacker: PlayerController) -> void:
+	if not _has_authority():
+		return
+	get_character_module(attacker.character_id).basic_attack(self, origin, direction, length, half_width, damage, is_critical, attacker)
 
-func on_player_projectile_attack(origin: Vector2, direction: Vector2, damage: float, attacker: PlayerController) -> void:
-	get_character_module(attacker.character_id).basic_attack(self, origin, direction, attacker.attack_range, attacker.attack_half_width, damage, attacker)
+func on_player_projectile_attack(origin: Vector2, direction: Vector2, damage: float, is_critical: bool, attacker: PlayerController) -> void:
+	if not _has_authority():
+		return
+	get_character_module(attacker.character_id).basic_attack(self, origin, direction, attacker.attack_range, attacker.attack_half_width, damage, is_critical, attacker)
 
-func on_player_secondary_action(origin: Vector2, direction: Vector2, damage: float, attacker: PlayerController) -> void:
+func on_player_secondary_action(origin: Vector2, direction: Vector2, damage: float, is_critical: bool, attacker: PlayerController) -> void:
+	if not _has_authority():
+		return
 	var forward := direction.normalized() if direction != Vector2.ZERO else Vector2.RIGHT
 	match attacker.character_id:
 		"warrior":
@@ -392,14 +450,14 @@ func on_player_secondary_action(origin: Vector2, direction: Vector2, damage: flo
 			var projectile_origin := attacker.get_projectile_origin(forward)
 			for angle in [-0.20, 0.0, 0.20]:
 				var arrow_direction := forward.rotated(float(angle))
-				fire_player_arrow(projectile_origin, arrow_direction, damage * 0.60, attacker, 560.0, 1.2, 18.0, "", 672.0 * attacker.get_attack_range_multiplier())
+				fire_player_arrow(projectile_origin, arrow_direction, damage * 0.60, attacker, 560.0, 1.2, 18.0, "", 672.0 * attacker.get_attack_range_multiplier(), Vector2.ZERO, false, is_critical)
 			game._spawn_line_skill_effect(projectile_origin, forward, 72.0, Color(1.0, 0.80, 0.30, 0.50), 0.10)
 			_spawn_secondary_directional_vfx(projectile_origin, forward, ArcherSecondaryVfxTexture, 172.0, "ArcherSecondaryVFX", 0.20)
 			game._spawn_spark_burst(projectile_origin, Color(1.0, 0.70, 0.30, 0.94), 10, 54.0, 0.18)
 		"mage":
 			cast_mage_arcane_repel(origin, damage, attacker)
 		"lancer":
-			damage_enemies_on_both_sides(origin, forward, attacker.attack_range * 1.35, attacker.attack_half_width * 1.40, damage * 0.80, attacker)
+			damage_enemies_on_both_sides(origin, forward, attacker.attack_range * 1.35, attacker.attack_half_width * 1.40, damage * 0.80, attacker, is_critical)
 			_spawn_secondary_directional_vfx(origin, forward, LancerSecondaryVfxTexture, attacker.attack_range * 2.9, "LancerSecondaryVFX", 0.22)
 			game._spawn_spark_burst(origin, Color(0.68, 0.96, 1.0, 0.94), 12, attacker.attack_half_width * 1.8, 0.18)
 
@@ -431,16 +489,15 @@ func cast_mage_arcane_repel(origin: Vector2, damage: float, attacker: PlayerCont
 	for enemy in game.enemies.duplicate():
 		if not is_instance_valid(enemy) or enemy.global_position.distance_to(origin) > MAGE_ARCANE_REPEL_RADIUS:
 			continue
-		var slow_multiplier := MAGE_ARCANE_REPEL_BOSS_SLOW_MULTIPLIER if enemy.is_boss else MAGE_ARCANE_REPEL_SLOW_MULTIPLIER
 		var knockback_force := 0.0 if enemy.is_boss else MAGE_ARCANE_REPEL_FORCE
-		enemy.apply_slow(MAGE_ARCANE_REPEL_SLOW_DURATION, slow_multiplier)
-		damage_enemy(enemy, damage * MAGE_ARCANE_REPEL_DAMAGE_MULTIPLIER, attacker, origin, knockback_force)
+		enemy.apply_slow(MAGE_ARCANE_REPEL_SLOW_DURATION, MAGE_ARCANE_REPEL_SLOW_MULTIPLIER)
+		damage_enemy(enemy, damage * MAGE_ARCANE_REPEL_DAMAGE_MULTIPLIER, attacker, origin, knockback_force, true, true, true)
 	game._spawn_effect(origin, MAGE_ARCANE_REPEL_RADIUS, Color(0.62, 0.38, 1.0, 0.22), 0.14)
 	game._spawn_ring_effect(origin, MAGE_ARCANE_REPEL_RADIUS, Color(0.78, 0.58, 1.0, 0.80), 0.20)
 	_spawn_secondary_directional_vfx(origin, Vector2.RIGHT, MageSecondaryVfxTexture, MAGE_ARCANE_REPEL_RADIUS * 2.25, "MageSecondaryVFX", 0.24)
 	game._spawn_spark_burst(origin, Color(0.64, 0.52, 1.0, 0.92), 16, MAGE_ARCANE_REPEL_RADIUS, 0.22)
 
-func damage_enemies_on_both_sides(origin: Vector2, direction: Vector2, length: float, half_width: float, damage: float, attacker: PlayerController) -> void:
+func damage_enemies_on_both_sides(origin: Vector2, direction: Vector2, length: float, half_width: float, damage: float, attacker: PlayerController, is_critical: bool = false) -> void:
 	var forward := direction.normalized() if direction != Vector2.ZERO else Vector2.RIGHT
 	var side := Vector2(-forward.y, forward.x)
 	for enemy in game.enemies.duplicate():
@@ -448,13 +505,16 @@ func damage_enemies_on_both_sides(origin: Vector2, direction: Vector2, length: f
 			continue
 		var offset: Vector2 = enemy.global_position - origin
 		if absf(offset.dot(forward)) <= length and absf(offset.dot(side)) <= half_width:
-			damage_enemy(enemy, damage, attacker, origin, attacker.attack_knockback * 0.45)
+			damage_enemy(enemy, damage, attacker, origin, attacker.attack_knockback * 0.45, true, true, true, is_critical)
 
-func fire_player_arrow(origin: Vector2, direction: Vector2, damage: float, attacker: PlayerController, speed: float = 560.0, lifetime: float = 1.2, hit_radius: float = 18.0, visual_texture_path: String = "", max_distance: float = 0.0, visual_size: Vector2 = Vector2.ZERO, visual_additive: bool = false) -> PlayerProjectile:
+func fire_player_arrow(origin: Vector2, direction: Vector2, damage: float, attacker: PlayerController, speed: float = 560.0, lifetime: float = 1.2, hit_radius: float = 18.0, visual_texture_path: String = "", max_distance: float = 0.0, visual_size: Vector2 = Vector2.ZERO, visual_additive: bool = false, is_critical: bool = false) -> PlayerProjectile:
 	var projectile = PlayerProjectileScript.new()
+	projectile.network_id = game.allocate_combat_entity_id()
+	projectile.owner_player_id = game.get_player_network_id(attacker)
 	projectile.global_position = origin
 	projectile.direction = direction
 	projectile.damage = damage
+	projectile.is_critical = is_critical
 	projectile.speed = speed
 	projectile.lifetime = lifetime
 	projectile.hit_radius = hit_radius
@@ -488,11 +548,15 @@ func decorate_archer_q_projectile(projectile: PlayerProjectile, origin: Vector2,
 	game._spawn_textured_effect(origin, ArcherQVfxTexture, 108.0 if fully_charged else 82.0, 0.18, "ArcherQLaunchFlash")
 	game._spawn_spark_burst(origin, Color(1.0, 0.72, 0.22, 0.92), 12 if fully_charged else 8, 48.0 if fully_charged else 38.0, 0.16)
 
-func fire_mage_fireball(origin: Vector2, direction: Vector2, damage: float, attacker: PlayerController, explosion_radius: float, max_range: float) -> void:
+func fire_mage_fireball(origin: Vector2, direction: Vector2, damage: float, attacker: PlayerController, explosion_radius: float, max_range: float, is_critical: bool = false) -> void:
 	var projectile = PlayerProjectileScript.new()
+	projectile.network_id = game.allocate_combat_entity_id()
+	projectile.owner_player_id = game.get_player_network_id(attacker)
+	projectile.projectile_type = "mage_fireball"
 	projectile.global_position = origin
 	projectile.direction = direction
 	projectile.damage = damage
+	projectile.is_critical = is_critical
 	projectile.speed = 420.0
 	projectile.lifetime = 1.5
 	projectile.hit_radius = 25.0
@@ -503,7 +567,7 @@ func fire_mage_fireball(origin: Vector2, direction: Vector2, damage: float, atta
 	projectile.max_distance = max_range
 	projectile.enemies = game.enemies
 	projectile.hit_enemy.connect(_on_mage_fireball_hit.bind(attacker, explosion_radius))
-	projectile.reached_max_distance.connect(_on_mage_fireball_reached_limit.bind(damage, attacker, explosion_radius))
+	projectile.reached_max_distance.connect(_on_mage_fireball_reached_limit.bind(damage, attacker, explosion_radius, is_critical))
 	game.projectile_root.add_child(projectile)
 	_decorate_mage_q_projectile(projectile, origin)
 	game._spawn_line_skill_effect(origin, direction, 58.0, Color(0.88, 0.42, 1.0, 0.42), 0.10)
@@ -526,43 +590,22 @@ func _decorate_mage_q_projectile(projectile: PlayerProjectile, origin: Vector2) 
 		game._animate_effect_pulse(texture_sprite, 0.72, 1.0, 0.22)
 	game._spawn_textured_effect(origin, MageQVfxTexture, 88.0, 0.18, "MageQCastFlash")
 
-func fire_mage_basic_projectile(origin: Vector2, direction: Vector2, damage: float, attacker: PlayerController) -> void:
-	var projectile = PlayerProjectileScript.new()
-	projectile.global_position = origin
-	projectile.direction = direction
-	projectile.damage = damage
-	projectile.speed = 480.0
-	projectile.lifetime = 1.35
-	projectile.hit_radius = 18.0
-	projectile.visual_texture_path = "res://assets/original/characters/mage/mage_basic_projectile.svg"
-	projectile.max_distance = 648.0 * attacker.get_attack_range_multiplier()
-	projectile.enemies = game.enemies
-	projectile.hit_enemy.connect(_on_mage_basic_projectile_hit.bind(attacker))
-	game.projectile_root.add_child(projectile)
+func fire_mage_single_projectile(origin: Vector2, direction: Vector2, damage: float, attacker: PlayerController, is_critical: bool = false) -> void:
+	fire_player_arrow(origin, direction, damage, attacker, 480.0, 1.35, 18.0, "res://assets/original/characters/mage/mage_basic_projectile.svg", 648.0 * attacker.get_attack_range_multiplier(), Vector2.ZERO, false, is_critical)
 
-func fire_mage_single_projectile(origin: Vector2, direction: Vector2, damage: float, attacker: PlayerController) -> void:
-	fire_player_arrow(origin, direction, damage, attacker, 480.0, 1.35, 18.0, "res://assets/original/characters/mage/mage_basic_projectile.svg", 648.0 * attacker.get_attack_range_multiplier())
-
-func _on_mage_basic_projectile_hit(enemy: EnemyController, damage: float, attacker: PlayerController) -> void:
+func _on_mage_fireball_hit(enemy: EnemyController, damage: float, is_critical: bool, attacker: PlayerController, explosion_radius: float) -> void:
 	if enemy == null or not is_instance_valid(enemy):
 		return
 	var impact := enemy.global_position
-	game._spawn_effect(impact, 70.0, Color(0.72, 0.38, 1.0, 0.24), 0.12)
-	damage_enemies_in_radius(impact, 70.0, damage, attacker)
+	_mage_fireball_explode(impact, damage, attacker, explosion_radius, is_critical)
 
-func _on_mage_fireball_hit(enemy: EnemyController, damage: float, attacker: PlayerController, explosion_radius: float) -> void:
-	if enemy == null or not is_instance_valid(enemy):
-		return
-	var impact := enemy.global_position
-	_mage_fireball_explode(impact, damage, attacker, explosion_radius)
+func _on_mage_fireball_reached_limit(impact: Vector2, damage: float, attacker: PlayerController, explosion_radius: float, is_critical: bool) -> void:
+	_mage_fireball_explode(impact, damage, attacker, explosion_radius, is_critical)
 
-func _on_mage_fireball_reached_limit(impact: Vector2, damage: float, attacker: PlayerController, explosion_radius: float) -> void:
-	_mage_fireball_explode(impact, damage, attacker, explosion_radius)
-
-func _mage_fireball_explode(impact: Vector2, damage: float, attacker: PlayerController, explosion_radius: float) -> void:
+func _mage_fireball_explode(impact: Vector2, damage: float, attacker: PlayerController, explosion_radius: float, is_critical: bool = false) -> void:
 	game._spawn_effect(impact, explosion_radius, Color(0.82, 0.30, 1.0, 0.30), 0.16)
 	_spawn_mage_q_explosion(impact, explosion_radius)
-	damage_enemies_in_radius(impact, explosion_radius, damage, attacker)
+	damage_enemies_in_radius(impact, explosion_radius, damage, attacker, is_critical)
 
 func _spawn_mage_q_explosion(impact: Vector2, radius: float) -> void:
 	var root := Node2D.new()
@@ -581,26 +624,35 @@ func _spawn_mage_q_explosion(impact: Vector2, radius: float) -> void:
 	var timer := game.get_tree().create_timer(0.24)
 	timer.timeout.connect(Callable(root, "queue_free"))
 
-func _on_player_projectile_hit_enemy(enemy: EnemyController, damage: float, attacker: PlayerController) -> void:
+func _on_player_projectile_hit_enemy(enemy: EnemyController, damage: float, is_critical: bool, attacker: PlayerController) -> void:
 	if attacker != null and attacker.character_id == "archer" and enemy.consume_guaranteed_arrow_crit(attacker):
-		damage *= attacker.crit_multiplier
-	damage_enemy(enemy, damage, attacker, attacker.global_position, attacker.attack_knockback)
+		if not is_critical:
+			damage *= attacker.crit_multiplier
+			is_critical = true
+	damage_enemy(enemy, damage, attacker, attacker.global_position, attacker.attack_knockback, true, true, false, is_critical)
 
-func on_player_active_skill(origin: Vector2, direction: Vector2, length: float, half_width: float, damage: float, attacker: PlayerController) -> void:
-	get_character_module(attacker.character_id).use_q(self, origin, direction, length, half_width, damage, attacker)
+func on_player_active_skill(origin: Vector2, direction: Vector2, length: float, half_width: float, damage: float, is_critical: bool, attacker: PlayerController) -> void:
+	if not _has_authority():
+		return
+	get_character_module(attacker.character_id).use_q(self, origin, direction, length, half_width, damage, is_critical, attacker)
 
-func on_player_fan_skill(origin: Vector2, direction: Vector2, length: float, half_width: float, damage: float, attacker: PlayerController) -> void:
-	get_character_module(attacker.character_id).use_e(self, origin, direction, length, half_width, damage, attacker)
+func on_player_fan_skill(origin: Vector2, direction: Vector2, length: float, half_width: float, damage: float, is_critical: bool, attacker: PlayerController) -> void:
+	if not _has_authority():
+		return
+	get_character_module(attacker.character_id).use_e(self, origin, direction, length, half_width, damage, is_critical, attacker)
 
-func on_player_ultimate_skill(origin: Vector2, direction: Vector2, damage: float, duration: float, attacker: PlayerController) -> void:
-	get_character_module(attacker.character_id).use_f(self, origin, direction, damage, duration, attacker)
+func on_player_ultimate_skill(origin: Vector2, direction: Vector2, damage: float, duration: float, is_critical: bool, attacker: PlayerController) -> void:
+	if not _has_authority():
+		return
+	get_character_module(attacker.character_id).use_f(self, origin, direction, damage, duration, is_critical, attacker)
 
-func start_blade_ultimate(owner: PlayerController, damage: float, duration: float) -> void:
+func start_blade_ultimate(owner: PlayerController, damage: float, duration: float, is_critical: bool = false) -> void:
 	var state: Dictionary = _get_ultimate_state(owner)
 	_sync_warrior_blade_count(state, 3 if owner.get_upgrade_level("warrior_f_extra_blade") > 0 else 2)
 	state["duration_left"] = duration
 	state["angle"] = 0.0
 	state["damage"] = damage
+	state["is_critical"] = is_critical
 	(state["hit_cooldowns"] as Dictionary).clear()
 	(state["root"] as Node2D).visible = true
 	game._spawn_ring_effect(owner.global_position, 92.0, Color(1.0, 0.48, 0.12, 0.88), 0.28)
@@ -615,7 +667,7 @@ func setup_ultimate(owner: PlayerController) -> void:
 	game.add_child(root)
 	for index in range(2):
 		_add_ultimate_blade(root, index)
-	game.ultimate_states[owner.get_instance_id()] = {"owner": owner, "root": root, "duration_left": 0.0, "angle": 0.0, "damage": 0.0, "hit_cooldowns": {}}
+	game.ultimate_states[owner.get_instance_id()] = {"owner": owner, "root": root, "duration_left": 0.0, "angle": 0.0, "damage": 0.0, "is_critical": false, "hit_cooldowns": {}}
 
 func _sync_warrior_blade_count(state: Dictionary, desired_count: int) -> void:
 	var root := state["root"] as Node2D
@@ -694,8 +746,8 @@ func _damage_with_blades(state: Dictionary) -> void:
 		if not is_instance_valid(enemy) or float(cooldowns.get(enemy.get_instance_id(), 0.0)) > 0.0:
 			continue
 		if _enemy_touched_by_blade(state["root"], enemy.global_position, 18.0):
-			var damage := owner.roll_damage(float(state["damage"]))
-			damage_enemy(enemy, damage, owner, owner.global_position, owner.attack_knockback * 0.35)
+			var damage := float(state["damage"])
+			damage_enemy(enemy, damage, owner, owner.global_position, owner.attack_knockback * 0.35, true, true, true, bool(state.get("is_critical", false)))
 			game._spawn_spark_burst(enemy.global_position, Color(1.0, 0.58, 0.12, 0.94), 7, 30.0, 0.16)
 			cooldowns[enemy.get_instance_id()] = 0.35
 
@@ -738,7 +790,7 @@ func clear_ultimate_states() -> void:
 			root.queue_free()
 	game.ultimate_states.clear()
 
-func throw_warrior_shield(origin: Vector2, direction: Vector2, damage: float, owner: PlayerController) -> void:
+func throw_warrior_shield(origin: Vector2, direction: Vector2, damage: float, owner: PlayerController, is_critical: bool = false) -> void:
 	var forward := direction.normalized() if direction != Vector2.ZERO else Vector2.RIGHT
 	var root := Node2D.new()
 	root.name = "WarriorShield_%s" % owner.name
@@ -746,15 +798,15 @@ func throw_warrior_shield(origin: Vector2, direction: Vector2, damage: float, ow
 	game._spawn_area_visual(root, Vector2.ZERO, 20.0, Color(0.35, 0.72, 1.0, 0.34))
 	var shield_texture: Sprite2D = game._add_textured_effect(root, WarriorEVfxTexture, 58.0, Vector2.ZERO, Color.WHITE, "WarriorShieldTexture")
 	game._animate_effect_rotation(shield_texture, 0.62, true)
-	game.persistent_skill_areas.append({
+	_register_skill_area({
 		"type": "warrior_shield", "owner": owner, "root": root, "duration_left": 2.0,
 		"origin": origin, "direction": forward, "travel": 0.0, "max_travel": 280.0,
 		"speed": 620.0, "damage": damage * 0.80, "returning": false,
 		"hit_ids": {}, "hit_any": false,
-		"guard_upgrade": owner.get_upgrade_level("warrior_e_shield_guard") > 0,
+		"guard_upgrade": owner.get_upgrade_level("warrior_e_shield_guard") > 0, "is_critical": is_critical,
 	})
 
-func throw_lancer_spear(origin: Vector2, direction: Vector2, damage: float, owner: PlayerController, returns: bool) -> void:
+func throw_lancer_spear(origin: Vector2, direction: Vector2, damage: float, owner: PlayerController, returns: bool, is_critical: bool = false) -> void:
 	var forward := direction.normalized() if direction != Vector2.ZERO else Vector2.RIGHT
 	var root := Node2D.new()
 	root.name = "LancerSpear_%s" % owner.name
@@ -767,11 +819,11 @@ func throw_lancer_spear(origin: Vector2, direction: Vector2, damage: float, owne
 	trail.points = PackedVector2Array([Vector2(-62.0, 0.0), Vector2(-12.0, 0.0)])
 	root.add_child(trail)
 	game._animate_effect_pulse(spear, 0.72, 1.0, 0.22)
-	game.persistent_skill_areas.append({
+	_register_skill_area({
 		"type": "lancer_spear", "owner": owner, "root": root, "duration_left": 2.0,
 		"origin": origin, "direction": forward, "travel": 0.0, "max_travel": 320.0,
 		"speed": 720.0, "damage": damage * 0.90, "returning": false,
-		"returns": returns, "hit_ids": {},
+		"returns": returns, "hit_ids": {}, "is_critical": is_critical,
 	})
 
 func place_archer_trap(origin: Vector2, direction: Vector2, owner: PlayerController) -> void:
@@ -787,14 +839,14 @@ func place_archer_trap(origin: Vector2, direction: Vector2, owner: PlayerControl
 	game._animate_effect_rotation(outer, 4.0, true)
 	game._animate_effect_rotation(inner, 2.7, false)
 	game._animate_effect_pulse(outer, 0.40, 0.82, 0.84)
-	game.persistent_skill_areas.append({
+	_register_skill_area({
 		"type": "archer_trap", "owner": owner, "root": root,
 		"duration_left": 6.0, "tick_left": 0.0, "interval": 0.05,
 		"origin": origin, "radius": 34.0,
 		"execution_upgrade": owner.get_upgrade_level("archer_e_execution_trap") > 0,
 	})
 
-func add_arrow_rain(origin: Vector2, direction: Vector2, damage: float, duration: float, attacker: PlayerController) -> void:
+func add_arrow_rain(origin: Vector2, direction: Vector2, damage: float, duration: float, attacker: PlayerController, is_critical: bool = false) -> void:
 	var forward := direction.normalized()
 	if forward == Vector2.ZERO:
 		forward = Vector2.RIGHT
@@ -809,17 +861,17 @@ func add_arrow_rain(origin: Vector2, direction: Vector2, damage: float, duration
 	game._animate_effect_rotation(outer, 8.0, true)
 	game._animate_effect_rotation(inner, 6.0, false)
 	game._animate_effect_pulse(outer, 0.34, 0.68, 0.92)
-	game.persistent_skill_areas.append({
+	_register_skill_area({
 		"type": "arrow_rain", "owner": attacker, "root": root,
 		"duration_left": minf(duration, 5.0), "tick_left": 0.0, "interval": 0.50,
 		"origin": center, "radius": 125.0,
 		"damage": damage * 0.26 * (1.25 if attacker.get_upgrade_level("archer_f_damage") > 0 else 1.0),
 		"current_target": null, "consecutive_hits": 0,
 		"critical_upgrade": attacker.get_upgrade_level("archer_f_critical") > 0,
-		"weakpoint_upgrade": attacker.get_upgrade_level("archer_f_weakpoint") > 0,
+		"weakpoint_upgrade": attacker.get_upgrade_level("archer_f_weakpoint") > 0, "is_critical": is_critical,
 	})
 
-func add_lancer_storm(owner: PlayerController, damage: float, duration: float) -> void:
+func add_lancer_storm(owner: PlayerController, damage: float, duration: float, is_critical: bool = false) -> void:
 	var root := Node2D.new()
 	root.name = "LancerStorm_%s" % owner.name
 	root.global_position = owner.global_position
@@ -832,31 +884,15 @@ func add_lancer_storm(owner: PlayerController, damage: float, duration: float) -
 	game._animate_effect_rotation(outer, 1.15, true)
 	game._animate_effect_rotation(inner, 1.75, false)
 	game._animate_effect_pulse(outer, 0.48, 0.76, 0.42)
-	game.persistent_skill_areas.append({
+	_register_skill_area({
 		"type": "lancer_storm", "owner": owner, "root": root,
 		"duration_left": duration, "tick_left": 0.0,
 		"interval": 0.45, "radius": radius, "damage": damage * 0.34,
 		"pull_upgrade": owner.get_upgrade_level("lancer_f_pull") > 0, "sweep_angle": 0.0,
-		"finisher_upgrade": owner.get_upgrade_level("lancer_f_finisher") > 0,
+		"finisher_upgrade": owner.get_upgrade_level("lancer_f_finisher") > 0, "is_critical": is_critical,
 	})
 
-func add_lancer_barricade(origin: Vector2, direction: Vector2, damage: float, duration: float, attacker: PlayerController) -> void:
-	var forward := direction.normalized()
-	if forward == Vector2.ZERO:
-		forward = Vector2.RIGHT
-	var center := origin + forward * 135.0
-	var root := Node2D.new()
-	root.name = "LancerBarricade_%s" % attacker.name
-	game.effect_root.add_child(root)
-	game._spawn_lancer_barricade_visual(root, center, forward, 280.0, 70.0)
-	game.persistent_skill_areas.append({
-		"type": "lancer_barricade", "owner": attacker, "root": root,
-		"duration_left": minf(duration, 6.0), "tick_left": 0.0, "interval": 0.35,
-		"origin": center, "forward": forward, "length": 280.0, "half_depth": 35.0,
-		"damage": damage * 0.42,
-	})
-
-func add_mage_field(center: Vector2, radius: float, damage: float, attacker: PlayerController, duration: float = 4.0, accumulation: bool = false) -> void:
+func add_mage_field(center: Vector2, radius: float, damage: float, attacker: PlayerController, duration: float = 4.0, accumulation: bool = false, is_critical: bool = false) -> void:
 	var root := Node2D.new()
 	root.name = "MageField_%s" % attacker.name
 	game.effect_root.add_child(root)
@@ -867,14 +903,14 @@ func add_mage_field(center: Vector2, radius: float, damage: float, attacker: Pla
 	game._animate_effect_rotation(outer, 7.0, true)
 	game._animate_effect_rotation(inner, 5.0, false)
 	game._animate_effect_pulse(outer, 0.30, 0.62, 0.86)
-	game.persistent_skill_areas.append({
+	_register_skill_area({
 		"type": "mage_field", "owner": attacker, "root": root,
 		"duration_left": duration, "tick_left": 0.0, "interval": 0.50,
 		"origin": center, "radius": radius, "damage": damage * 0.10,
-		"accumulation": accumulation, "hit_counts": {},
+		"accumulation": accumulation, "hit_counts": {}, "is_critical": is_critical,
 	})
 
-func add_mage_storm(center: Vector2, damage: float, duration: float, attacker: PlayerController) -> void:
+func add_mage_storm(center: Vector2, damage: float, duration: float, attacker: PlayerController, is_critical: bool = false) -> void:
 	var radius := 220.0 * (1.20 if attacker.get_upgrade_level("mage_f_expansion") > 0 else 1.0)
 	var root := Node2D.new()
 	root.name = "MageStorm_%s" % attacker.name
@@ -886,12 +922,12 @@ func add_mage_storm(center: Vector2, damage: float, duration: float, attacker: P
 	game._animate_effect_rotation(outer, 6.0, true)
 	game._animate_effect_rotation(inner, 4.2, false)
 	game._animate_effect_pulse(outer, 0.32, 0.64, 0.72)
-	game.persistent_skill_areas.append({
+	_register_skill_area({
 		"type": "mage_storm", "owner": attacker, "root": root,
 		"duration_left": minf(duration, 5.0), "tick_left": 0.0,
 		"interval": 1.0, "origin": center, "radius": radius,
 		"damage": damage * 0.30 * (1.30 if attacker.get_upgrade_level("mage_f_infusion") > 0 else 1.0),
-		"finisher_upgrade": attacker.get_upgrade_level("mage_f_finisher") > 0,
+		"finisher_upgrade": attacker.get_upgrade_level("mage_f_finisher") > 0, "is_critical": is_critical,
 		"stunned_ids": {},
 	})
 
@@ -922,14 +958,148 @@ func update_persistent_skill_areas(delta: float) -> void:
 			_tick_arrow_rain(area, owner)
 		elif str(area.get("type", "")) == "archer_trap":
 			_tick_archer_trap(area, owner)
-		elif str(area.get("type", "")) == "lancer_barricade":
-			_tick_lancer_barricade(area, owner)
 		elif str(area.get("type", "")) == "lancer_storm":
 			_tick_lancer_storm(area, owner)
 		elif str(area.get("type", "")) == "warrior_counter":
 			_tick_warrior_field(area, owner)
 		elif str(area.get("type", "")) in ["mage_field", "mage_storm"]:
 			_tick_mage_area(area, owner)
+
+func make_authority_skill_area_states() -> Array:
+	var states: Array = []
+	for area in game.persistent_skill_areas:
+		var root := area.get("root") as Node2D
+		if root == null or not is_instance_valid(root) or root.is_queued_for_deletion():
+			continue
+		var area_type := str(area.get("type", ""))
+		var position: Vector2 = area.get("origin", root.global_position) as Vector2
+		if area_type in ["warrior_shield", "lancer_spear", "warrior_counter", "lancer_storm"]:
+			position = root.global_position
+		states.append({
+			"entity_id": int(area.get("network_id", -1)),
+			"type": area_type,
+			"owner_player_id": game.get_player_network_id(area.get("owner") as PlayerController),
+			"position": position,
+			"duration_left": float(area.get("duration_left", 0.0)),
+			"tick_left": float(area.get("tick_left", 0.0)),
+			"interval": float(area.get("interval", 0.0)),
+			"is_critical": bool(area.get("is_critical", false)),
+			"origin": area.get("origin", position),
+			"direction": area.get("direction", Vector2.RIGHT),
+			"travel": float(area.get("travel", 0.0)),
+			"max_travel": float(area.get("max_travel", 0.0)),
+			"speed": float(area.get("speed", 0.0)),
+			"returning": bool(area.get("returning", false)),
+			"radius": float(area.get("radius", 0.0)),
+			"forward": area.get("forward", Vector2.RIGHT),
+			"length": float(area.get("length", 0.0)),
+			"half_depth": float(area.get("half_depth", 0.0)),
+			"sweep_angle": float(area.get("sweep_angle", 0.0)),
+		})
+	return states
+
+func apply_authority_skill_area_states(states: Array) -> void:
+	var existing_by_id := {}
+	for area in game.persistent_skill_areas:
+		var entity_id := int((area as Dictionary).get("network_id", -1))
+		if entity_id > 0:
+			existing_by_id[entity_id] = area
+	var authority_ids := {}
+	for raw_state in states:
+		var state := raw_state as Dictionary
+		var entity_id := int(state.get("entity_id", -1))
+		authority_ids[entity_id] = true
+		var area: Dictionary = existing_by_id.get(entity_id, {}) as Dictionary
+		if area.is_empty():
+			area = _create_authority_skill_area(state)
+		var owner: PlayerController = game._get_network_player(int(state.get("owner_player_id", 0))) as PlayerController
+		area["owner"] = owner
+		for key in ["type", "duration_left", "tick_left", "interval", "is_critical", "origin", "direction", "travel", "max_travel", "speed", "returning", "radius", "forward", "length", "half_depth", "sweep_angle"]:
+			if state.has(key):
+				area[key] = state[key]
+		var root := area.get("root") as Node2D
+		if root != null and is_instance_valid(root):
+			root.global_position = state.get("position", root.global_position) as Vector2
+			if str(state.get("type", "")) in ["warrior_shield", "lancer_spear"]:
+				var direction := state.get("direction", Vector2.RIGHT) as Vector2
+				root.rotation = direction.angle() + (PI if bool(state.get("returning", false)) else 0.0)
+	for area in game.persistent_skill_areas.duplicate():
+		if not authority_ids.has(int((area as Dictionary).get("network_id", -1))):
+			remove_persistent_skill_area(area as Dictionary)
+
+func _create_authority_skill_area(state: Dictionary) -> Dictionary:
+	var root := Node2D.new()
+	root.name = "AuthoritySkill_%s_%d" % [str(state.get("type", "skill")), int(state.get("entity_id", 0))]
+	root.global_position = state.get("position", Vector2.ZERO) as Vector2
+	game.effect_root.add_child(root)
+	var area_type := str(state.get("type", ""))
+	var texture: Texture2D
+	var diameter := maxf(68.0, float(state.get("radius", 34.0)) * 2.0)
+	match area_type:
+		"warrior_counter", "warrior_shield":
+			texture = WarriorEVfxTexture
+		"archer_trap":
+			texture = ArcherEVfxTexture
+		"arrow_rain":
+			texture = ArcherFVfxTexture
+		"lancer_spear":
+			texture = LancerEVfxTexture
+		"lancer_storm":
+			texture = LancerFVfxTexture
+		"mage_field":
+			texture = MageEVfxTexture
+		"mage_storm":
+			texture = MageFVfxTexture
+	if texture != null:
+		var sprite: Sprite2D = game._add_textured_effect(root, texture, diameter, Vector2.ZERO, Color(1.0, 1.0, 1.0, 0.62), "AuthorityTexture")
+		game._animate_effect_rotation(sprite, 4.0, true)
+	var area := {
+		"network_id": int(state.get("entity_id", -1)),
+		"type": area_type,
+		"owner": game._get_network_player(int(state.get("owner_player_id", 0))),
+		"root": root,
+		"authority_presentation_only": true,
+	}
+	game.persistent_skill_areas.append(area)
+	return area
+
+func make_authority_ultimate_states() -> Array:
+	var states: Array = []
+	for state in game.ultimate_states.values():
+		var owner := (state as Dictionary).get("owner") as PlayerController
+		var root := (state as Dictionary).get("root") as Node2D
+		if owner == null or owner.character_id != "warrior" or root == null or not is_instance_valid(owner) or not is_instance_valid(root):
+			continue
+		states.append({
+			"owner_player_id": game.get_player_network_id(owner),
+			"duration_left": float((state as Dictionary).get("duration_left", 0.0)),
+			"angle": float((state as Dictionary).get("angle", 0.0)),
+			"blade_count": root.get_child_count(),
+		})
+	return states
+
+func apply_authority_ultimate_states(states: Array) -> void:
+	var active_owner_ids := {}
+	for raw_state in states:
+		var authority_state := raw_state as Dictionary
+		var owner_id := int(authority_state.get("owner_player_id", 0))
+		var owner: PlayerController = game._get_network_player(owner_id) as PlayerController
+		if owner == null or not is_instance_valid(owner):
+			continue
+		active_owner_ids[owner_id] = true
+		var state: Dictionary = _get_ultimate_state(owner)
+		state["duration_left"] = maxf(0.0, float(authority_state.get("duration_left", 0.0)))
+		state["angle"] = float(authority_state.get("angle", 0.0))
+		_sync_warrior_blade_count(state, maxi(0, int(authority_state.get("blade_count", 0))))
+		var root := state.get("root") as Node2D
+		root.visible = float(state["duration_left"]) > 0.0
+		if root.visible:
+			_update_blade_visuals(state)
+	for state in game.ultimate_states.values():
+		var owner := (state as Dictionary).get("owner") as PlayerController
+		if owner != null and not active_owner_ids.has(game.get_player_network_id(owner)):
+			(state as Dictionary)["duration_left"] = 0.0
+			((state as Dictionary).get("root") as Node2D).visible = false
 
 func _tick_arrow_rain(area: Dictionary, owner: PlayerController) -> void:
 	var center: Vector2 = area.get("origin", owner.global_position) as Vector2
@@ -952,12 +1122,11 @@ func _tick_arrow_rain(area: Dictionary, owner: PlayerController) -> void:
 	var damage_multiplier := 1.0
 	if bool(area.get("weakpoint_upgrade", false)):
 		damage_multiplier = minf(2.20, 1.0 + 0.18 * float(count - 1))
-	var crit_chance := owner.crit_chance
-	if bool(area.get("critical_upgrade", false)):
-		crit_chance += 0.25
-	if randf() < clampf(crit_chance, 0.0, 1.0):
+	var is_critical := bool(area.get("is_critical", false))
+	if not is_critical and bool(area.get("critical_upgrade", false)) and randf() < 0.25:
 		damage_multiplier *= owner.crit_multiplier
-	damage_enemy(target, damage * damage_multiplier, owner, center, owner.attack_knockback * 0.28)
+		is_critical = true
+	damage_enemy(target, damage * damage_multiplier, owner, center, owner.attack_knockback * 0.28, true, true, true, is_critical)
 	game._spawn_spark_burst(target.global_position, Color(1.0, 0.72, 0.22, 0.92), 6, 26.0, 0.14)
 
 func _spawn_archer_arrow_strike(target_position: Vector2) -> void:
@@ -1025,9 +1194,9 @@ func _update_traveling_skill(area: Dictionary, owner: PlayerController, delta: f
 		var damage := float(area.get("damage", owner.attack_damage))
 		if str(area.get("type", "")) == "lancer_spear" and returning and not enemy.is_boss:
 			var away: Vector2 = (enemy.global_position - owner.global_position).normalized()
-			damage_enemy(enemy, damage, owner, enemy.global_position + away * 80.0, owner.attack_knockback * 0.35)
+			damage_enemy(enemy, damage, owner, enemy.global_position + away * 80.0, owner.attack_knockback * 0.35, true, true, false, bool(area.get("is_critical", false)))
 		else:
-			damage_enemy(enemy, damage, owner, origin, owner.attack_knockback * 0.20)
+			damage_enemy(enemy, damage, owner, origin, owner.attack_knockback * 0.20, true, true, false, bool(area.get("is_critical", false)))
 		area["hit_any"] = true
 	if not returning and travel >= max_travel:
 		var should_return := str(area.get("type", "")) == "warrior_shield" or bool(area.get("returns", false))
@@ -1058,9 +1227,9 @@ func _tick_lancer_storm(area: Dictionary, owner: PlayerController) -> void:
 			if bool(area.get("pull_upgrade", false)) and not enemy.is_boss:
 				var away: Vector2 = (enemy.global_position - owner.global_position).normalized()
 				var pull_origin: Vector2 = enemy.global_position + away * 80.0
-				damage_enemy(enemy, damage, owner, pull_origin, owner.attack_knockback * 0.45)
+				damage_enemy(enemy, damage, owner, pull_origin, owner.attack_knockback * 0.45, true, true, true, bool(area.get("is_critical", false)))
 			else:
-				damage_enemy(enemy, damage, owner, owner.global_position, owner.attack_knockback * 0.45)
+				damage_enemy(enemy, damage, owner, owner.global_position, owner.attack_knockback * 0.45, true, true, true, bool(area.get("is_critical", false)))
 
 func _finish_persistent_skill_area(area: Dictionary, owner: PlayerController) -> void:
 	var area_type := str(area.get("type", ""))
@@ -1072,7 +1241,7 @@ func _finish_persistent_skill_area(area: Dictionary, owner: PlayerController) ->
 		game._spawn_ring_effect(center, radius, Color(0.56, 0.76, 1.0, 0.72), 0.22)
 		game._spawn_textured_effect(center, MageFVfxTexture, radius * 2.0, 0.30, "MageStormFinisher")
 		game._spawn_spark_burst(center, Color(0.58, 0.82, 1.0, 0.96), 20, radius * 0.72, 0.28)
-		damage_enemies_in_radius(center, radius, damage, owner)
+		damage_enemies_in_radius(center, radius, damage, owner, bool(area.get("is_critical", false)))
 	elif area_type == "lancer_storm" and bool(area.get("finisher_upgrade", false)):
 		var radius := float(area.get("radius", 175.0)) * 1.45
 		var damage := float(area.get("damage", owner.attack_damage)) * 2.2
@@ -1080,7 +1249,7 @@ func _finish_persistent_skill_area(area: Dictionary, owner: PlayerController) ->
 		game._spawn_ring_effect(owner.global_position, radius, Color(0.68, 0.92, 1.0, 0.78), 0.24)
 		game._spawn_textured_effect(owner.global_position, LancerFVfxTexture, radius * 2.0, 0.30, "LancerStormFinisher")
 		game._spawn_spark_burst(owner.global_position, Color(0.72, 0.96, 1.0, 0.96), 22, radius * 0.78, 0.28)
-		damage_enemies_in_radius(owner.global_position, radius, damage, owner)
+		damage_enemies_in_radius(owner.global_position, radius, damage, owner, bool(area.get("is_critical", false)))
 
 func _tick_warrior_field(area: Dictionary, owner: PlayerController) -> void:
 	var radius := float(area.get("radius", 105.0))
@@ -1089,24 +1258,7 @@ func _tick_warrior_field(area: Dictionary, owner: PlayerController) -> void:
 	game._spawn_ring_effect(owner.global_position, radius, color, 0.16)
 	for enemy in game.enemies.duplicate():
 		if is_instance_valid(enemy) and enemy.global_position.distance_to(owner.global_position) <= radius:
-			damage_enemy(enemy, damage, owner, owner.global_position, owner.attack_knockback * 0.25)
-
-func _tick_lancer_barricade(area: Dictionary, owner: PlayerController) -> void:
-	var center: Vector2 = area.get("origin", owner.global_position) as Vector2
-	var forward: Vector2 = (area.get("forward", Vector2.RIGHT) as Vector2).normalized()
-	if forward == Vector2.ZERO:
-		forward = Vector2.RIGHT
-	var side_axis := Vector2(-forward.y, forward.x)
-	var half_side := float(area.get("length", 260.0)) * 0.5
-	var half_depth := float(area.get("half_depth", 35.0))
-	var damage := float(area.get("damage", owner.attack_damage))
-	for enemy in game.enemies.duplicate():
-		if not is_instance_valid(enemy):
-			continue
-		var to_enemy: Vector2 = enemy.global_position - center
-		if absf(to_enemy.dot(forward)) <= half_depth and absf(to_enemy.dot(side_axis)) <= half_side:
-			var knockback := 0.0 if enemy.is_boss else owner.attack_knockback * 0.55
-			damage_enemy(enemy, damage, owner, center - forward * 40.0, knockback)
+			damage_enemy(enemy, damage, owner, owner.global_position, owner.attack_knockback * 0.25, true, true, true, bool(area.get("is_critical", false)))
 
 func _tick_mage_area(area: Dictionary, owner: PlayerController) -> void:
 	var center: Vector2 = area.get("origin", owner.global_position) as Vector2
@@ -1132,7 +1284,7 @@ func _tick_mage_area(area: Dictionary, owner: PlayerController) -> void:
 				var count := int(hit_counts.get(enemy.get_instance_id(), 0)) + 1
 				hit_counts[enemy.get_instance_id()] = count
 				hit_damage *= minf(2.0, 1.0 + 0.15 * float(count - 1))
-			damage_enemy(enemy, hit_damage, owner, center, 0.0, true, false)
+			damage_enemy(enemy, hit_damage, owner, center, 0.0, true, false, true, bool(area.get("is_critical", false)))
 
 func _spawn_mage_lightning_strike(target_position: Vector2) -> void:
 	var root := Node2D.new()

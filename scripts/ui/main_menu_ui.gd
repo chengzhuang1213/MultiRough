@@ -8,9 +8,9 @@ signal join_requested
 const UIFactoryScript := preload("res://scripts/ui/ui_factory.gd")
 const VerdantUIThemeScript := preload("res://scripts/ui/verdant_ui_theme.gd")
 
-const PANEL_SIZE := Vector2(800, 640)
+const PANEL_SIZE := Vector2(800, 680)
 const CONTENT_WIDTH := 500.0
-const CONTROL_HEIGHT := 64.0
+const CONTROL_HEIGHT := 100.0
 
 var content: VBoxContainer
 var network_ip_edit: LineEdit
@@ -43,7 +43,7 @@ func _ready() -> void:
 	var single_button := Button.new()
 	single_button.text = "单人游戏"
 	single_button.custom_minimum_size = Vector2(CONTENT_WIDTH, CONTROL_HEIGHT)
-	single_button.add_theme_font_size_override("font_size", 20)
+	single_button.add_theme_font_size_override("font_size", 24)
 	single_button.pressed.connect(func() -> void: single_player_requested.emit())
 	content.add_child(single_button)
 
@@ -59,7 +59,7 @@ func _ready() -> void:
 	network_ip_edit = LineEdit.new()
 	network_ip_edit.placeholder_text = "主机 IP，例如 192.168.1.8"
 	network_ip_edit.custom_minimum_size = Vector2(CONTENT_WIDTH, CONTROL_HEIGHT)
-	network_ip_edit.add_theme_font_size_override("font_size", 16)
+	network_ip_edit.add_theme_font_size_override("font_size", 20)
 	content.add_child(network_ip_edit)
 
 	var network_row := HBoxContainer.new()
@@ -70,6 +70,7 @@ func _ready() -> void:
 	var host_button := Button.new()
 	host_button.text = "创建房间"
 	host_button.custom_minimum_size = Vector2(242, CONTROL_HEIGHT)
+	host_button.add_theme_font_size_override("font_size", 22)
 	host_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	host_button.pressed.connect(func() -> void: host_requested.emit())
 	network_row.add_child(host_button)
@@ -77,6 +78,7 @@ func _ready() -> void:
 	var join_button := Button.new()
 	join_button.text = "加入房间"
 	join_button.custom_minimum_size = Vector2(242, CONTROL_HEIGHT)
+	join_button.add_theme_font_size_override("font_size", 22)
 	join_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	join_button.pressed.connect(func() -> void: join_requested.emit())
 	network_row.add_child(join_button)
@@ -92,6 +94,3 @@ func _ready() -> void:
 func set_status(text: String) -> void:
 	if network_status_label != null:
 		network_status_label.text = text
-
-func get_ip_text() -> String:
-	return network_ip_edit.text.strip_edges() if network_ip_edit != null else ""

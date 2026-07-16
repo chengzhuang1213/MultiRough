@@ -36,10 +36,11 @@ func _run() -> void:
 func _check_complete_single_player_run() -> void:
 	game._start_game(1)
 	await process_frame
+	_expect(is_equal_approx(GameRulesScript.PLAYER_DAMAGE_GROWTH_PER_WAVE, 0.02), "per-wave player output growth is not exactly two percent")
 	_expect(game.wave_index == 0, "single-player run did not start at wave 1")
 	_expect(game.players.size() == 1, "single-player run did not create exactly one player")
 	_expect(game.game_state == GameStateScript.WAVE_ACTIVE, "first wave is not active")
-	_expect(game.wave_time_left > 0.0 and game.wave_time_left <= 60.0, "normal wave did not start with a 60-second limit")
+	_expect(game.wave_time_left > 0.0 and game.wave_time_left <= 120.0, "normal wave did not start with a 120-second limit")
 	_expect(game.player_huds[0].get("player") == game.players[0], "player HUD was not bound to the created player")
 	var hud: Dictionary = game.player_huds[0]
 	var action_icons: Array = hud.get("action_icons", [])
@@ -79,7 +80,7 @@ func _check_complete_single_player_run() -> void:
 		_expect(is_equal_approx(game.players[0].wave_damage_multiplier, expected_damage_multiplier), "player wave damage growth did not advance with the wave")
 		var boss_wave: bool = game.game_state == GameStateScript.BOSS_WAVE
 		if boss_wave:
-			_expect(game.wave_time_left > 60.0 and game.wave_time_left <= 120.0, "boss wave did not start with a 120-second limit")
+			_expect(game.wave_time_left > 120.0 and game.wave_time_left <= 180.0, "boss wave did not start with a 180-second limit")
 		await _kill_current_wave()
 		await process_frame
 		if boss_wave:
@@ -154,6 +155,7 @@ func _check_network_upgrade_and_snapshot_sync() -> void:
 	await process_frame
 	_start_network_test_pair(host, client, ["archer", "mage"])
 	await process_frame
+	_expect(client.enemies.is_empty(), "client generated enemies before receiving a host snapshot")
 	_sync_upgrade_round(host, client, 1, "archer_e_trap")
 	_sync_upgrade_round(host, client, 1, "archer_e_execution_trap")
 	_sync_upgrade_round(host, client, 2, "mage_e_chain")
@@ -173,6 +175,14 @@ func _check_network_upgrade_and_snapshot_sync() -> void:
 	var host_enemy = host.enemies[0]
 	host_enemy.global_position = Vector2(-215.0, 115.0)
 	host_enemy.health = maxf(1.0, host_enemy.health - 9.0)
+	host_enemy.apply_hunter_mark(host.players[0], 8.0, 1.55)
+	host.combat_manager.fire_player_arrow(Vector2(-700.0, -400.0), Vector2.LEFT, 12.0, host.players[0])
+	host.combat_manager.place_archer_trap(Vector2(40.0, 30.0), Vector2.RIGHT, host.players[0])
+	var host_projectile = host.projectile_root.get_child(0)
+	var host_area: Dictionary = host.persistent_skill_areas[0]
+	var projectile_id := int(host_projectile.network_id)
+	var area_id := int(host_area.get("network_id", -1))
+	_expect(projectile_id > 0 and area_id > 0 and projectile_id != area_id, "host did not assign stable unique combat entity ids")
 	host.network_snapshot_sequence = 7
 	var snapshot: Dictionary = host._build_authority_snapshot()
 	_expect(client._apply_authority_snapshot(snapshot), "client rejected a valid host snapshot")
@@ -186,9 +196,46 @@ func _check_network_upgrade_and_snapshot_sync() -> void:
 	if client_enemy != null:
 		_expect(client_enemy.global_position.is_equal_approx(host_enemy.global_position), "enemy position drifted after host snapshot")
 		_expect(is_equal_approx(client_enemy.health, host_enemy.health), "enemy health drifted after host snapshot")
+		_expect(not client_enemy.authority_enabled, "client enemy continued running authoritative AI")
+		_expect(client_enemy.is_marked_by(client.players[0]), "host hunter mark did not synchronize to the client")
+	_expect(_find_network_projectile(client, projectile_id) != null, "client did not create the host projectile")
+	_expect(_find_network_skill_area(client, area_id) != null, "client did not create the host skill area")
+	var client_projectile_count: int = client.projectile_root.get_child_count()
+	client.combat_manager.on_player_projectile_attack(Vector2.ZERO, Vector2.RIGHT, 10.0, false, client.players[0])
+	_expect(client.projectile_root.get_child_count() == client_projectile_count, "client created a projectile from local combat simulation")
 	var stale_snapshot := snapshot.duplicate(true)
 	stale_snapshot["sequence"] = 6
 	_expect(not client._apply_authority_snapshot(stale_snapshot), "client accepted an out-of-order authority snapshot")
+	host_projectile.global_position = Vector2(-500.0, -400.0)
+	var client_enemy_position_before_update: Vector2 = client_enemy.global_position
+	host_enemy.global_position += Vector2(120.0, 0.0)
+	host.network_snapshot_sequence = 8
+	var update_snapshot: Dictionary = host._build_authority_snapshot()
+	_expect(client._apply_authority_snapshot(update_snapshot), "client rejected combat entity update snapshot")
+	var updated_client_projectile = _find_network_projectile(client, projectile_id)
+	_expect(updated_client_projectile != null and updated_client_projectile.global_position.is_equal_approx(host_projectile.global_position), "client did not update the host projectile position")
+	_expect(client_enemy.authority_target_position.is_equal_approx(host_enemy.global_position), "client enemy did not receive the host interpolation target")
+	var distance_before_interpolation: float = client_enemy_position_before_update.distance_to(host_enemy.global_position)
+	client_enemy._physics_process(0.05)
+	_expect(client_enemy.global_position.distance_to(host_enemy.global_position) < distance_before_interpolation, "client enemy did not interpolate toward the host position")
+	host_projectile.queue_free()
+	host.combat_manager.remove_persistent_skill_area(host_area)
+	host_enemy._mark_left = 0.0
+	await process_frame
+	host.network_snapshot_sequence = 9
+	var removal_snapshot: Dictionary = host._build_authority_snapshot()
+	_expect(client._apply_authority_snapshot(removal_snapshot), "client rejected combat entity removal snapshot")
+	_expect(_find_network_projectile(client, projectile_id) == null, "client retained a projectile removed by the host")
+	_expect(_find_network_skill_area(client, area_id) == null, "client retained a skill area removed by the host")
+	_expect(not client_enemy.is_marked_by(client.players[0]), "client retained a hunter mark removed by the host")
+	var client_effect_count: int = client.effect_root.get_child_count()
+	client._network_show_enemy_telegraph("circle", {
+		"origin": Vector2(75.0, -45.0),
+		"radius": 120.0,
+		"color": Color(1.0, 0.18, 0.10, 0.42),
+		"lifetime": 0.8,
+	})
+	_expect(client.effect_root.get_child_count() == client_effect_count + 1, "client did not render a synchronized instantaneous enemy warning")
 
 	host._clear_run_state()
 	client._clear_run_state()
@@ -202,6 +249,13 @@ func _check_network_upgrade_and_snapshot_sync() -> void:
 	_sync_upgrade_round(host, client, 2, "lancer_e_return")
 	_expect(host.players[0].upgrade_levels == client.players[0].upgrade_levels, "warrior shield branch diverged between host and client")
 	_expect(host.players[1].upgrade_levels == client.players[1].upgrade_levels, "lancer spear branch diverged between host and client")
+	host.combat_manager.start_blade_ultimate(host.players[0], 20.0, 6.0)
+	host.network_snapshot_sequence = 1
+	var ultimate_snapshot: Dictionary = host._build_authority_snapshot()
+	_expect(client._apply_authority_snapshot(ultimate_snapshot), "client rejected host ultimate state")
+	var client_ultimate: Dictionary = client.ultimate_states[client.players[0].get_instance_id()]
+	_expect(float(client_ultimate.get("duration_left", 0.0)) > 0.0, "client did not activate the host warrior ultimate")
+	_expect((client_ultimate.get("root") as Node2D).visible, "client warrior ultimate presentation stayed hidden")
 
 	host._clear_run_state()
 	client._clear_run_state()
@@ -250,6 +304,18 @@ func _find_network_enemy(target_game: Node, network_id: int):
 			return enemy
 	return null
 
+func _find_network_projectile(target_game: Node, network_id: int):
+	for projectile in target_game.projectile_root.get_children():
+		if is_instance_valid(projectile) and not projectile.is_queued_for_deletion() and int(projectile.get("network_id")) == network_id:
+			return projectile
+	return null
+
+func _find_network_skill_area(target_game: Node, network_id: int):
+	for area in target_game.persistent_skill_areas:
+		if int((area as Dictionary).get("network_id", -1)) == network_id:
+			return area
+	return null
+
 func _check_wave_timeout() -> void:
 	game._start_game(1)
 	await process_frame
@@ -264,9 +330,11 @@ func _check_wave_timeout() -> void:
 
 func _kill_current_wave() -> void:
 	var cleanup_passes := 0
-	while not game.enemies.is_empty() and cleanup_passes < 4:
+	while not game.enemies.is_empty() and cleanup_passes < 6:
 		for enemy in game.enemies.duplicate():
 			if is_instance_valid(enemy):
+				if enemy.is_boss:
+					enemy._boss_invulnerability_left = 0.0
 				enemy.apply_damage(enemy.max_health * 10.0, enemy.global_position, 0.0)
 		cleanup_passes += 1
 		await process_frame
@@ -276,7 +344,7 @@ func _check_combat_manager_connections() -> void:
 	var enemy = game.enemies[0]
 	enemy.global_position = player.global_position + Vector2(48.0, 0.0)
 	var health_before: float = enemy.health
-	player.basic_attack_requested.emit(player.global_position, Vector2.RIGHT, 80.0, 40.0, 5.0)
+	player.basic_attack_requested.emit(player.global_position, Vector2.RIGHT, 80.0, 40.0, 5.0, false)
 	_expect(enemy.health < health_before, "player attack signal did not reach the combat manager")
 	game.combat_manager.add_arrow_rain(player.global_position, Vector2.RIGHT, 10.0, 1.0, player)
 	_expect(game.persistent_skill_areas.size() == 1, "combat manager did not register a persistent skill area")

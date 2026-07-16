@@ -33,7 +33,7 @@ The checks cover character configuration, the 27 general upgrade cards,
 same-rarity three-card rolls, random rarity rates, the final-round epic
 guarantee, skipped-card offer weights, upgrade application and uniqueness, ten
 upgrade waves followed by the boss, single/duo scaling, revival, wave-clear
-healing, cooldown pausing, and the future host-authority snapshot contract.
+healing, cooldown pausing, and the versioned host-authority snapshot contract.
 
 Run the main-scene lifecycle integration checks:
 
@@ -47,7 +47,9 @@ separate restarts. It also verifies player-to-HUD binding, player attack signal
 routing, persistent skill-area registration and cleanup after the managers are
 split out of the main scene script, synchronized E-branch upgrades across host
 and client instances, ordered authority-snapshot correction, stale snapshot
-rejection, and network-run upgrade cleanup.
+rejection, host-only enemy simulation, stable combat-entity IDs, projectile and
+persistent-area creation/update/removal, hunter-mark ownership, warrior ultimate
+state, synchronized enemy warning events, and network-run upgrade cleanup.
 
 Run the character combat regression checks:
 
@@ -58,7 +60,9 @@ godot --headless --path . --script res://tests/character_combat_checks.gd
 These checks cover the existing warrior, archer, and lancer combat modules:
 basic attack shape, Q/E behavior, F activation, module registration, damage
 accounting, lifesteal accounting, and all four shared-cooldown right-click
-secondary actions.
+secondary actions. Boss regression coverage also fixes the explicit critical-hit
+context, true-AOE resistance, and the non-AOE classification of lancer Q and
+chain lightning; warrior F projectile interception is checked directly.
 
 Run the enemy roster and behavior checks:
 
@@ -68,7 +72,8 @@ godot --headless --path . --script res://tests/enemy_behavior_checks.gd
 
 These checks cover the ten-wave enemy composition, all seven non-boss enemy
 types, shield directional reduction, charger windup, bomber self-destruction,
-the grand-elite priest's area healing, and the boss reinforcement, enrage,
+the grand-elite priest's area healing, wave-seven melee blood rage, heavy stomp,
+ranged repositioning, and the boss reinforcement, enrage,
 cataclysm, and repeated-stun-resistance phases.
 
 Run the non-visual balance bot simulation:

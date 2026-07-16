@@ -1,6 +1,9 @@
 extends CharacterBody2D
 class_name EnemyController
 
+const EnemyArchetypesScript := preload("res://scripts/enemy/enemy_archetypes.gd")
+const EnemyAnimationCatalogScript := preload("res://scripts/enemy/enemy_animation_catalog.gd")
+
 signal died(enemy: EnemyController)
 signal attack_started(enemy: EnemyController, windup_time: float, range: float)
 signal attacked_player(enemy: EnemyController, target: Node2D, damage: float)
@@ -13,32 +16,6 @@ signal healing_requested(enemy: EnemyController, origin: Vector2, radius: float,
 signal boss_reinforcement_requested(enemy: EnemyController)
 signal damaged(enemy: EnemyController, amount: float)
 
-const MINION_IDLE_SPRITE_PATH := "res://assets/tiny_swords_free_pack/Units/Red Units/Pawn/Pawn_Idle.png"
-const MINION_RUN_SPRITE_PATH := "res://assets/tiny_swords_free_pack/Units/Red Units/Pawn/Pawn_Run.png"
-const MINION_ATTACK_SPRITE_PATH := "res://assets/tiny_swords_free_pack/Units/Red Units/Pawn/Pawn_Interact Knife.png"
-const HEAVY_IDLE_SPRITE_PATH := "res://assets/tiny_swords_free_pack/Units/Black Units/Pawn/Pawn_Idle.png"
-const HEAVY_RUN_SPRITE_PATH := "res://assets/tiny_swords_free_pack/Units/Black Units/Pawn/Pawn_Run.png"
-const HEAVY_ATTACK_SPRITE_PATH := "res://assets/tiny_swords_free_pack/Units/Black Units/Pawn/Pawn_Interact Hammer.png"
-const RANGED_IDLE_SPRITE_PATH := "res://assets/tiny_swords_free_pack/Units/Red Units/Archer/Archer_Idle.png"
-const RANGED_RUN_SPRITE_PATH := "res://assets/tiny_swords_free_pack/Units/Red Units/Archer/Archer_Run.png"
-const RANGED_ATTACK_SPRITE_PATH := "res://assets/tiny_swords_free_pack/Units/Red Units/Archer/Archer_Shoot.png"
-const SHIELD_IDLE_SPRITE_PATH := "res://assets/tiny_swords_free_pack/Units/Red Units/Warrior/Warrior_Guard.png"
-const SHIELD_RUN_SPRITE_PATH := "res://assets/tiny_swords_free_pack/Units/Red Units/Warrior/Warrior_Run.png"
-const SHIELD_ATTACK_SPRITE_PATH := "res://assets/tiny_swords_free_pack/Units/Red Units/Warrior/Warrior_Attack1.png"
-const CHARGER_IDLE_SPRITE_PATH := "res://assets/tiny_swords_free_pack/Units/Red Units/Lancer/Lancer_Idle.png"
-const CHARGER_RUN_SPRITE_PATH := "res://assets/tiny_swords_free_pack/Units/Red Units/Lancer/Lancer_Run.png"
-const CHARGER_ATTACK_SPRITE_PATH := "res://assets/tiny_swords_free_pack/Units/Red Units/Lancer/Lancer_Right_Attack.png"
-const BOMBER_IDLE_SPRITE_PATH := "res://assets/tiny_swords_free_pack/Units/Black Units/Pawn/Pawn_Idle Hammer.png"
-const BOMBER_RUN_SPRITE_PATH := "res://assets/tiny_swords_free_pack/Units/Black Units/Pawn/Pawn_Run Hammer.png"
-const BOMBER_ATTACK_SPRITE_PATH := "res://assets/tiny_swords_free_pack/Units/Black Units/Pawn/Pawn_Interact Hammer.png"
-const PRIEST_IDLE_SPRITE_PATH := "res://assets/tiny_swords_free_pack/Units/Red Units/Monk/Idle.png"
-const PRIEST_RUN_SPRITE_PATH := "res://assets/tiny_swords_free_pack/Units/Red Units/Monk/Run.png"
-const PRIEST_HEAL_SPRITE_PATH := "res://assets/tiny_swords_free_pack/Units/Red Units/Monk/Heal.png"
-const BOSS_IDLE_SPRITE_PATH := "res://assets/tiny_swords_free_pack/Units/Black Units/Lancer/Lancer_Idle.png"
-const BOSS_RUN_SPRITE_PATH := "res://assets/tiny_swords_free_pack/Units/Black Units/Lancer/Lancer_Run.png"
-const BOSS_ATTACK_SPRITE_PATH := "res://assets/tiny_swords_free_pack/Units/Black Units/Lancer/Lancer_Right_Attack.png"
-const MINION_FRAME_SIZE := Vector2(192, 192)
-const BOSS_FRAME_SIZE := Vector2(320, 320)
 const ANIM_IDLE := "idle"
 const ANIM_RUN := "run"
 const ANIM_ATTACK := "attack"
@@ -50,6 +27,25 @@ const TYPE_CHARGER := "charger"
 const TYPE_BOMBER := "bomber"
 const TYPE_PRIEST := "priest"
 const TYPE_BOSS := "boss"
+const MINOR_SKILL_START_WAVE := 7
+const MELEE_BLOOD_RAGE_HEALTH_RATIO := 0.40
+const MELEE_BLOOD_RAGE_DURATION := 4.0
+const MELEE_BLOOD_RAGE_SPEED_MULTIPLIER := 1.30
+const MELEE_BLOOD_RAGE_ATTACK_INTERVAL_MULTIPLIER := 0.70
+const HEAVY_STOMP_RADIUS := 105.0
+const HEAVY_STOMP_WINDUP := 0.75
+const HEAVY_STOMP_COOLDOWN := 5.5
+const RANGED_REPOSITION_SHOTS := 3
+const RANGED_REPOSITION_DURATION := 0.38
+const RANGED_REPOSITION_SPEED_MULTIPLIER := 2.20
+const BOSS_AOE_DAMAGE_TAKEN_MULTIPLIER := 0.70
+const BOSS_CRITICAL_BONUS_MULTIPLIER := 0.80
+const BOSS_PHASE_INVULNERABILITY := 0.75
+const BOSS_ENRAGE_DAMAGE_MULTIPLIER := 1.30
+const BOSS_DESPERATION_HEALTH_RATIO := 0.20
+const BOSS_DESPERATION_RADIUS := 300.0
+const BOSS_DESPERATION_WINDUP := 1.50
+const BOSS_DESPERATION_COOLDOWN := 5.50
 
 var max_health := 45.0
 var health := max_health
@@ -64,6 +60,12 @@ var projectile_damage := 8.0
 var enemy_type := TYPE_MELEE
 var is_boss := false
 var network_id := -1
+var authority_enabled := true
+var authority_target_position := Vector2.ZERO
+var authority_velocity := Vector2.ZERO
+var authority_animation := ANIM_IDLE
+var _authority_state_received := false
+var minor_skill_enabled := false
 var arena_bounds := Rect2(Vector2(-480, -270), Vector2(960, 540))
 
 var _target: Node2D
@@ -92,7 +94,13 @@ var _boss_cataclysm_timer := 5.0
 var _boss_cast_pause_left := 0.0
 var _boss_enraged := false
 var _boss_reinforcements_called := false
-var _boss_stun_resistance_left := 0.0
+var _boss_invulnerability_left := 0.0
+var _boss_desperation_timer := BOSS_DESPERATION_COOLDOWN
+var _boss_desperation_unlocked := false
+var _boss_phase_70_triggered := false
+var _boss_phase_40_triggered := false
+var _boss_phase_20_triggered := false
+var _boss_phase_10_triggered := false
 var _facing_direction := Vector2.RIGHT
 var _shield_front_damage_multiplier := 0.30
 var _charge_cooldown_left := 0.0
@@ -108,6 +116,13 @@ var _priest_heal_cooldown_left := 0.0
 var _priest_cast_left := 0.0
 var _priest_heal_radius := 190.0
 var _priest_heal_amount := 0.0
+var _melee_blood_rage_triggered := false
+var _melee_blood_rage_left := 0.0
+var _heavy_stomp_cooldown_left := 0.0
+var _ranged_shots_since_reposition := 0
+var _ranged_reposition_left := 0.0
+var _ranged_reposition_direction := Vector2.ZERO
+var _ranged_reposition_side := 1.0
 var _is_dying := false
 
 var _sprite: Sprite2D
@@ -131,139 +146,82 @@ func _reset_special_state() -> void:
 	_priest_heal_cooldown_left = 0.0
 	_priest_cast_left = 0.0
 	_priest_heal_amount = 0.0
+	minor_skill_enabled = false
+	_melee_blood_rage_triggered = false
+	_melee_blood_rage_left = 0.0
+	_heavy_stomp_cooldown_left = 0.0
+	_ranged_shots_since_reposition = 0
+	_ranged_reposition_left = 0.0
+	_ranged_reposition_direction = Vector2.ZERO
+	_ranged_reposition_side = 1.0
 	_stun_left = 0.0
 	_slow_left = 0.0
 	_slow_move_multiplier = 1.0
 	_boss_cataclysm_timer = 5.0
 	_boss_reinforcements_called = false
-	_boss_stun_resistance_left = 0.0
+	_boss_invulnerability_left = 0.0
+	_boss_desperation_timer = BOSS_DESPERATION_COOLDOWN
+	_boss_desperation_unlocked = false
+	_boss_phase_70_triggered = false
+	_boss_phase_40_triggered = false
+	_boss_phase_20_triggered = false
+	_boss_phase_10_triggered = false
 
 func setup_as_minion(wave_number: int) -> void:
-	_reset_special_state()
-	is_boss = false
-	enemy_type = TYPE_MELEE
-	max_health = 38.0 + wave_number * 8.0
-	health = max_health
-	move_speed = 90.0 + wave_number * 4.0
-	attack_damage = 8.0 + wave_number * 2.0
-	attack_interval = 0.85
-	attack_range = 42.0
-	attack_windup_time = 0.24
-	attack_recovery_time = 0.20
-	if is_node_ready():
-		_update_variant_visual()
-		_play_animation(ANIM_IDLE, true)
+	_apply_archetype(TYPE_MELEE, wave_number)
 
 func setup_as_heavy(wave_number: int) -> void:
-	setup_as_minion(wave_number)
-	enemy_type = TYPE_HEAVY
-	max_health *= 2.25
-	health = max_health
-	move_speed *= 0.58
-	attack_damage *= 1.45
-	attack_interval = 1.05
-	attack_range = 48.0
-	attack_windup_time = 0.42
-	attack_recovery_time = 0.34
-	if is_node_ready():
-		_update_health_bar()
-		_update_variant_visual()
+	_apply_archetype(TYPE_HEAVY, wave_number)
 
 func setup_as_ranged(wave_number: int) -> void:
-	setup_as_minion(wave_number)
-	enemy_type = TYPE_RANGED
-	max_health *= 0.8
-	health = max_health
-	move_speed *= 0.92
-	attack_damage *= 0.75
-	projectile_damage = attack_damage
-	attack_interval = 1.35
-	attack_range = 250.0
-	preferred_range = 185.0
-	attack_windup_time = 0.32
-	attack_recovery_time = 0.26
-	if is_node_ready():
-		_update_health_bar()
-		_update_variant_visual()
+	_apply_archetype(TYPE_RANGED, wave_number)
 
 func setup_as_shield(wave_number: int) -> void:
-	setup_as_minion(wave_number)
-	enemy_type = TYPE_SHIELD
-	max_health *= 1.65
-	health = max_health
-	move_speed *= 0.72
-	attack_damage *= 1.05
-	attack_interval = 1.0
-	attack_range = 48.0
-	attack_windup_time = 0.36
-	attack_recovery_time = 0.30
-	if is_node_ready():
-		_update_health_bar()
-		_update_variant_visual()
+	_apply_archetype(TYPE_SHIELD, wave_number)
 
 func setup_as_charger(wave_number: int) -> void:
-	setup_as_minion(wave_number)
-	enemy_type = TYPE_CHARGER
-	max_health *= 1.80
-	health = max_health
-	move_speed *= 1.05
-	attack_damage *= 1.45
-	attack_interval = 1.15
-	attack_range = 54.0
-	attack_windup_time = 0.30
-	_charge_damage = attack_damage * 1.55
-	_charge_cooldown_left = 1.2
-	if is_node_ready():
-		_update_health_bar()
-		_update_variant_visual()
+	_apply_archetype(TYPE_CHARGER, wave_number)
 
 func setup_as_bomber(wave_number: int) -> void:
-	setup_as_minion(wave_number)
-	enemy_type = TYPE_BOMBER
-	max_health *= 1.20
-	health = max_health
-	move_speed *= 0.90
-	attack_range = 88.0
-	_bomber_damage = attack_damage * 2.25
-	_bomber_radius = 96.0
-	if is_node_ready():
-		_update_health_bar()
-		_update_variant_visual()
+	_apply_archetype(TYPE_BOMBER, wave_number)
 
 func setup_as_priest(wave_number: int) -> void:
-	setup_as_minion(wave_number)
-	enemy_type = TYPE_PRIEST
-	max_health *= 3.20
-	health = max_health
-	move_speed *= 0.68
-	attack_damage *= 0.65
-	attack_interval = 1.4
-	attack_range = 52.0
-	preferred_range = 165.0
-	_priest_heal_amount = 14.0 + float(wave_number) * 2.0
-	_priest_heal_cooldown_left = 1.8
-	if is_node_ready():
-		_update_health_bar()
-		_update_variant_visual()
+	_apply_archetype(TYPE_PRIEST, wave_number)
 
 func setup_as_boss() -> void:
-	_reset_special_state()
-	is_boss = true
-	enemy_type = TYPE_BOSS
-	max_health = 450.0
-	health = max_health
-	move_speed = 70.0
-	attack_damage = 18.0
-	attack_interval = 0.65
-	attack_range = 58.0
-	attack_windup_time = 0.34
-	attack_recovery_time = 0.28
-	_boss_area_timer = 1.6
+	_apply_archetype(TYPE_BOSS, 0)
 	_boss_cataclysm_timer = 5.0
 	_boss_enraged = false
 	_boss_reinforcements_called = false
-	_boss_stun_resistance_left = 0.0
+	_boss_invulnerability_left = 0.0
+	_boss_desperation_timer = BOSS_DESPERATION_COOLDOWN
+
+func _apply_archetype(type_id: String, wave_number: int) -> void:
+	_reset_special_state()
+	enemy_type = type_id
+	is_boss = type_id == TYPE_BOSS
+	minor_skill_enabled = wave_number >= MINOR_SKILL_START_WAVE and type_id in [TYPE_MELEE, TYPE_HEAVY, TYPE_RANGED]
+	var stats: Dictionary = EnemyArchetypesScript.get_stats(type_id, wave_number)
+	max_health = float(stats["max_health"])
+	health = max_health
+	move_speed = float(stats["move_speed"])
+	attack_damage = float(stats["attack_damage"])
+	attack_interval = float(stats["attack_interval"])
+	attack_range = float(stats["attack_range"])
+	attack_windup_time = float(stats["attack_windup_time"])
+	attack_recovery_time = float(stats["attack_recovery_time"])
+	preferred_range = float(stats.get("preferred_range", 0.0))
+	projectile_damage = float(stats.get("projectile_damage", projectile_damage))
+	_charge_damage = float(stats.get("charge_damage", 0.0))
+	_charge_cooldown_left = float(stats.get("charge_cooldown", 0.0))
+	_bomber_damage = float(stats.get("bomber_damage", 0.0))
+	_bomber_radius = float(stats.get("bomber_radius", 96.0))
+	_priest_heal_amount = float(stats.get("priest_heal_amount", 0.0))
+	_priest_heal_cooldown_left = float(stats.get("priest_heal_cooldown", 0.0))
+	_heavy_stomp_cooldown_left = 2.8 if minor_skill_enabled and type_id == TYPE_HEAVY else 0.0
+	_boss_area_timer = float(stats.get("boss_area_timer", 2.4))
 	if is_node_ready():
+		_update_health_bar()
 		_update_variant_visual()
 		_play_animation(ANIM_IDLE, true)
 
@@ -296,14 +254,13 @@ func apply_root(duration: float) -> void:
 		_root_left = maxf(_root_left, duration)
 
 func apply_stun(duration: float) -> void:
-	var resolved_duration := duration
 	if is_boss:
-		if _boss_stun_resistance_left > 0.0:
-			resolved_duration *= 0.5
-		_boss_stun_resistance_left = 4.0
-	_stun_left = maxf(_stun_left, resolved_duration)
+		return
+	_stun_left = maxf(_stun_left, duration)
 
 func apply_slow(duration: float, move_multiplier: float) -> void:
+	if is_boss:
+		return
 	_slow_left = maxf(_slow_left, duration)
 	_slow_move_multiplier = minf(_slow_move_multiplier, clampf(move_multiplier, 0.0, 1.0))
 
@@ -321,6 +278,14 @@ func _target_is_dead() -> bool:
 	return player_target != null and player_target.is_dead
 
 func _physics_process(delta: float) -> void:
+	if not authority_enabled:
+		if _authority_state_received:
+			global_position = global_position.lerp(authority_target_position, clampf(delta * 14.0, 0.0, 1.0))
+		velocity = authority_velocity
+		_play_animation(authority_animation)
+		_advance_current_animation(delta)
+		_update_feedback()
+		return
 	_forced_target_left = maxf(0.0, _forced_target_left - delta)
 	_mark_left = maxf(0.0, _mark_left - delta)
 	_root_left = maxf(0.0, _root_left - delta)
@@ -336,10 +301,13 @@ func _physics_process(delta: float) -> void:
 	_attack_timer = maxf(0.0, _attack_timer - delta)
 	_charge_cooldown_left = maxf(0.0, _charge_cooldown_left - delta)
 	_priest_heal_cooldown_left = maxf(0.0, _priest_heal_cooldown_left - delta)
+	_melee_blood_rage_left = maxf(0.0, _melee_blood_rage_left - delta)
+	_heavy_stomp_cooldown_left = maxf(0.0, _heavy_stomp_cooldown_left - delta)
 	if is_boss:
 		_boss_area_timer = maxf(0.0, _boss_area_timer - delta)
 		_boss_cataclysm_timer = maxf(0.0, _boss_cataclysm_timer - delta)
-		_boss_stun_resistance_left = maxf(0.0, _boss_stun_resistance_left - delta)
+		_boss_invulnerability_left = maxf(0.0, _boss_invulnerability_left - delta)
+		_boss_desperation_timer = maxf(0.0, _boss_desperation_timer - delta)
 	_stagger_left = maxf(0.0, _stagger_left - delta)
 	_hit_flash_left = maxf(0.0, _hit_flash_left - delta)
 	_attack_anim_left = maxf(0.0, _attack_anim_left - delta)
@@ -374,6 +342,10 @@ func _physics_process(delta: float) -> void:
 		velocity = Vector2.ZERO
 		_update_animation(delta, false)
 		return
+	if is_boss and _boss_invulnerability_left > 0.0:
+		velocity = Vector2.ZERO
+		_update_animation(delta, false)
+		return
 
 	if _target == null or not is_instance_valid(_target) or _target_is_dead():
 		velocity = Vector2.ZERO
@@ -384,6 +356,12 @@ func _physics_process(delta: float) -> void:
 	var distance: float = to_target.length()
 	if to_target.length_squared() > 1.0:
 		_facing_direction = to_target.normalized()
+	if minor_skill_enabled and enemy_type == TYPE_HEAVY and _heavy_stomp_cooldown_left <= 0.0 and distance <= 170.0:
+		_start_heavy_stomp()
+		return
+	if is_boss and _boss_desperation_unlocked and _boss_desperation_timer <= 0.0:
+		_start_boss_desperation_attack()
+		return
 	if is_boss and _boss_cataclysm_timer <= 0.0:
 		_start_boss_cataclysm()
 		return
@@ -450,6 +428,15 @@ func _physics_process(delta: float) -> void:
 		_sprite.flip_h = to_target.x < 0.0
 
 func _update_special_action(delta: float) -> bool:
+	if _ranged_reposition_left > 0.0:
+		_ranged_reposition_left = maxf(0.0, _ranged_reposition_left - delta)
+		velocity = _ranged_reposition_direction * _current_move_speed() * RANGED_REPOSITION_SPEED_MULTIPLIER
+		move_and_slide()
+		global_position = global_position.clamp(arena_bounds.position, arena_bounds.end)
+		_update_animation(delta, true)
+		if _ranged_reposition_left <= 0.0:
+			velocity = Vector2.ZERO
+		return true
 	if _bomber_windup_left > 0.0:
 		velocity = Vector2.ZERO
 		_bomber_windup_left = maxf(0.0, _bomber_windup_left - delta)
@@ -510,6 +497,13 @@ func _start_priest_heal() -> void:
 	_start_attack_animation()
 	healing_started.emit(self, global_position, _priest_heal_radius, _priest_cast_left)
 
+func _start_heavy_stomp() -> void:
+	_heavy_stomp_cooldown_left = HEAVY_STOMP_COOLDOWN
+	_attack_recovery_left = HEAVY_STOMP_WINDUP + 0.25
+	velocity = Vector2.ZERO
+	_start_attack_animation()
+	area_attack_requested.emit(self, global_position, HEAVY_STOMP_RADIUS, attack_damage * 0.75, HEAVY_STOMP_WINDUP)
+
 func _has_damaged_ally() -> bool:
 	for node in get_tree().get_nodes_in_group("enemies"):
 		var ally := node as EnemyController
@@ -517,30 +511,36 @@ func _has_damaged_ally() -> bool:
 			return true
 	return false
 
-func apply_damage(amount: float, knockback_origin: Vector2 = Vector2.ZERO, knockback_force: float = 90.0, cause_stagger: bool = true) -> float:
-	if _is_dying:
+func apply_damage(amount: float, knockback_origin: Vector2 = Vector2.ZERO, knockback_force: float = 90.0, cause_stagger: bool = true, is_aoe: bool = false) -> float:
+	if _is_dying or (is_boss and _boss_invulnerability_left > 0.0):
 		return 0.0
 	var resolved_amount := amount
+	if is_boss:
+		resolved_amount *= get_boss_damage_taken_multiplier()
+		if is_aoe:
+			resolved_amount *= BOSS_AOE_DAMAGE_TAKEN_MULTIPLIER
 	if enemy_type == TYPE_SHIELD:
 		var incoming_direction := (knockback_origin - global_position).normalized()
 		if incoming_direction != Vector2.ZERO and incoming_direction.dot(_facing_direction) > 0.25:
 			resolved_amount *= _shield_front_damage_multiplier
 	var applied_amount := minf(health, resolved_amount)
+	if is_boss:
+		var next_phase_health := _get_next_boss_phase_health()
+		if next_phase_health >= 0.0:
+			applied_amount = minf(applied_amount, maxf(0.0, health - next_phase_health))
 	health = maxf(0.0, health - applied_amount)
+	if minor_skill_enabled and enemy_type == TYPE_MELEE and not _melee_blood_rage_triggered and health > 0.0 and health <= max_health * MELEE_BLOOD_RAGE_HEALTH_RATIO:
+		_melee_blood_rage_triggered = true
+		_melee_blood_rage_left = MELEE_BLOOD_RAGE_DURATION
 	_update_health_bar()
 	if is_boss:
-		if not _boss_reinforcements_called and health <= max_health * 0.70:
-			_boss_reinforcements_called = true
-			boss_reinforcement_requested.emit(self)
-		if not _boss_enraged and health <= max_health * 0.40:
-			_enter_boss_enrage()
+		_update_boss_phase_transitions()
 	_hit_flash_left = 0.10
-	if cause_stagger:
-		_stagger_left = maxf(_stagger_left, 0.06 if is_boss else 0.13)
-		if not is_boss:
-			_attack_windup_left = 0.0
-			_attack_recovery_left = maxf(_attack_recovery_left, 0.12)
-	if knockback_force > 0.0:
+	if cause_stagger and not is_boss:
+		_stagger_left = maxf(_stagger_left, 0.13)
+		_attack_windup_left = 0.0
+		_attack_recovery_left = maxf(_attack_recovery_left, 0.12)
+	if knockback_force > 0.0 and not is_boss:
 		var push_direction: Vector2 = (global_position - knockback_origin).normalized()
 		if push_direction == Vector2.ZERO:
 			push_direction = Vector2.RIGHT
@@ -550,6 +550,49 @@ func apply_damage(amount: float, knockback_origin: Vector2 = Vector2.ZERO, knock
 		_die()
 	return applied_amount
 
+func get_boss_damage_taken_multiplier(health_ratio: float = -1.0) -> float:
+	var ratio := health / max_health if health_ratio < 0.0 else health_ratio
+	if ratio >= 0.70:
+		return 1.0
+	if ratio >= 0.40:
+		return 0.95
+	if ratio >= 0.10:
+		return 0.90
+	return 0.75
+
+func _get_next_boss_phase_health() -> float:
+	if not _boss_phase_70_triggered and health > max_health * 0.70:
+		return max_health * 0.70
+	if not _boss_phase_40_triggered and health > max_health * 0.40:
+		return max_health * 0.40
+	if not _boss_phase_20_triggered and health > max_health * BOSS_DESPERATION_HEALTH_RATIO:
+		return max_health * BOSS_DESPERATION_HEALTH_RATIO
+	if not _boss_phase_10_triggered and health > max_health * 0.10:
+		return max_health * 0.10
+	return -1.0
+
+func _update_boss_phase_transitions() -> void:
+	var transitioned := false
+	if not _boss_phase_70_triggered and health <= max_health * 0.70:
+		_boss_phase_70_triggered = true
+		_boss_reinforcements_called = true
+		boss_reinforcement_requested.emit(self)
+		transitioned = true
+	elif not _boss_phase_40_triggered and health <= max_health * 0.40:
+		_boss_phase_40_triggered = true
+		_enter_boss_enrage()
+		transitioned = true
+	elif not _boss_phase_20_triggered and health <= max_health * BOSS_DESPERATION_HEALTH_RATIO:
+		_boss_phase_20_triggered = true
+		_boss_desperation_unlocked = true
+		_boss_desperation_timer = 0.0
+		transitioned = true
+	elif not _boss_phase_10_triggered and health <= max_health * 0.10:
+		_boss_phase_10_triggered = true
+		transitioned = true
+	if transitioned:
+		_boss_invulnerability_left = BOSS_PHASE_INVULNERABILITY
+
 func heal(amount: float) -> float:
 	if _is_dying or amount <= 0.0 or health >= max_health:
 		return 0.0
@@ -558,22 +601,54 @@ func heal(amount: float) -> float:
 	_update_health_bar()
 	return health - old_health
 
-func make_authority_state() -> Dictionary:
+func make_authority_state(marked_by_player_id: int = 0, guaranteed_crit_player_id: int = 0) -> Dictionary:
 	return {
 		"enemy_id": network_id,
 		"enemy_type": enemy_type,
 		"position": global_position,
 		"health": health,
 		"maximum_health": max_health,
+		"marked_by_player_id": marked_by_player_id,
+		"mark_left": _mark_left,
+		"mark_damage_multiplier": _mark_damage_multiplier,
+		"root_left": _root_left,
+		"stun_left": _stun_left,
+		"slow_left": _slow_left,
+		"slow_move_multiplier": _slow_move_multiplier,
+		"guaranteed_crit_player_id": guaranteed_crit_player_id,
+		"velocity": velocity,
+		"facing_direction": _facing_direction,
+		"animation": _current_anim,
+		"minor_skill_enabled": minor_skill_enabled,
+		"melee_blood_rage_left": _melee_blood_rage_left,
 	}
 
 func apply_authority_state(state: Dictionary) -> void:
 	network_id = int(state.get("enemy_id", network_id))
-	global_position = state.get("position", global_position) as Vector2
+	var next_position := state.get("position", global_position) as Vector2
+	if authority_enabled or not _authority_state_received:
+		global_position = next_position
+	authority_target_position = next_position
+	authority_velocity = state.get("velocity", Vector2.ZERO) as Vector2
+	_facing_direction = state.get("facing_direction", _facing_direction) as Vector2
+	authority_animation = str(state.get("animation", authority_animation))
+	minor_skill_enabled = bool(state.get("minor_skill_enabled", minor_skill_enabled))
+	_melee_blood_rage_left = maxf(0.0, float(state.get("melee_blood_rage_left", _melee_blood_rage_left)))
+	_authority_state_received = true
 	max_health = maxf(1.0, float(state.get("maximum_health", max_health)))
 	health = clampf(float(state.get("health", health)), 0.0, max_health)
+	_mark_left = maxf(0.0, float(state.get("mark_left", 0.0)))
+	_mark_damage_multiplier = float(state.get("mark_damage_multiplier", 1.0))
+	_root_left = maxf(0.0, float(state.get("root_left", 0.0)))
+	_stun_left = maxf(0.0, float(state.get("stun_left", 0.0)))
+	_slow_left = maxf(0.0, float(state.get("slow_left", 0.0)))
+	_slow_move_multiplier = float(state.get("slow_move_multiplier", 1.0))
 	_is_dying = false
 	_update_health_bar()
+
+func apply_authority_owners(marked_by: PlayerController, guaranteed_crit_by: PlayerController) -> void:
+	_marked_by = marked_by if _mark_left > 0.0 else null
+	_guaranteed_arrow_crit_by = guaranteed_crit_by
 
 func _die() -> void:
 	if _is_dying:
@@ -584,6 +659,8 @@ func _die() -> void:
 	queue_free()
 
 func apply_defense_repel(knockback_origin: Vector2, knockback_force: float = 170.0) -> void:
+	if is_boss:
+		return
 	var push_direction: Vector2 = (global_position - knockback_origin).normalized()
 	if push_direction == Vector2.ZERO:
 		push_direction = Vector2.RIGHT
@@ -628,21 +705,10 @@ func _update_health_bar() -> void:
 func _update_variant_visual() -> void:
 	if _sprite == null:
 		return
-	match enemy_type:
-		TYPE_HEAVY:
-			_sprite.modulate = Color(0.82, 0.82, 0.92, 1.0)
-		TYPE_RANGED:
-			_sprite.modulate = Color(0.95, 0.86, 0.58, 1.0)
-		TYPE_SHIELD:
-			_sprite.modulate = Color(0.72, 0.86, 1.0, 1.0)
-		TYPE_CHARGER:
-			_sprite.modulate = Color(1.0, 0.72, 0.72, 1.0)
-		TYPE_BOMBER:
-			_sprite.modulate = Color(1.0, 0.68, 0.34, 1.0)
-		TYPE_PRIEST:
-			_sprite.modulate = Color(0.68, 1.0, 0.72, 1.0)
-		_:
-			_sprite.modulate = Color.WHITE
+	var tint: Color = EnemyAnimationCatalogScript.get_tint(enemy_type)
+	if minor_skill_enabled:
+		tint = tint.lerp(Color(1.0, 0.78, 0.34, 1.0), 0.18)
+	_sprite.modulate = tint
 
 func _apply_sprite_frame(path: String, frame_size: Vector2, sprite_scale: Vector2, frame_index: int) -> void:
 	_sprite.texture = load(path) as Texture2D
@@ -658,6 +724,9 @@ func _update_animation(delta: float, moving: bool) -> void:
 	elif moving:
 		target_anim = ANIM_RUN
 	_play_animation(target_anim)
+	_advance_current_animation(delta)
+
+func _advance_current_animation(delta: float) -> void:
 	var data: Dictionary = _get_animation_data(_current_anim)
 	var frame_count: int = int(data["frames"])
 	var frame_time: float = float(data["frame_time"])
@@ -673,7 +742,7 @@ func _start_attack_animation() -> void:
 	_play_animation(ANIM_ATTACK, true)
 
 func _start_attack() -> void:
-	_attack_timer = attack_interval
+	_attack_timer = _current_attack_interval()
 	_attack_windup_left = attack_windup_time
 	_attack_recovery_left = 0.0
 	_start_attack_animation()
@@ -689,6 +758,10 @@ func _finish_attack() -> void:
 		if shoot_direction == Vector2.ZERO:
 			shoot_direction = Vector2.RIGHT
 		projectile_requested.emit(self, _target, global_position, shoot_direction, projectile_damage)
+		if minor_skill_enabled:
+			_ranged_shots_since_reposition += 1
+			if _ranged_shots_since_reposition >= RANGED_REPOSITION_SHOTS:
+				_start_ranged_reposition(shoot_direction)
 		return
 	if global_position.distance_to(_target.global_position) <= attack_range + 16.0:
 		attacked_player.emit(self, _target, attack_damage)
@@ -701,8 +774,23 @@ func _update_ranged_movement(to_target: Vector2, distance: float) -> void:
 	else:
 		velocity = Vector2.ZERO
 
+func _start_ranged_reposition(shoot_direction: Vector2) -> void:
+	_ranged_shots_since_reposition = 0
+	_ranged_reposition_side *= -1.0
+	_ranged_reposition_direction = shoot_direction.rotated(PI * 0.5 * _ranged_reposition_side).normalized()
+	var destination := global_position + _ranged_reposition_direction * 90.0
+	if not arena_bounds.has_point(destination):
+		_ranged_reposition_direction *= -1.0
+	_ranged_reposition_left = RANGED_REPOSITION_DURATION
+
+func _current_attack_interval() -> float:
+	if enemy_type == TYPE_MELEE and _melee_blood_rage_left > 0.0:
+		return attack_interval * MELEE_BLOOD_RAGE_ATTACK_INTERVAL_MULTIPLIER
+	return attack_interval
+
 func _current_move_speed() -> float:
-	return move_speed * _slow_move_multiplier
+	var speed_multiplier := MELEE_BLOOD_RAGE_SPEED_MULTIPLIER if enemy_type == TYPE_MELEE and _melee_blood_rage_left > 0.0 else 1.0
+	return move_speed * _slow_move_multiplier * speed_multiplier
 
 func _update_close_range_pressure(to_target: Vector2, distance: float, delta: float) -> void:
 	if distance <= 1.0:
@@ -741,8 +829,22 @@ func _start_boss_cataclysm() -> void:
 	_boss_cataclysm_timer = 6.5 if _boss_enraged else 8.5
 	_boss_area_timer = maxf(_boss_area_timer, 1.8)
 
+func _start_boss_desperation_attack() -> void:
+	if _target == null or not is_instance_valid(_target) or _target_is_dead():
+		return
+	velocity = Vector2.ZERO
+	_attack_timer = attack_interval
+	_attack_recovery_left = 1.0
+	_boss_cast_pause_left = BOSS_DESPERATION_WINDUP
+	_start_attack_animation()
+	area_attack_requested.emit(self, global_position, BOSS_DESPERATION_RADIUS, attack_damage * 2.8, BOSS_DESPERATION_WINDUP)
+	_boss_desperation_timer = BOSS_DESPERATION_COOLDOWN
+	_boss_area_timer = maxf(_boss_area_timer, 1.8)
+	_boss_cataclysm_timer = maxf(_boss_cataclysm_timer, 2.4)
+
 func _enter_boss_enrage() -> void:
 	_boss_enraged = true
+	attack_damage *= BOSS_ENRAGE_DAMAGE_MULTIPLIER
 	move_speed *= 1.25
 	attack_interval *= 0.72
 	attack_windup_time *= 0.82
@@ -759,79 +861,20 @@ func _play_animation(anim_name: String, force_restart: bool = false) -> void:
 
 func _apply_current_animation_frame() -> void:
 	var data: Dictionary = _get_animation_data(_current_anim)
-	var frame_size: Vector2 = BOSS_FRAME_SIZE if is_boss or enemy_type == TYPE_CHARGER else MINION_FRAME_SIZE
-	var sprite_scale: Vector2 = Vector2(0.85, 0.85) if is_boss else Vector2(0.55, 0.55)
-	if enemy_type == TYPE_HEAVY:
-		sprite_scale = Vector2(0.68, 0.68)
-	elif enemy_type == TYPE_RANGED:
-		sprite_scale = Vector2(0.52, 0.52)
-	elif enemy_type == TYPE_SHIELD:
-		sprite_scale = Vector2(0.60, 0.60)
-	elif enemy_type == TYPE_CHARGER:
-		sprite_scale = Vector2(0.58, 0.58)
-	elif enemy_type == TYPE_BOMBER:
-		sprite_scale = Vector2(0.62, 0.62)
-	elif enemy_type == TYPE_PRIEST:
-		sprite_scale = Vector2(0.60, 0.60)
 	_apply_sprite_frame(
 		str(data["path"]),
-		frame_size,
-		sprite_scale,
+		EnemyAnimationCatalogScript.get_frame_size(enemy_type, is_boss),
+		EnemyAnimationCatalogScript.get_scale(enemy_type, is_boss),
 		_anim_frame
 	)
 
 func _get_animation_data(anim_name: String) -> Dictionary:
-	if is_boss:
-		if anim_name == ANIM_ATTACK:
-			return {"path": BOSS_ATTACK_SPRITE_PATH, "frames": 3, "frame_time": 0.075}
-		if anim_name == ANIM_RUN:
-			return {"path": BOSS_RUN_SPRITE_PATH, "frames": 6, "frame_time": 0.095}
-		return {"path": BOSS_IDLE_SPRITE_PATH, "frames": 12, "frame_time": 0.11}
-	if enemy_type == TYPE_HEAVY:
-		if anim_name == ANIM_ATTACK:
-			return {"path": HEAVY_ATTACK_SPRITE_PATH, "frames": 3, "frame_time": 0.10}
-		if anim_name == ANIM_RUN:
-			return {"path": HEAVY_RUN_SPRITE_PATH, "frames": 6, "frame_time": 0.11}
-		return {"path": HEAVY_IDLE_SPRITE_PATH, "frames": 8, "frame_time": 0.13}
-	if enemy_type == TYPE_RANGED:
-		if anim_name == ANIM_ATTACK:
-			return {"path": RANGED_ATTACK_SPRITE_PATH, "frames": 8, "frame_time": 0.07}
-		if anim_name == ANIM_RUN:
-			return {"path": RANGED_RUN_SPRITE_PATH, "frames": 4, "frame_time": 0.10}
-		return {"path": RANGED_IDLE_SPRITE_PATH, "frames": 6, "frame_time": 0.13}
-	if enemy_type == TYPE_SHIELD:
-		if anim_name == ANIM_ATTACK:
-			return {"path": SHIELD_ATTACK_SPRITE_PATH, "frames": 4, "frame_time": 0.08}
-		if anim_name == ANIM_RUN:
-			return {"path": SHIELD_RUN_SPRITE_PATH, "frames": 6, "frame_time": 0.10}
-		return {"path": SHIELD_IDLE_SPRITE_PATH, "frames": 6, "frame_time": 0.12}
-	if enemy_type == TYPE_CHARGER:
-		if anim_name == ANIM_ATTACK:
-			return {"path": CHARGER_ATTACK_SPRITE_PATH, "frames": 3, "frame_time": 0.09}
-		if anim_name == ANIM_RUN:
-			return {"path": CHARGER_RUN_SPRITE_PATH, "frames": 6, "frame_time": 0.08}
-		return {"path": CHARGER_IDLE_SPRITE_PATH, "frames": 12, "frame_time": 0.11}
-	if enemy_type == TYPE_BOMBER:
-		if anim_name == ANIM_ATTACK:
-			return {"path": BOMBER_ATTACK_SPRITE_PATH, "frames": 3, "frame_time": 0.12}
-		if anim_name == ANIM_RUN:
-			return {"path": BOMBER_RUN_SPRITE_PATH, "frames": 6, "frame_time": 0.10}
-		return {"path": BOMBER_IDLE_SPRITE_PATH, "frames": 8, "frame_time": 0.12}
-	if enemy_type == TYPE_PRIEST:
-		if anim_name == ANIM_ATTACK:
-			return {"path": PRIEST_HEAL_SPRITE_PATH, "frames": 11, "frame_time": 0.06}
-		if anim_name == ANIM_RUN:
-			return {"path": PRIEST_RUN_SPRITE_PATH, "frames": 4, "frame_time": 0.10}
-		return {"path": PRIEST_IDLE_SPRITE_PATH, "frames": 6, "frame_time": 0.13}
-
-	if anim_name == ANIM_ATTACK:
-		return {"path": MINION_ATTACK_SPRITE_PATH, "frames": 4, "frame_time": 0.07}
-	if anim_name == ANIM_RUN:
-		return {"path": MINION_RUN_SPRITE_PATH, "frames": 6, "frame_time": 0.085}
-	return {"path": MINION_IDLE_SPRITE_PATH, "frames": 8, "frame_time": 0.12}
+	return EnemyAnimationCatalogScript.get_animation(enemy_type, anim_name, is_boss)
 
 func _update_feedback() -> void:
 	if _hit_flash_left > 0.0:
 		_sprite.modulate = Color(1.0, 0.45, 0.45, 1.0)
+	elif enemy_type == TYPE_MELEE and _melee_blood_rage_left > 0.0:
+		_sprite.modulate = Color(1.0, 0.32, 0.16, 1.0)
 	else:
 		_update_variant_visual()

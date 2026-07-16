@@ -2,7 +2,6 @@ extends RefCounted
 class_name VerdantUITheme
 
 const PANEL_TEXTURE := preload("res://assets/ui/theme/verdant_pixel/panel_large_9slice.png")
-const TOOLTIP_TEXTURE := preload("res://assets/ui/theme/verdant_pixel/tooltip_9slice.png")
 const TITLE_TEXTURE := preload("res://assets/ui/theme/verdant_pixel/title_plate_9slice.png")
 const BUTTON_NORMAL_TEXTURE := preload("res://assets/ui/theme/verdant_pixel/button_normal_9slice.png")
 const BUTTON_HOVER_TEXTURE := preload("res://assets/ui/theme/verdant_pixel/button_hover_9slice.png")
@@ -45,12 +44,14 @@ static func build_theme() -> Theme:
 	theme.set_constant("outline_size", "Button", 2)
 	theme.set_font_size("font_size", "Button", 19)
 
-	var input_style := _make_texture_style(INPUT_TEXTURE, Vector4(52, 16, 52, 16), Vector4(28, 9, 28, 9))
+	var input_style := _make_texture_style(INPUT_TEXTURE, Vector4(52, 16, 52, 16), Vector4(62, 9, 62, 9))
 	theme.set_stylebox("normal", "LineEdit", input_style)
 	theme.set_stylebox("focus", "LineEdit", input_style.duplicate())
 	theme.set_stylebox("read_only", "LineEdit", input_style.duplicate())
-	theme.set_color("font_color", "LineEdit", TEXT_PRIMARY)
-	theme.set_color("font_placeholder_color", "LineEdit", Color(0.64, 0.69, 0.58, 0.78))
+	theme.set_color("font_color", "LineEdit", Color(0.98, 0.96, 0.84, 1.0))
+	theme.set_color("font_placeholder_color", "LineEdit", Color(0.76, 0.80, 0.69, 0.92))
+	theme.set_color("font_outline_color", "LineEdit", Color(0.01, 0.025, 0.018, 0.98))
+	theme.set_constant("outline_size", "LineEdit", 2)
 	theme.set_color("caret_color", "LineEdit", Color(0.65, 0.94, 0.90, 1.0))
 	theme.set_font_size("font_size", "LineEdit", 17)
 
@@ -79,14 +80,37 @@ static func make_panel_style(tint: Color = Color.WHITE) -> StyleBoxTexture:
 static func make_compact_panel_style(tint: Color = Color.WHITE) -> StyleBoxTexture:
 	return _make_texture_style(PANEL_TEXTURE, Vector4(42, 42, 42, 42), Vector4(16, 14, 16, 14), tint)
 
-static func make_tooltip_style() -> StyleBoxTexture:
-	return _make_texture_style(TOOLTIP_TEXTURE, Vector4(36, 28, 36, 28), Vector4(24, 16, 24, 16))
+static func make_tooltip_style() -> StyleBoxFlat:
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color(0.012, 0.055, 0.040, 0.98)
+	style.border_color = Color(0.84, 0.70, 0.34, 1.0)
+	style.set_border_width_all(2)
+	style.set_corner_radius_all(7)
+	style.content_margin_left = 16
+	style.content_margin_top = 12
+	style.content_margin_right = 16
+	style.content_margin_bottom = 12
+	style.shadow_color = Color(0.0, 0.0, 0.0, 0.72)
+	style.shadow_size = 6
+	return style
 
 static func make_title_style() -> StyleBoxTexture:
 	return _make_texture_style(TITLE_TEXTURE, Vector4(64, 20, 64, 20), Vector4(44, 10, 44, 10))
 
 static func make_button_style(texture: Texture2D) -> StyleBoxTexture:
-	return _make_texture_style(texture, Vector4(24, 18, 24, 18), Vector4(18, 10, 18, 10))
+	var style := _make_texture_style(texture, Vector4(24, 18, 24, 18), Vector4(18, 10, 18, 10))
+	# The state textures have different transparent top/bottom padding. Expand only
+	# their drawing bounds so the visible frame stays the same size as normal.
+	if texture == BUTTON_HOVER_TEXTURE:
+		style.expand_margin_top = 7.5
+		style.expand_margin_bottom = 7.5
+	elif texture == BUTTON_PRESSED_TEXTURE:
+		style.expand_margin_top = 12.0
+		style.expand_margin_bottom = 12.0
+	elif texture == BUTTON_DISABLED_TEXTURE:
+		style.expand_margin_top = 14.0
+		style.expand_margin_bottom = 14.0
+	return style
 
 static func make_hud_bar_style() -> StyleBoxTexture:
 	return _make_texture_style(HUD_BAR_TEXTURE, Vector4(44, 10, 44, 10), Vector4(14, 5, 14, 5))

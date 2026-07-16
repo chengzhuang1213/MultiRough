@@ -1,20 +1,21 @@
 extends CharacterBody2D
 class_name PlayerController
 
+const PlayerAnimationCatalogScript := preload("res://scripts/player/player_animation_catalog.gd")
+
 signal health_changed(current: float, maximum: float)
 signal died
 signal damage_taken(amount: float, defended: bool)
-signal basic_attack_requested(origin: Vector2, direction: Vector2, attack_length: float, half_width: float, damage: float)
-signal projectile_attack_requested(origin: Vector2, direction: Vector2, damage: float)
-signal active_skill_requested(origin: Vector2, direction: Vector2, length: float, half_width: float, damage: float)
-signal fan_skill_requested(origin: Vector2, direction: Vector2, length: float, half_width: float, damage: float)
-signal ultimate_skill_requested(origin: Vector2, direction: Vector2, damage: float, duration: float)
-signal secondary_action_requested(origin: Vector2, direction: Vector2, damage: float)
+signal basic_attack_requested(origin: Vector2, direction: Vector2, attack_length: float, half_width: float, damage: float, is_critical: bool)
+signal projectile_attack_requested(origin: Vector2, direction: Vector2, damage: float, is_critical: bool)
+signal active_skill_requested(origin: Vector2, direction: Vector2, length: float, half_width: float, damage: float, is_critical: bool)
+signal fan_skill_requested(origin: Vector2, direction: Vector2, length: float, half_width: float, damage: float, is_critical: bool)
+signal ultimate_skill_requested(origin: Vector2, direction: Vector2, damage: float, duration: float, is_critical: bool)
+signal secondary_action_requested(origin: Vector2, direction: Vector2, damage: float, is_critical: bool)
 signal cooldown_notice_requested(skill_index: int)
 signal reflected_damage_requested(enemy: EnemyController, amount: float)
 signal perfect_guard_triggered
 
-const UNIT_PATH_PREFIX := "res://assets/tiny_swords_free_pack/Units/"
 const SPRITE_FRAME_SIZE := Vector2(192, 192)
 const ANIM_IDLE := "idle"
 const ANIM_RUN := "run"
@@ -30,6 +31,8 @@ const DEFEND_FULL_STOP_TIME := 0.45
 const SECONDARY_COOLDOWN := 3.0
 const ARCHER_Q_MAX_CHARGE_TIME := 1.20
 const ARCHER_Q_MIN_DAMAGE_RATIO := 0.65
+const LANCER_WAR_RHYTHM_DURATION := 3.0
+const LANCER_WAR_RHYTHM_ATTACK_COOLDOWN_MULTIPLIER := 0.70
 const CHARACTER_WARRIOR := "warrior"
 const CHARACTER_ARCHER := "archer"
 const CHARACTER_LANCER := "lancer"
@@ -37,10 +40,6 @@ const CHARACTER_MAGE := "mage"
 const LANCER_RUN_SCALE_MULTIPLIER := 1.24
 const LANCER_FOOT_BASELINE_FROM_FRAME_CENTER := 42.0
 const WARRIOR_SECONDARY_VFX_NODE := "WarriorSecondaryVFX"
-const MAGE_ANIMATION_PATH := "res://assets/original/characters/mage/animations/"
-const WARRIOR_ANIMATION_PATH := "res://assets/original/characters/warrior/animations/"
-const LANCER_ANIMATION_PATH := "res://assets/original/characters/lancer/animations/"
-const ARCHER_ANIMATION_PATH := "res://assets/original/characters/archer/animations/"
 
 var max_health := 120.0
 var health := max_health
@@ -153,14 +152,21 @@ var _warrior_counter_left := 0.0
 var _warrior_blade_guard_left := 0.0
 var _warrior_shield_guard_left := 0.0
 var _warrior_perfect_guard_cooldown := 0.0
-var _lancer_regen_timer := 10.0
+var _lancer_war_rhythm_left := 0.0
 var _archer_q_charging := false
 var _archer_q_charge_time := 0.0
+var _archer_q_charge_was_full := false
+var _archer_q_full_flash_left := 0.0
 
 var _sprite: Sprite2D
 var _sprite_base_position := Vector2.ZERO
 var _collision_shape: CollisionShape2D
-var _charge_indicator: Line2D
+var _charge_indicator: Node2D
+var _charge_bar_fill: Line2D
+var _charge_aim_line: Line2D
+var _charge_full_flash: Line2D
+var _skill_ascension_aura: Node2D
+var _skill_ascension_time := 0.0
 
 func _ready() -> void:
 	add_to_group("players")
@@ -190,7 +196,7 @@ func _physics_process(delta: float) -> void:
 		if _attack_timer <= 0.0:
 			var attack_direction: Vector2 = _get_attack_direction()
 			_last_direction = attack_direction
-			_attack_timer = attack_cooldown
+			_attack_timer = get_current_attack_cooldown()
 			_queue_combat_event("basic", attack_direction, attack_damage)
 			_start_attack_animation(false)
 		else:
@@ -212,6 +218,7 @@ func _physics_process(delta: float) -> void:
 				_last_direction = skill_direction
 				_skill_timer = skill_cooldown
 				_queue_combat_event("q", skill_direction, skill_damage)
+				activate_lancer_war_rhythm()
 				_start_cast_animation()
 			else:
 				cooldown_notice_requested.emit(1)
@@ -222,7 +229,9 @@ func _physics_process(delta: float) -> void:
 			if _can_use_fan_skill(fan_direction):
 				_last_direction = fan_direction
 				_fan_skill_timer = fan_skill_cooldown
-				fan_skill_requested.emit(global_position, fan_direction, fan_skill_length, fan_skill_half_width, _roll_damage(fan_skill_damage))
+				var fan_damage_context := roll_damage_context(fan_skill_damage)
+				fan_skill_requested.emit(global_position, fan_direction, fan_skill_length, fan_skill_half_width, float(fan_damage_context["amount"]), bool(fan_damage_context["is_critical"]))
+				activate_lancer_war_rhythm()
 				_start_cast_animation()
 		else:
 			cooldown_notice_requested.emit(2)
@@ -233,6 +242,7 @@ func _physics_process(delta: float) -> void:
 			_last_direction = ultimate_direction
 			_ultimate_timer = ultimate_cooldown
 			_queue_combat_event("f", ultimate_direction, attack_damage * 1.5 * ultimate_damage_multiplier)
+			activate_lancer_war_rhythm()
 			_start_cast_animation()
 		else:
 			cooldown_notice_requested.emit(3)
@@ -247,6 +257,7 @@ func _physics_process(delta: float) -> void:
 	global_position = global_position.clamp(arena_bounds.position, arena_bounds.end)
 	_update_animation(delta, input_direction)
 	_update_feedback()
+	_update_skill_ascension_aura(delta)
 
 func make_input_packet() -> Dictionary:
 	return {
@@ -350,22 +361,24 @@ func _emit_pending_combat_event() -> void:
 	_combat_event_emitted = true
 	var event_type := str(_pending_combat_event.get("type", ""))
 	var direction := _pending_combat_event.get("direction", _last_direction) as Vector2
-	var damage := _roll_damage(float(_pending_combat_event.get("damage", 0.0)))
+	var damage_context := roll_damage_context(float(_pending_combat_event.get("damage", 0.0)))
+	var damage := float(damage_context["amount"])
+	var is_critical := bool(damage_context["is_critical"])
 	match event_type:
 		"basic":
 			if character_id == CHARACTER_ARCHER:
 				var projectile_origin := get_projectile_origin(direction)
-				projectile_attack_requested.emit(projectile_origin, get_projectile_direction(projectile_origin, direction), damage)
+				projectile_attack_requested.emit(projectile_origin, get_projectile_direction(projectile_origin, direction), damage, is_critical)
 			else:
-				basic_attack_requested.emit(global_position, direction, attack_range, attack_half_width, damage)
+				basic_attack_requested.emit(global_position, direction, attack_range, attack_half_width, damage, is_critical)
 		"q":
 			archer_q_fully_charged = character_id == CHARACTER_ARCHER and bool(_pending_combat_event.get("full_charge", false))
-			active_skill_requested.emit(global_position, direction, skill_length, skill_half_width, damage)
+			active_skill_requested.emit(global_position, direction, skill_length, skill_half_width, damage, is_critical)
 			archer_q_fully_charged = false
 		"e":
-			fan_skill_requested.emit(global_position, direction, fan_skill_length, fan_skill_half_width, damage)
+			fan_skill_requested.emit(global_position, direction, fan_skill_length, fan_skill_half_width, damage, is_critical)
 		"f":
-			ultimate_skill_requested.emit(global_position, direction, damage, ultimate_duration)
+			ultimate_skill_requested.emit(global_position, direction, damage, ultimate_duration, is_critical)
 	_pending_combat_event.clear()
 
 func _get_attack_direction() -> Vector2:
@@ -401,11 +414,12 @@ func _update_secondary_action() -> void:
 				_warrior_manual_guard_active = true
 				var direction := _get_attack_direction()
 				_last_direction = direction
-				secondary_action_requested.emit(global_position, direction, 0.0)
+				secondary_action_requested.emit(global_position, direction, 0.0, false)
 			else:
 				var direction := _get_attack_direction()
 				_last_direction = direction
-				secondary_action_requested.emit(global_position, direction, _roll_damage(attack_damage))
+				var secondary_damage_context := roll_damage_context(attack_damage)
+				secondary_action_requested.emit(global_position, direction, float(secondary_damage_context["amount"]), bool(secondary_damage_context["is_critical"]))
 				if _attack_anim_left <= 0.0:
 					if character_id == CHARACTER_MAGE:
 						_start_cast_animation()
@@ -518,6 +532,7 @@ func _update_archer_q_charge(delta: float) -> void:
 	_start_cast_animation()
 	_archer_q_charging = false
 	_archer_q_charge_time = 0.0
+	_archer_q_charge_was_full = false
 	archer_q_fully_charged = false
 
 func _consume_fan_pressed() -> bool:
@@ -609,16 +624,22 @@ func _reset_transient_action_state() -> void:
 	_external_ultimate_pressed = false
 	_archer_q_charging = false
 	_archer_q_charge_time = 0.0
+	_archer_q_charge_was_full = false
+	_archer_q_full_flash_left = 0.0
 	archer_q_fully_charged = false
 	_warrior_taunt_guard_left = 0.0
 	_warrior_counter_left = 0.0
 	_warrior_blade_guard_left = 0.0
 	_warrior_shield_guard_left = 0.0
 	_warrior_perfect_guard_cooldown = 0.0
-	_lancer_regen_timer = 10.0
+	_lancer_war_rhythm_left = 0.0
 
-func roll_damage(base_damage: float) -> float:
-	return _roll_damage(base_damage)
+func roll_damage_context(base_damage: float) -> Dictionary:
+	var is_critical := crit_chance > 0.0 and randf() < crit_chance
+	return {
+		"amount": base_damage * crit_multiplier if is_critical else base_damage,
+		"is_critical": is_critical,
+	}
 
 func apply_character_config(config: Dictionary) -> void:
 	character_id = str(config.get("id", character_id))
@@ -635,7 +656,7 @@ func apply_character_config(config: Dictionary) -> void:
 	defense_damage_multiplier = float(config.get("defense_damage_multiplier", defense_damage_multiplier))
 	dash_max_charges = int(config.get("dash_max_charges", 1))
 	dash_charges = dash_max_charges
-	_lancer_regen_timer = 10.0
+	_lancer_war_rhythm_left = 0.0
 	skill_cooldown = float(config.get("skill_cooldown", skill_cooldown))
 	skill_damage = float(config.get("skill_damage", skill_damage))
 	skill_length = float(config.get("skill_length", skill_length))
@@ -657,11 +678,6 @@ func apply_character_config(config: Dictionary) -> void:
 	health_changed.emit(health, max_health)
 	if _sprite != null:
 		_play_animation(ANIM_IDLE, true)
-
-func _roll_damage(base_damage: float) -> float:
-	if crit_chance > 0.0 and randf() < crit_chance:
-		return base_damage * crit_multiplier
-	return base_damage
 
 func apply_upgrade(upgrade: Dictionary) -> void:
 	var stat: String = str(upgrade.get("stat", ""))
@@ -748,12 +764,9 @@ func _tick_timers(delta: float) -> void:
 	_warrior_blade_guard_left = maxf(0.0, _warrior_blade_guard_left - delta)
 	_warrior_shield_guard_left = maxf(0.0, _warrior_shield_guard_left - delta)
 	_warrior_perfect_guard_cooldown = maxf(0.0, _warrior_perfect_guard_cooldown - delta)
+	_archer_q_full_flash_left = maxf(0.0, _archer_q_full_flash_left - delta)
 	if not cooldowns_paused:
-		if character_id == CHARACTER_LANCER and not is_dead:
-			_lancer_regen_timer -= delta
-			if _lancer_regen_timer <= 0.0:
-				heal(1.0)
-				_lancer_regen_timer += 10.0
+		_lancer_war_rhythm_left = maxf(0.0, _lancer_war_rhythm_left - delta)
 		_attack_timer = maxf(0.0, _attack_timer - delta)
 		if dash_charges < dash_max_charges:
 			_dash_timer = maxf(0.0, _dash_timer - delta)
@@ -792,13 +805,32 @@ func _setup_nodes() -> void:
 
 	_sprite = get_node("Sprite2D") as Sprite2D
 	_sprite_base_position = _sprite.position
-	_charge_indicator = Line2D.new()
+	_charge_indicator = Node2D.new()
 	_charge_indicator.name = "ChargeIndicator"
-	_charge_indicator.width = 3.0
-	_charge_indicator.closed = true
 	_charge_indicator.visible = false
-	_charge_indicator.position = Vector2(0.0, -30.0)
 	add_child(_charge_indicator)
+	var charge_bar_background := Line2D.new()
+	charge_bar_background.name = "Background"
+	charge_bar_background.width = 8.0
+	charge_bar_background.points = PackedVector2Array([Vector2(-25.0, 34.0), Vector2(25.0, 34.0)])
+	charge_bar_background.default_color = Color(0.04, 0.05, 0.07, 0.82)
+	_charge_indicator.add_child(charge_bar_background)
+	_charge_bar_fill = Line2D.new()
+	_charge_bar_fill.name = "Fill"
+	_charge_bar_fill.width = 5.0
+	_charge_bar_fill.points = PackedVector2Array([Vector2(-23.0, 34.0), Vector2(-23.0, 34.0)])
+	_charge_indicator.add_child(_charge_bar_fill)
+	_charge_aim_line = Line2D.new()
+	_charge_aim_line.name = "AimLine"
+	_charge_aim_line.width = 2.0
+	_charge_indicator.add_child(_charge_aim_line)
+	_charge_full_flash = Line2D.new()
+	_charge_full_flash.name = "FullChargeFlash"
+	_charge_full_flash.width = 4.0
+	_charge_full_flash.closed = true
+	_charge_full_flash.visible = false
+	add_child(_charge_full_flash)
+	_setup_skill_ascension_aura()
 	_sprite.centered = true
 	_sprite.region_enabled = true
 	_sprite.region_rect = Rect2(Vector2.ZERO, SPRITE_FRAME_SIZE)
@@ -891,97 +923,7 @@ func _apply_animation_visual_transform() -> void:
 	_sprite.position.y += visual_scale * LANCER_FOOT_BASELINE_FROM_FRAME_CENTER * (1.0 - scale_multiplier)
 
 func _get_animation_data(anim_name: String) -> Dictionary:
-	if anim_name in [ANIM_CAST, ANIM_HIT, ANIM_DEATH]:
-		return _get_common_state_animation_data(anim_name)
-	if character_id == CHARACTER_ARCHER:
-		return _get_archer_animation_data(anim_name)
-	if character_id == CHARACTER_LANCER:
-		return _get_lancer_animation_data(anim_name)
-	if character_id == CHARACTER_MAGE:
-		return _get_mage_animation_data(anim_name)
-	return _get_warrior_animation_data(anim_name)
-
-func _get_common_state_animation_data(anim_name: String) -> Dictionary:
-	var directory := WARRIOR_ANIMATION_PATH
-	if character_id == CHARACTER_ARCHER:
-		directory = ARCHER_ANIMATION_PATH
-	elif character_id == CHARACTER_LANCER:
-		directory = LANCER_ANIMATION_PATH
-	elif character_id == CHARACTER_MAGE:
-		directory = MAGE_ANIMATION_PATH
-	var frames := 3 if anim_name == ANIM_HIT else 6
-	var frame_time := 0.06 if anim_name == ANIM_HIT else 0.08
-	return {
-		"path": directory + character_id + "_" + anim_name + ".png",
-		"frames": frames,
-		"frame_time": frame_time,
-		"loop": false,
-		"frame_size": SPRITE_FRAME_SIZE,
-	}
-
-func _get_warrior_animation_data(anim_name: String) -> Dictionary:
-	match anim_name:
-		ANIM_RUN:
-			return {"path": WARRIOR_ANIMATION_PATH + "warrior_run.png", "frames": 6, "frame_time": 0.09, "loop": true, "frame_size": SPRITE_FRAME_SIZE}
-		ANIM_GUARD:
-			return {"path": WARRIOR_ANIMATION_PATH + "warrior_defend.png", "frames": 4, "frame_time": 0.10, "loop": false, "frame_size": SPRITE_FRAME_SIZE}
-		ANIM_ATTACK_1:
-			return {"path": WARRIOR_ANIMATION_PATH + "warrior_attack_1.png", "frames": 6, "frame_time": 0.06, "loop": false, "frame_size": SPRITE_FRAME_SIZE}
-		ANIM_ATTACK_2:
-			return {"path": WARRIOR_ANIMATION_PATH + "warrior_attack_2.png", "frames": 6, "frame_time": 0.07, "loop": false, "frame_size": SPRITE_FRAME_SIZE}
-		ANIM_DASH:
-			return {"path": WARRIOR_ANIMATION_PATH + "warrior_dash.png", "frames": 4, "frame_time": 0.06, "loop": false, "frame_size": SPRITE_FRAME_SIZE}
-		_:
-			return {"path": WARRIOR_ANIMATION_PATH + "warrior_idle.png", "frames": 6, "frame_time": 0.14, "loop": true, "frame_size": SPRITE_FRAME_SIZE}
-
-func _get_archer_animation_data(anim_name: String) -> Dictionary:
-	match anim_name:
-		ANIM_RUN:
-			return {"path": ARCHER_ANIMATION_PATH + "archer_run.png", "frames": 6, "frame_time": 0.09, "loop": true, "frame_size": SPRITE_FRAME_SIZE}
-		ANIM_GUARD:
-			return {"path": ARCHER_ANIMATION_PATH + "archer_defend.png", "frames": 4, "frame_time": 0.10, "loop": false, "frame_size": SPRITE_FRAME_SIZE}
-		ANIM_ATTACK_1:
-			return {"path": ARCHER_ANIMATION_PATH + "archer_attack_1.png", "frames": 6, "frame_time": 0.06, "loop": false, "frame_size": SPRITE_FRAME_SIZE}
-		ANIM_ATTACK_2:
-			return {"path": ARCHER_ANIMATION_PATH + "archer_attack_2.png", "frames": 6, "frame_time": 0.07, "loop": false, "frame_size": SPRITE_FRAME_SIZE}
-		ANIM_DASH:
-			return {"path": ARCHER_ANIMATION_PATH + "archer_dash.png", "frames": 4, "frame_time": 0.06, "loop": false, "frame_size": SPRITE_FRAME_SIZE}
-		_:
-			return {"path": ARCHER_ANIMATION_PATH + "archer_idle.png", "frames": 6, "frame_time": 0.14, "loop": true, "frame_size": SPRITE_FRAME_SIZE}
-
-func _get_lancer_animation_data(anim_name: String) -> Dictionary:
-	match anim_name:
-		ANIM_RUN:
-			return {"path": LANCER_ANIMATION_PATH + "lancer_run.png", "frames": 6, "frame_time": 0.09, "loop": true, "frame_size": SPRITE_FRAME_SIZE}
-		ANIM_GUARD:
-			return {"path": LANCER_ANIMATION_PATH + "lancer_defend.png", "frames": 4, "frame_time": 0.10, "loop": false, "frame_size": SPRITE_FRAME_SIZE}
-		ANIM_ATTACK_1:
-			return {"path": LANCER_ANIMATION_PATH + "lancer_attack_1.png", "frames": 6, "frame_time": 0.06, "loop": false, "frame_size": SPRITE_FRAME_SIZE}
-		ANIM_ATTACK_2:
-			return {"path": LANCER_ANIMATION_PATH + "lancer_attack_2.png", "frames": 6, "frame_time": 0.07, "loop": false, "frame_size": SPRITE_FRAME_SIZE}
-		ANIM_DASH:
-			return {"path": LANCER_ANIMATION_PATH + "lancer_dash.png", "frames": 4, "frame_time": 0.06, "loop": false, "frame_size": SPRITE_FRAME_SIZE}
-		_:
-			return {"path": LANCER_ANIMATION_PATH + "lancer_idle.png", "frames": 6, "frame_time": 0.14, "loop": true, "frame_size": SPRITE_FRAME_SIZE}
-
-func _get_mage_animation_data(anim_name: String) -> Dictionary:
-	match anim_name:
-		ANIM_RUN:
-			return {"path": MAGE_ANIMATION_PATH + "mage_run.png", "frames": 6, "frame_time": 0.09, "loop": true, "frame_size": SPRITE_FRAME_SIZE}
-		ANIM_GUARD:
-			return {"path": MAGE_ANIMATION_PATH + "mage_defend.png", "frames": 4, "frame_time": 0.10, "loop": false, "frame_size": SPRITE_FRAME_SIZE}
-		ANIM_ATTACK_1:
-			return {"path": MAGE_ANIMATION_PATH + "mage_attack_1.png", "frames": 6, "frame_time": 0.06, "loop": false, "frame_size": SPRITE_FRAME_SIZE}
-		ANIM_ATTACK_2:
-			return {"path": MAGE_ANIMATION_PATH + "mage_attack_2.png", "frames": 6, "frame_time": 0.07, "loop": false, "frame_size": SPRITE_FRAME_SIZE}
-		ANIM_DASH:
-			return {"path": MAGE_ANIMATION_PATH + "mage_dash.png", "frames": 4, "frame_time": 0.06, "loop": false, "frame_size": SPRITE_FRAME_SIZE}
-		_:
-			return {"path": MAGE_ANIMATION_PATH + "mage_idle.png", "frames": 6, "frame_time": 0.14, "loop": true, "frame_size": SPRITE_FRAME_SIZE}
-
-func _unit_sprite_path(unit_folder: String, file_name: String) -> String:
-	return UNIT_PATH_PREFIX + unit_color_folder + "/" + unit_folder + "/" + file_name
-
+	return PlayerAnimationCatalogScript.get_animation(character_id, anim_name)
 func _update_feedback() -> void:
 	_update_charge_indicator()
 	if _defense_flash_left > 0.0:
@@ -990,6 +932,10 @@ func _update_feedback() -> void:
 		_sprite.modulate = Color(0.55, 0.95, 1.0, 0.85)
 	elif _damage_flash_left > 0.0:
 		_sprite.modulate = Color(1.0, 0.45, 0.45, 1.0)
+	elif _is_archer_q_fully_charged():
+		_sprite.modulate = Color(1.0, 0.88, 0.34, 1.0)
+	elif character_id == CHARACTER_LANCER and _lancer_war_rhythm_left > 0.0:
+		_sprite.modulate = Color(0.70, 0.96, 1.0, 1.0)
 	else:
 		_sprite.modulate = player_tint
 
@@ -998,15 +944,95 @@ func _update_charge_indicator() -> void:
 		return
 	_charge_indicator.visible = character_id == CHARACTER_ARCHER and _archer_q_charging
 	if not _charge_indicator.visible:
+		_charge_full_flash.visible = _archer_q_full_flash_left > 0.0
 		return
-	var ratio := clampf(_archer_q_charge_time / ARCHER_Q_MAX_CHARGE_TIME, 0.0, 1.0)
-	var radius := lerpf(10.0, 19.0, ratio)
+	var max_charge_time := ARCHER_Q_MAX_CHARGE_TIME * archer_charge_time_multiplier
+	var ratio := clampf(_archer_q_charge_time / maxf(max_charge_time, 0.001), 0.0, 1.0)
+	var fully_charged := ratio >= 1.0
+	if fully_charged and not _archer_q_charge_was_full:
+		_archer_q_full_flash_left = 0.24
+	_archer_q_charge_was_full = fully_charged
+	_charge_full_flash.visible = _archer_q_full_flash_left > 0.0
+	if _charge_full_flash.visible:
+		var flash_progress := 1.0 - _archer_q_full_flash_left / 0.24
+		var flash_radius := lerpf(22.0, 38.0, flash_progress)
+		var flash_points := PackedVector2Array()
+		for index in range(25):
+			var angle := TAU * float(index) / 24.0
+			flash_points.append(Vector2(cos(angle), sin(angle)) * flash_radius)
+		_charge_full_flash.points = flash_points
+		_charge_full_flash.default_color = Color(1.0, 0.86, 0.18, 1.0 - flash_progress)
+	_charge_bar_fill.points = PackedVector2Array([Vector2(-23.0, 34.0), Vector2(lerpf(-23.0, 23.0, ratio), 34.0)])
+	_charge_bar_fill.default_color = Color(1.0, 0.88 if fully_charged else lerpf(0.54, 0.78, ratio), 0.18, 1.0)
+	var aim_direction := _get_attack_direction()
+	_charge_aim_line.points = PackedVector2Array([aim_direction * 24.0, aim_direction * 112.0])
+	_charge_aim_line.width = 4.0 if fully_charged else 2.0
+	_charge_aim_line.default_color = Color(1.0, 0.86, 0.20, 0.95) if fully_charged else Color(1.0, 0.72, 0.18, 0.48 + ratio * 0.30)
+
+func _is_archer_q_fully_charged() -> bool:
+	if character_id != CHARACTER_ARCHER or not _archer_q_charging:
+		return false
+	return _archer_q_charge_time >= ARCHER_Q_MAX_CHARGE_TIME * archer_charge_time_multiplier
+
+func _setup_skill_ascension_aura() -> void:
+	_skill_ascension_aura = Node2D.new()
+	_skill_ascension_aura.name = "SkillAscensionAura"
+	_skill_ascension_aura.position = Vector2(0.0, 21.0)
+	_skill_ascension_aura.z_index = -1
+	_skill_ascension_aura.show_behind_parent = true
+	_skill_ascension_aura.visible = false
+	add_child(_skill_ascension_aura)
+	var additive_material := CanvasItemMaterial.new()
+	additive_material.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	for arc_range in [[24.0, 156.0], [204.0, 336.0]]:
+		var outer_arc := _create_ground_aura_arc(float(arc_range[0]), float(arc_range[1]), 6.0, Color(0.72, 0.08, 0.025, 0.56))
+		outer_arc.material = additive_material
+		_skill_ascension_aura.add_child(outer_arc)
+		var core_arc := _create_ground_aura_arc(float(arc_range[0]), float(arc_range[1]), 2.4, Color(1.0, 0.72, 0.16, 0.94))
+		core_arc.material = additive_material
+		_skill_ascension_aura.add_child(core_arc)
+
+func _create_ground_aura_arc(start_degrees: float, end_degrees: float, width: float, color: Color) -> Line2D:
+	var arc := Line2D.new()
+	arc.width = width
+	arc.default_color = color
+	arc.antialiased = true
+	arc.begin_cap_mode = Line2D.LINE_CAP_ROUND
+	arc.end_cap_mode = Line2D.LINE_CAP_ROUND
 	var points := PackedVector2Array()
-	for index in range(25):
-		var angle := TAU * float(index) / 24.0
-		points.append(Vector2(cos(angle), sin(angle)) * radius)
-	_charge_indicator.points = points
-	_charge_indicator.default_color = Color(1.0, lerpf(0.72, 0.95, ratio), 0.20, 0.55 + ratio * 0.45)
+	for index in range(15):
+		var ratio := float(index) / 14.0
+		var angle := deg_to_rad(lerpf(start_degrees, end_degrees, ratio))
+		points.append(Vector2(cos(angle) * 32.0, sin(angle) * 11.5))
+	arc.points = points
+	return arc
+
+func _update_skill_ascension_aura(delta: float) -> void:
+	if _skill_ascension_aura == null:
+		return
+	var show_level_one := character_id == CHARACTER_WARRIOR and get_profession_skill_upgrade_count() >= 1 and not is_dead
+	_skill_ascension_aura.visible = show_level_one
+	if not show_level_one:
+		return
+	_skill_ascension_time += delta
+	_skill_ascension_aura.modulate = Color(1.0, 1.0, 1.0, 0.84 + sin(_skill_ascension_time * 2.2) * 0.08)
+
+func get_profession_skill_upgrade_count() -> int:
+	var total := 0
+	for upgrade_id_value in upgrade_levels.keys():
+		var upgrade_id := str(upgrade_id_value)
+		if upgrade_id.begins_with("%s_q_" % character_id) or upgrade_id.begins_with("%s_e_" % character_id) or upgrade_id.begins_with("%s_f_" % character_id):
+			total += int(upgrade_levels[upgrade_id_value])
+	return total
+
+func activate_lancer_war_rhythm() -> void:
+	if character_id == CHARACTER_LANCER:
+		_lancer_war_rhythm_left = LANCER_WAR_RHYTHM_DURATION
+
+func get_current_attack_cooldown() -> float:
+	if character_id == CHARACTER_LANCER and _lancer_war_rhythm_left > 0.0:
+		return attack_cooldown * LANCER_WAR_RHYTHM_ATTACK_COOLDOWN_MULTIPLIER
+	return attack_cooldown
 
 func get_dash_ready() -> bool:
 	return dash_charges > 0

@@ -27,7 +27,8 @@ func _ready() -> void:
 
 	restart_button = Button.new()
 	restart_button.text = "重新开始"
-	restart_button.custom_minimum_size = Vector2(184, 60)
+	restart_button.custom_minimum_size = Vector2(224, 100)
+	restart_button.add_theme_font_size_override("font_size", 23)
 	restart_button.visible = false
 	restart_button.mouse_filter = Control.MOUSE_FILTER_STOP
 	restart_button.pressed.connect(func() -> void: restart_requested.emit())

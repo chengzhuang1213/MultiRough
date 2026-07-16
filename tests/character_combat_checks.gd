@@ -2,6 +2,7 @@ extends SceneTree
 
 const MainScene := preload("res://scenes/main/main.tscn")
 const UpgradeCatalogScript := preload("res://scripts/upgrades/upgrade_catalog.gd")
+const EnemyProjectileScript := preload("res://scripts/projectiles/enemy_projectile.gd")
 
 var failures: Array[String] = []
 var game: Node
@@ -16,10 +17,12 @@ func _run() -> void:
 	for character_id in ["warrior", "archer", "lancer"]:
 		await _check_character(character_id)
 	await _check_archer_full_charge_piercing()
+	await _check_lancer_war_rhythm_casts()
 	await _check_mage_combat()
 	await _check_e_cast_validation()
 	await _check_secondary_actions()
 	await _check_e_upgrade_branches()
+	await _check_boss_damage_context()
 	await _check_common_damage_accounting()
 	if failures.is_empty():
 		print("PASS: character combat checks")
@@ -112,16 +115,16 @@ func _check_character(character_id: String) -> void:
 	_reset_enemy(enemy)
 	var projectiles_before: int = game.projectile_root.get_child_count()
 	if character_id == "archer":
-		game.combat_manager.on_player_projectile_attack(player.global_position, Vector2.RIGHT, 5.0, player)
+		game.combat_manager.on_player_projectile_attack(player.global_position, Vector2.RIGHT, 5.0, false, player)
 		_expect(game.projectile_root.get_child_count() == projectiles_before + 1, "archer basic attack did not create one arrow")
 	else:
-		game.combat_manager.on_player_basic_attack(player.global_position, Vector2.RIGHT, player.attack_range, player.attack_half_width, 5.0, player)
+		game.combat_manager.on_player_basic_attack(player.global_position, Vector2.RIGHT, player.attack_range, player.attack_half_width, 5.0, false, player)
 		_expect(enemy.health < enemy.max_health, "%s basic attack did not deal melee damage" % character_id)
 	game._clear_projectiles()
 	await process_frame
 
 	_reset_enemy(enemy)
-	game.combat_manager.on_player_active_skill(player.global_position, Vector2.RIGHT, player.skill_length, player.skill_half_width, 5.0, player)
+	game.combat_manager.on_player_active_skill(player.global_position, Vector2.RIGHT, player.skill_length, player.skill_half_width, 5.0, false, player)
 	var base_q_damage := enemy.max_health - enemy.health
 	if character_id == "warrior":
 		_expect(player._warrior_taunt_guard_left > 0.0, "warrior Q did not grant its two-second damage reduction")
@@ -135,7 +138,7 @@ func _check_character(character_id: String) -> void:
 		player.apply_upgrade({"id": "warrior_q_damage", "stat": "behavior_upgrade"})
 		_reset_enemy(enemy)
 		enemy.global_position = player.global_position + Vector2(240.0, 0.0)
-		game.combat_manager.on_player_active_skill(player.global_position, Vector2.RIGHT, player.skill_length, player.skill_half_width, 5.0, player)
+		game.combat_manager.on_player_active_skill(player.global_position, Vector2.RIGHT, player.skill_length, player.skill_half_width, 5.0, false, player)
 		_expect(enemy.health < enemy.max_health, "warrior common Q range upgrade did not reach 240 units")
 		_expect(enemy.max_health - enemy.health > base_q_damage, "warrior common Q damage upgrade did not increase damage")
 	elif character_id == "archer":
@@ -148,7 +151,7 @@ func _check_character(character_id: String) -> void:
 		player.apply_upgrade({"id": "archer_q_quickdraw", "stat": "behavior_upgrade"})
 		player.apply_upgrade({"id": "archer_q_damage", "stat": "behavior_upgrade"})
 		game._clear_projectiles()
-		game.combat_manager.on_player_active_skill(player.global_position, Vector2.RIGHT, player.skill_length, player.skill_half_width, 5.0, player)
+		game.combat_manager.on_player_active_skill(player.global_position, Vector2.RIGHT, player.skill_length, player.skill_half_width, 5.0, false, player)
 		var upgraded_arrow := game.projectile_root.get_child(game.projectile_root.get_child_count() - 1) as PlayerProjectile
 		_expect(is_equal_approx(upgraded_arrow.damage, base_arrow_damage * 1.25), "archer common Q damage upgrade did not increase arrow damage")
 		_expect(is_equal_approx(player.archer_charge_time_multiplier, 0.8), "archer common Q charge upgrade did not shorten charging")
@@ -159,7 +162,7 @@ func _check_character(character_id: String) -> void:
 		player.apply_upgrade({"id": "lancer_q_damage", "stat": "behavior_upgrade"})
 		_reset_enemy(enemy)
 		enemy.global_position = player.global_position + Vector2(210.0, 0.0)
-		game.combat_manager.on_player_active_skill(player.global_position, Vector2.RIGHT, player.skill_length, player.skill_half_width, 5.0, player)
+		game.combat_manager.on_player_active_skill(player.global_position, Vector2.RIGHT, player.skill_length, player.skill_half_width, 5.0, false, player)
 		_expect(enemy.health < enemy.max_health, "lancer common Q range upgrade did not reach 210 units")
 		_expect(enemy.max_health - enemy.health > base_q_damage, "lancer common Q damage upgrade did not increase damage")
 	game._clear_projectiles()
@@ -167,7 +170,7 @@ func _check_character(character_id: String) -> void:
 
 	_reset_enemy(enemy)
 	projectiles_before = game.projectile_root.get_child_count()
-	game.combat_manager.on_player_fan_skill(player.global_position, Vector2.RIGHT, player.fan_skill_length, player.fan_skill_half_width, 5.0, player)
+	game.combat_manager.on_player_fan_skill(player.global_position, Vector2.RIGHT, player.fan_skill_length, player.fan_skill_half_width, 5.0, false, player)
 	if character_id == "warrior":
 		_expect(player._warrior_counter_left > 0.0, "warrior E did not activate counter stance")
 		_expect(player._get_defense_move_multiplier() == 1.0, "warrior E did not preserve movement")
@@ -185,7 +188,7 @@ func _check_character(character_id: String) -> void:
 	game._clear_projectiles()
 	await process_frame
 
-	game.combat_manager.on_player_ultimate_skill(player.global_position, Vector2.RIGHT, 5.0, 8.0, player)
+	game.combat_manager.on_player_ultimate_skill(player.global_position, Vector2.RIGHT, 5.0, 8.0, false, player)
 	if character_id == "warrior":
 		var state: Dictionary = game.ultimate_states[player.get_instance_id()]
 		_expect(float(state.get("duration_left", 0.0)) > 0.0, "warrior F did not activate its orbiting blades")
@@ -196,9 +199,17 @@ func _check_character(character_id: String) -> void:
 		_expect(player._warrior_blade_guard_left <= 0.0, "warrior base F granted the epic damage reduction")
 		player.apply_upgrade({"id": "warrior_f_extra_blade", "stat": "behavior_upgrade"})
 		player.apply_upgrade({"id": "warrior_f_attack_defense", "stat": "behavior_upgrade"})
-		game.combat_manager.on_player_ultimate_skill(player.global_position, Vector2.RIGHT, 5.0, 8.0, player)
+		player.apply_upgrade({"id": "warrior_f_projectile_guard", "stat": "behavior_upgrade"})
+		game.combat_manager.on_player_ultimate_skill(player.global_position, Vector2.RIGHT, 5.0, 8.0, false, player)
 		_expect((state.get("root") as Node2D).get_child_count() == 3, "warrior common F upgrade did not add one blade")
 		_expect(player._warrior_blade_guard_left > 0.0, "warrior epic F upgrade did not grant damage reduction")
+		game.combat_manager._update_blade_visuals(state)
+		var enemy_projectile := EnemyProjectileScript.new()
+		game.projectile_root.add_child(enemy_projectile)
+		var guard_blade: Node2D = (state.get("root") as Node2D).get_child(0) as Node2D
+		enemy_projectile.global_position = (state.get("root") as Node2D).global_position + guard_blade.position
+		game.combat_manager._destroy_projectiles_with_blades(state)
+		_expect(enemy_projectile.is_queued_for_deletion(), "warrior F projectile guard did not destroy a projectile touching an orbiting blade")
 	elif character_id == "archer":
 		_expect(_has_persistent_area("arrow_rain"), "archer F no longer creates arrow rain")
 		var rain: Dictionary = game.persistent_skill_areas.back()
@@ -223,7 +234,7 @@ func _check_character(character_id: String) -> void:
 		player.apply_upgrade({"id": "archer_f_weakpoint", "stat": "behavior_upgrade"})
 		player.apply_upgrade({"id": "archer_f_damage", "stat": "behavior_upgrade"})
 		player.apply_upgrade({"id": "archer_f_critical", "stat": "behavior_upgrade"})
-		game.combat_manager.on_player_ultimate_skill(player.global_position, Vector2.RIGHT, 5.0, 8.0, player)
+		game.combat_manager.on_player_ultimate_skill(player.global_position, Vector2.RIGHT, 5.0, 8.0, false, player)
 		var upgraded_rain: Dictionary = game.persistent_skill_areas.back()
 		_expect(is_equal_approx(float(upgraded_rain.get("damage", 0.0)), 5.0 * 0.26 * 1.25), "archer common F upgrade did not increase arrow damage")
 		_expect(bool(upgraded_rain.get("critical_upgrade", false)), "archer rare F upgrade did not enable critical arrows")
@@ -240,7 +251,7 @@ func _check_character(character_id: String) -> void:
 		player.apply_upgrade({"id": "lancer_f_finisher", "stat": "behavior_upgrade"})
 		player.apply_upgrade({"id": "lancer_f_reach", "stat": "behavior_upgrade"})
 		player.apply_upgrade({"id": "lancer_f_pull", "stat": "behavior_upgrade"})
-		game.combat_manager.on_player_ultimate_skill(player.global_position, Vector2.RIGHT, 5.0, 8.0, player)
+		game.combat_manager.on_player_ultimate_skill(player.global_position, Vector2.RIGHT, 5.0, 8.0, false, player)
 		var upgraded_storm: Dictionary = game.persistent_skill_areas.back()
 		_expect(is_equal_approx(float(upgraded_storm.get("radius", 0.0)), 210.0), "lancer common F upgrade did not expand the sweep")
 		_expect(bool(upgraded_storm.get("pull_upgrade", false)), "lancer rare F upgrade did not enable pulling")
@@ -294,6 +305,34 @@ func _check_archer_full_charge_piercing() -> void:
 	await process_frame
 	await process_frame
 
+func _check_lancer_war_rhythm_casts() -> void:
+	game.selected_character_ids = ["lancer", "lancer"]
+	game._start_game(1)
+	await _wait_for_enemy()
+	var player: PlayerController = game.players[0]
+	player.external_input_enabled = true
+	player.apply_external_input({"skill": true, "aim": Vector2.RIGHT})
+	player._physics_process(0.0)
+	_expect(is_equal_approx(player._lancer_war_rhythm_left, PlayerController.LANCER_WAR_RHYTHM_DURATION), "lancer Q did not activate war rhythm")
+	player._lancer_war_rhythm_left = 1.0
+	player._fan_skill_timer = 0.0
+	player.apply_external_input({"fan": true, "aim": Vector2.RIGHT})
+	player._physics_process(0.0)
+	_expect(is_equal_approx(player._lancer_war_rhythm_left, PlayerController.LANCER_WAR_RHYTHM_DURATION), "lancer E did not refresh war rhythm")
+	player._lancer_war_rhythm_left = 1.0
+	player._ultimate_timer = 0.0
+	player.apply_external_input({"ultimate": true, "aim": Vector2.RIGHT})
+	player._physics_process(0.0)
+	_expect(is_equal_approx(player._lancer_war_rhythm_left, PlayerController.LANCER_WAR_RHYTHM_DURATION), "lancer F did not refresh war rhythm")
+	player._pending_combat_event.clear()
+	player._attack_anim_left = 0.0
+	player._attack_timer = 0.0
+	player.apply_external_input({"basic": true, "aim": Vector2.RIGHT})
+	player._physics_process(0.0)
+	_expect(is_equal_approx(player._attack_timer, player.attack_cooldown * PlayerController.LANCER_WAR_RHYTHM_ATTACK_COOLDOWN_MULTIPLIER), "war rhythm did not shorten the next lancer basic attack cooldown")
+	game._clear_run_state()
+	await process_frame
+
 func _check_mage_combat() -> void:
 	game.selected_character_ids = ["mage", "mage"]
 	game._start_game(1)
@@ -309,7 +348,7 @@ func _check_mage_combat() -> void:
 	var splash_enemy: EnemyController = game.enemies.back()
 	splash_enemy.global_position = enemy.global_position + Vector2(40.0, 0.0)
 	splash_enemy.health = splash_enemy.max_health
-	game.combat_manager.on_player_basic_attack(player.global_position, Vector2.RIGHT, player.attack_range, player.attack_half_width, 5.0, player)
+	game.combat_manager.on_player_basic_attack(player.global_position, Vector2.RIGHT, player.attack_range, player.attack_half_width, 5.0, false, player)
 	_expect(game.projectile_root.get_child_count() == projectiles_before + 1, "mage basic attack did not create one magic projectile")
 	var projectile := game.projectile_root.get_child(game.projectile_root.get_child_count() - 1) as PlayerProjectile
 	projectile.global_position = enemy.global_position
@@ -318,7 +357,7 @@ func _check_mage_combat() -> void:
 	_expect(is_equal_approx(splash_enemy.health, splash_enemy.max_health), "mage left-click basic attack still dealt area damage")
 	_reset_enemy(enemy)
 	projectiles_before = game.projectile_root.get_child_count()
-	game.combat_manager.on_player_active_skill(player.global_position, Vector2.RIGHT, player.skill_length, player.skill_half_width, 5.0, player)
+	game.combat_manager.on_player_active_skill(player.global_position, Vector2.RIGHT, player.skill_length, player.skill_half_width, 5.0, false, player)
 	_expect(game.projectile_root.get_child_count() == projectiles_before + 1, "mage Q did not create a fireball")
 	var fireball := game.projectile_root.get_child(game.projectile_root.get_child_count() - 1) as PlayerProjectile
 	_expect(is_equal_approx(fireball.scale.x, 1.25), "mage Q fireball visual was not enlarged by 25 percent")
@@ -334,7 +373,7 @@ func _check_mage_combat() -> void:
 	await process_frame
 	_reset_enemy(enemy)
 	enemy.global_position = player.global_position + Vector2(444.0, 0.0)
-	game.combat_manager.on_player_active_skill(player.global_position, Vector2.RIGHT, player.skill_length, player.skill_half_width, 5.0, player)
+	game.combat_manager.on_player_active_skill(player.global_position, Vector2.RIGHT, player.skill_length, player.skill_half_width, 5.0, false, player)
 	var range_fireball := game.projectile_root.get_child(game.projectile_root.get_child_count() - 1) as PlayerProjectile
 	range_fireball.enemies = []
 	range_fireball._process(1.0)
@@ -349,7 +388,7 @@ func _check_mage_combat() -> void:
 	radius_target.health = radius_target.max_health
 	player.apply_upgrade({"id": "mage_q_radius", "stat": "behavior_upgrade"})
 	player.apply_upgrade({"id": "mage_q_damage", "stat": "behavior_upgrade"})
-	game.combat_manager.on_player_active_skill(player.global_position, Vector2.RIGHT, player.skill_length, player.skill_half_width, 5.0, player)
+	game.combat_manager.on_player_active_skill(player.global_position, Vector2.RIGHT, player.skill_length, player.skill_half_width, 5.0, false, player)
 	var upgraded_fireball := game.projectile_root.get_child(game.projectile_root.get_child_count() - 1) as PlayerProjectile
 	upgraded_fireball.global_position = enemy.global_position
 	upgraded_fireball._process(0.0)
@@ -359,7 +398,7 @@ func _check_mage_combat() -> void:
 	await process_frame
 
 	_reset_enemy(enemy)
-	game.combat_manager.on_player_fan_skill(player.global_position, Vector2.RIGHT, player.fan_skill_length, player.fan_skill_half_width, 5.0, player)
+	game.combat_manager.on_player_fan_skill(player.global_position, Vector2.RIGHT, player.fan_skill_length, player.fan_skill_half_width, 5.0, false, player)
 	_expect(_has_persistent_area("mage_field"), "mage E did not create a persistent field")
 	var field: Dictionary = game.persistent_skill_areas[0]
 	_expect((field.get("origin") as Vector2).distance_to(player.global_position) <= 180.0, "mage E exceeded its maximum cast range")
@@ -375,7 +414,7 @@ func _check_mage_combat() -> void:
 	game.combat_manager.clear_persistent_skill_areas()
 
 	_reset_enemy(enemy)
-	game.combat_manager.on_player_ultimate_skill(player.global_position, Vector2.RIGHT, 5.0, 8.0, player)
+	game.combat_manager.on_player_ultimate_skill(player.global_position, Vector2.RIGHT, 5.0, 8.0, false, player)
 	_expect(_has_persistent_area("mage_storm"), "mage F did not create an elemental storm")
 	var storm: Dictionary = game.persistent_skill_areas[0]
 	_expect((storm.get("origin") as Vector2).distance_to(player.global_position) <= 160.0, "mage F exceeded its maximum cast range")
@@ -397,7 +436,7 @@ func _check_mage_combat() -> void:
 	_expect(enemy.health < enemy.max_health, "mage F storm did not damage an enemy inside it")
 	_expect(second_enemy.health < second_enemy.max_health, "mage F did not damage every enemy inside its pulse")
 	_expect(is_equal_approx(enemy._stun_left, 0.5), "mage F did not stun a normal enemy for half a second")
-	_expect(is_equal_approx(second_enemy._stun_left, 0.5), "mage F half-second stun did not affect the boss")
+	_expect(is_zero_approx(second_enemy._stun_left), "mage F stun bypassed boss control immunity")
 	enemy._stun_left = 0.25
 	game.combat_manager._tick_mage_area(storm, player)
 	_expect(is_equal_approx(enemy._stun_left, 0.25), "mage F refreshed stun on every damage pulse")
@@ -405,7 +444,7 @@ func _check_mage_combat() -> void:
 	player.apply_upgrade({"id": "mage_f_finisher", "stat": "behavior_upgrade"})
 	player.apply_upgrade({"id": "mage_f_expansion", "stat": "behavior_upgrade"})
 	player.apply_upgrade({"id": "mage_f_infusion", "stat": "behavior_upgrade"})
-	game.combat_manager.on_player_ultimate_skill(player.global_position, Vector2.RIGHT, 5.0, 8.0, player)
+	game.combat_manager.on_player_ultimate_skill(player.global_position, Vector2.RIGHT, 5.0, 8.0, false, player)
 	var upgraded_storm: Dictionary = game.persistent_skill_areas[0]
 	_expect(is_equal_approx(float(upgraded_storm.get("radius", 0.0)), 264.0), "mage common F upgrade did not expand the storm")
 	_expect(is_equal_approx(float(upgraded_storm.get("damage", 0.0)), 5.0 * 0.30 * 1.30), "mage rare F upgrade did not increase pulse damage")
@@ -491,12 +530,13 @@ func _check_mage_secondary() -> void:
 	_press_secondary(player, Vector2.RIGHT)
 	_expect(_has_effect_node("MageSecondaryVFX"), "mage right-click did not create its repulsion VFX")
 	_expect(is_equal_approx(enemy.max_health - enemy.health, player.attack_damage * 0.50), "mage right-click did not deal 50 percent basic damage")
-	_expect(is_equal_approx(boss.max_health - boss.health, player.attack_damage * 0.50), "mage right-click did not damage the boss")
+	var expected_boss_damage: float = player.attack_damage * 0.50 * EnemyController.BOSS_AOE_DAMAGE_TAKEN_MULTIPLIER
+	_expect(is_equal_approx(boss.max_health - boss.health, expected_boss_damage), "mage right-click did not apply boss AOE and crit resistance")
 	_expect(is_equal_approx(outside.health, outside.max_health), "mage right-click damaged an enemy outside its 110 radius")
 	_expect(enemy._knockback_velocity.length() > 0.0, "mage right-click did not repel a normal enemy")
 	_expect(boss._knockback_velocity == Vector2.ZERO, "mage right-click repelled the boss")
 	_expect(is_equal_approx(enemy._slow_left, 1.5) and is_equal_approx(enemy._slow_move_multiplier, 0.75), "mage right-click did not slow a normal enemy by 25 percent for 1.5 seconds")
-	_expect(is_equal_approx(boss._slow_left, 1.5) and is_equal_approx(boss._slow_move_multiplier, 0.90), "mage right-click did not apply the light boss slow")
+	_expect(is_zero_approx(boss._slow_left) and is_equal_approx(boss._slow_move_multiplier, 1.0), "mage right-click bypassed boss slow immunity")
 	_expect(game.projectile_root.get_child_count() == projectiles_before, "mage right-click still created a projectile")
 	_expect(is_equal_approx(player.get_secondary_remaining(), 3.0), "mage right-click did not start the shared cooldown")
 	var health_after_first_cast := enemy.health
@@ -552,6 +592,41 @@ func _check_common_damage_accounting() -> void:
 	game._clear_run_state()
 	await process_frame
 
+func _check_boss_damage_context() -> void:
+	game.selected_character_ids = ["lancer", "lancer"]
+	game._start_game(1)
+	await _wait_for_enemy()
+	var player: PlayerController = game.players[0]
+	var boss: EnemyController = game.enemies[0]
+	player.global_position = Vector2.ZERO
+	player.wave_damage_multiplier = 1.0
+	player.crit_multiplier = 1.8
+	boss.setup_as_boss()
+	boss.global_position = Vector2(80.0, 0.0)
+
+	boss.health = boss.max_health
+	game.combat_manager.damage_enemies_in_front(player.global_position, Vector2.RIGHT, 160.0, 60.0, 100.0, 0.0, player, false)
+	_expect(is_equal_approx(boss.max_health - boss.health, 100.0), "lancer Q-shaped frontal damage was incorrectly reduced as boss AOE")
+
+	boss.health = boss.max_health
+	game.combat_manager.cast_chain_lightning(player.global_position, Vector2.RIGHT, 100.0, player, false, false)
+	_expect(is_equal_approx(boss.max_health - boss.health, 100.0), "chain lightning was incorrectly reduced as boss AOE")
+
+	boss.health = boss.max_health
+	game.combat_manager.damage_enemies_in_radius(player.global_position, 160.0, 100.0, player, false)
+	_expect(is_equal_approx(boss.max_health - boss.health, 100.0 * EnemyController.BOSS_AOE_DAMAGE_TAKEN_MULTIPLIER), "true area damage did not receive boss AOE resistance")
+
+	boss.health = boss.max_health
+	game.combat_manager.damage_enemy(boss, 180.0, player, player.global_position, 0.0, false, false, false, true)
+	var expected_critical_damage := 100.0 + 80.0 * EnemyController.BOSS_CRITICAL_BONUS_MULTIPLIER
+	_expect(is_equal_approx(boss.max_health - boss.health, expected_critical_damage), "boss critical resistance did not use the explicit critical-hit context")
+
+	boss.health = boss.max_health
+	game.combat_manager.damage_enemy(boss, 180.0, player, player.global_position, 0.0, false, false, false, false)
+	_expect(is_equal_approx(boss.max_health - boss.health, 180.0), "boss critical resistance changed a non-critical hit with the same damage amount")
+	game._clear_run_state()
+	await process_frame
+
 func _check_e_upgrade_branches() -> void:
 	await _check_warrior_e_branches()
 	await _check_archer_e_branches()
@@ -566,7 +641,7 @@ func _check_warrior_e_branches() -> void:
 	var enemy: EnemyController = game.enemies[0]
 	_grant_upgrade(player, "warrior_e_counter")
 	_grant_upgrade(player, "warrior_e_perfect_guard")
-	game.combat_manager.on_player_fan_skill(player.global_position, Vector2.RIGHT, player.fan_skill_length, player.fan_skill_half_width, 10.0, player)
+	game.combat_manager.on_player_fan_skill(player.global_position, Vector2.RIGHT, player.fan_skill_length, player.fan_skill_half_width, 10.0, false, player)
 	var health_before := player.health
 	var enemy_health_before := enemy.health
 	player.apply_damage(10.0, enemy)
@@ -584,7 +659,7 @@ func _check_warrior_e_branches() -> void:
 	enemy.global_position = Vector2(142.0, 0.0)
 	_grant_upgrade(player, "warrior_e_shield")
 	_grant_upgrade(player, "warrior_e_shield_guard")
-	game.combat_manager.on_player_fan_skill(player.global_position, Vector2.RIGHT, player.fan_skill_length, player.fan_skill_half_width, 10.0, player)
+	game.combat_manager.on_player_fan_skill(player.global_position, Vector2.RIGHT, player.fan_skill_length, player.fan_skill_half_width, 10.0, false, player)
 	_expect(_has_persistent_area("warrior_shield"), "warrior alternate E did not create a shield shadow")
 	game.combat_manager.update_persistent_skill_areas(0.23)
 	_expect(enemy.health < enemy.max_health, "warrior shield shadow did not damage on its outward path")
@@ -608,7 +683,7 @@ func _check_archer_e_branches() -> void:
 	transfer_target.global_position = Vector2(120.0, 0.0)
 	_grant_upgrade(player, "archer_e_mark")
 	_grant_upgrade(player, "archer_e_mark_transfer")
-	game.combat_manager.on_player_fan_skill(player.global_position, Vector2.RIGHT, player.fan_skill_length, player.fan_skill_half_width, 10.0, player)
+	game.combat_manager.on_player_fan_skill(player.global_position, Vector2.RIGHT, player.fan_skill_length, player.fan_skill_half_width, 10.0, false, player)
 	_expect(enemy.is_marked_by(player), "archer enhanced E did not mark its first target")
 	_expect(is_equal_approx(enemy.get_damage_multiplier(player), 1.70), "archer enhanced E did not increase damage by 70 percent")
 	game.combat_manager.damage_enemy(enemy, enemy.health + 1.0, player)
@@ -626,7 +701,7 @@ func _check_archer_e_branches() -> void:
 	enemy.global_position = Vector2.ZERO
 	_grant_upgrade(player, "archer_e_trap")
 	_grant_upgrade(player, "archer_e_execution_trap")
-	game.combat_manager.on_player_fan_skill(player.global_position, Vector2.RIGHT, player.fan_skill_length, player.fan_skill_half_width, 10.0, player)
+	game.combat_manager.on_player_fan_skill(player.global_position, Vector2.RIGHT, player.fan_skill_length, player.fan_skill_half_width, 10.0, false, player)
 	_expect(player.global_position.x < 0.0, "archer alternate E did not backstep")
 	var trap: Dictionary = game.persistent_skill_areas.back()
 	var trap_root: Node2D = trap.get("root") as Node2D
@@ -646,7 +721,7 @@ func _check_mage_e_branches() -> void:
 	player.global_position = Vector2.ZERO
 	_grant_upgrade(player, "mage_e_field")
 	_grant_upgrade(player, "mage_e_accumulation")
-	game.combat_manager.on_player_fan_skill(player.global_position, Vector2.RIGHT, player.fan_skill_length, player.fan_skill_half_width, 10.0, player)
+	game.combat_manager.on_player_fan_skill(player.global_position, Vector2.RIGHT, player.fan_skill_length, player.fan_skill_half_width, 10.0, false, player)
 	var field: Dictionary = game.persistent_skill_areas.back()
 	_expect(is_equal_approx(float(field.get("duration_left", 0.0)), 5.0), "mage common E field did not extend its duration")
 	_expect(bool(field.get("accumulation", false)), "mage rare E field did not enable accumulating damage")
@@ -665,7 +740,7 @@ func _check_mage_e_branches() -> void:
 	second_enemy.global_position = Vector2(180.0, 0.0)
 	_grant_upgrade(player, "mage_e_chain")
 	_grant_upgrade(player, "mage_e_conduction")
-	game.combat_manager.on_player_fan_skill(player.global_position, Vector2.RIGHT, player.fan_skill_length, player.fan_skill_half_width, 10.0, player)
+	game.combat_manager.on_player_fan_skill(player.global_position, Vector2.RIGHT, player.fan_skill_length, player.fan_skill_half_width, 10.0, false, player)
 	_expect(enemy.health < enemy.max_health and second_enemy.health < second_enemy.max_health, "mage alternate E did not chain across multiple enemies")
 	_expect(not _has_persistent_area("mage_field"), "mage alternate E still created a persistent circle")
 	_expect(_has_effect_node("MageChainCast"), "mage chain E did not create its textured conduction cast")
@@ -681,7 +756,7 @@ func _check_lancer_e_branches() -> void:
 	player.global_position = Vector2.ZERO
 	_grant_upgrade(player, "lancer_e_charge")
 	_grant_upgrade(player, "lancer_e_double_sweep")
-	game.combat_manager.on_player_fan_skill(player.global_position, Vector2.RIGHT, player.fan_skill_length, player.fan_skill_half_width, 10.0, player)
+	game.combat_manager.on_player_fan_skill(player.global_position, Vector2.RIGHT, player.fan_skill_length, player.fan_skill_half_width, 10.0, false, player)
 	_expect(player.global_position.x > 150.0, "lancer common E charge did not increase dash distance")
 	_expect(player._invulnerable_left > 0.0, "lancer common E charge did not grant brief invulnerability")
 	game._clear_run_state()
@@ -696,7 +771,7 @@ func _check_lancer_e_branches() -> void:
 	enemy.global_position = Vector2(158.0, 0.0)
 	_grant_upgrade(player, "lancer_e_spear")
 	_grant_upgrade(player, "lancer_e_return")
-	game.combat_manager.on_player_fan_skill(player.global_position, Vector2.RIGHT, player.fan_skill_length, player.fan_skill_half_width, 10.0, player)
+	game.combat_manager.on_player_fan_skill(player.global_position, Vector2.RIGHT, player.fan_skill_length, player.fan_skill_half_width, 10.0, false, player)
 	_expect(is_equal_approx(player.global_position.x, 0.0), "lancer alternate E moved the player")
 	var spear_root: Node2D = game.persistent_skill_areas.back().get("root") as Node2D
 	_expect(spear_root != null and spear_root.has_node("LancerSpearTexture"), "lancer spear branch did not create its textured spear shadow")

@@ -25,7 +25,9 @@ func _init() -> void:
 	_check_defense_hold_slowdown()
 	_check_common_animation_states()
 	_check_lancer_run_visual_scale()
+	_check_warrior_level_one_ascension_aura()
 	_check_archer_projectile_origin()
+	_check_archer_charge_feedback()
 	_check_combat_event_frame()
 	_check_authority_snapshot_contract()
 	if failures.is_empty():
@@ -48,8 +50,11 @@ func _check_character_configs() -> void:
 	_expect(is_equal_approx(float(GameRulesScript.CHARACTER_CONFIGS["lancer"]["attack_range"]), 110.4), "lancer base attack range is not 15 percent above 96")
 	_expect(is_equal_approx(float(GameRulesScript.CHARACTER_CONFIGS["warrior"]["defense_damage_multiplier"]), 0.30), "warrior passive defense multiplier is incorrect")
 	_expect(int(GameRulesScript.CHARACTER_CONFIGS["archer"]["dash_max_charges"]) == 2, "archer passive does not grant two dash charges")
-	_expect(is_equal_approx(GameRulesScript.NORMAL_WAVE_TIME_LIMIT, 60.0), "normal wave time limit is not 60 seconds")
-	_expect(is_equal_approx(GameRulesScript.BOSS_WAVE_TIME_LIMIT, 120.0), "boss wave time limit is not 120 seconds")
+	_expect(is_equal_approx(GameRulesScript.NORMAL_WAVE_TIME_LIMIT, 120.0), "normal wave time limit is not 120 seconds")
+	_expect(is_equal_approx(GameRulesScript.BOSS_WAVE_TIME_LIMIT, 180.0), "boss wave time limit is not 180 seconds")
+	for character_id in GameRulesScript.CHARACTER_ORDER:
+		for action_key in ["BASIC", "DODGE", "SECONDARY", "Q", "E", "F"]:
+			_expect(GameRulesScript.get_action_tooltip(character_id, action_key).contains("\n"), "%s %s tooltip is missing its description" % [character_id, action_key])
 	_check_mage_art_assets()
 
 func _check_character_passives() -> void:
@@ -68,10 +73,16 @@ func _check_character_passives() -> void:
 	lancer.apply_character_config(GameRulesScript.get_character_config("lancer"))
 	lancer.health -= 5.0
 	var lancer_health: float = lancer.health
-	lancer._tick_timers(9.9)
-	_expect(is_equal_approx(lancer.health, lancer_health), "lancer passive healed before ten seconds")
-	lancer._tick_timers(0.1)
-	_expect(is_equal_approx(lancer.health, lancer_health + 1.0), "lancer passive did not heal one health after ten seconds")
+	lancer._tick_timers(30.0)
+	_expect(is_equal_approx(lancer.health, lancer_health), "lancer retained the removed passive regeneration")
+	lancer.activate_lancer_war_rhythm()
+	_expect(is_equal_approx(lancer._lancer_war_rhythm_left, 3.0), "lancer war rhythm did not start for three seconds")
+	_expect(is_equal_approx(lancer.get_current_attack_cooldown(), lancer.attack_cooldown * 0.70), "lancer war rhythm did not shorten basic attack cooldown by 30 percent")
+	lancer._tick_timers(1.0)
+	lancer.activate_lancer_war_rhythm()
+	_expect(is_equal_approx(lancer._lancer_war_rhythm_left, 3.0), "lancer war rhythm stacked instead of refreshing its duration")
+	lancer._tick_timers(3.0)
+	_expect(is_equal_approx(lancer.get_current_attack_cooldown(), lancer.attack_cooldown), "lancer basic attack cooldown stayed shortened after war rhythm expired")
 	lancer.free()
 
 func _check_mage_art_assets() -> void:
@@ -480,12 +491,46 @@ func _check_archer_projectile_origin() -> void:
 	_expect(origin.y < player.global_position.y, "archer projectile origin did not include the bow-center vertical offset")
 	player.free()
 
+func _check_warrior_level_one_ascension_aura() -> void:
+	var player = PlayerScript.new()
+	player.apply_character_config(GameRulesScript.get_character_config("warrior"))
+	player._setup_nodes()
+	player._update_skill_ascension_aura(0.0)
+	_expect(not player._skill_ascension_aura.visible, "warrior ascension aura appeared before a profession skill upgrade")
+	player.apply_upgrade({"id": "warrior_q_damage", "stat": "behavior_upgrade", "max_level": 1})
+	player._update_skill_ascension_aura(0.0)
+	_expect(player.get_profession_skill_upgrade_count() == 1, "warrior profession skill upgrade count did not reach level one")
+	_expect(player._skill_ascension_aura.visible, "warrior level-one ascension aura did not appear")
+	_expect(player._skill_ascension_aura.get_child_count() == 4, "warrior level-one ascension aura is not composed of two red-gold arc layers")
+	player.apply_upgrade({"id": "move_speed_common", "stat": "move_speed", "amount": 0.05, "max_level": 1})
+	_expect(player.get_profession_skill_upgrade_count() == 1, "general upgrades incorrectly advanced the warrior ascension aura")
+	player.free()
+
+func _check_archer_charge_feedback() -> void:
+	var player = PlayerScript.new()
+	player.apply_character_config(GameRulesScript.get_character_config("archer"))
+	player.use_mouse_aim = false
+	player._setup_nodes()
+	player._archer_q_charging = true
+	player._archer_q_charge_time = PlayerScript.ARCHER_Q_MAX_CHARGE_TIME * 0.5
+	player._update_feedback()
+	_expect(player._charge_indicator.visible, "archer Q did not show its charge bar while charging")
+	_expect(player._charge_bar_fill.points.size() == 2 and is_equal_approx(player._charge_bar_fill.points[1].x, 0.0), "archer Q charge bar did not display half charge")
+	_expect(player._charge_aim_line.points.size() == 2, "archer Q did not show its aiming guide while charging")
+	player.archer_charge_time_multiplier = 0.8
+	player._archer_q_charge_time = PlayerScript.ARCHER_Q_MAX_CHARGE_TIME * player.archer_charge_time_multiplier
+	player._update_feedback()
+	_expect(player._is_archer_q_fully_charged(), "archer Q full-charge feedback ignored the quickdraw duration")
+	_expect(is_equal_approx(player._charge_aim_line.width, 4.0), "archer Q aiming guide did not become stronger at full charge")
+	_expect(player._charge_full_flash.visible, "archer Q did not flash when it first reached full charge")
+	player.free()
+
 func _check_combat_event_frame() -> void:
 	var player = PlayerScript.new()
 	player.apply_character_config(GameRulesScript.get_character_config("warrior"))
 	player._setup_nodes()
 	var emitted := [false]
-	player.basic_attack_requested.connect(func(_origin, _direction, _length, _width, _damage): emitted[0] = true)
+	player.basic_attack_requested.connect(func(_origin, _direction, _length, _width, _damage, _is_critical): emitted[0] = true)
 	player._queue_combat_event("basic", Vector2.RIGHT, 10.0)
 	player._start_attack_animation(false)
 	_expect(not emitted[0], "melee damage emitted on the first visual frame")
@@ -501,11 +546,16 @@ func _check_authority_snapshot_contract() -> void:
 	var enemy_state: Dictionary = AuthorityContractScript.make_enemy_state(1, "melee", Vector2(40.0, 20.0), 35.0, 46.0)
 	var snapshot: Dictionary = AuthorityContractScript.make_snapshot(1, "WAVE_ACTIVE", 0, [player_state], [enemy_state], 59.0, 1.0, {"enemies_defeated": 2})
 	_expect(AuthorityContractScript.validate_snapshot(snapshot), "authority snapshot contract is invalid")
-	_expect(int(snapshot.get("version", 0)) == 2, "authority snapshot version was not advanced")
+	_expect(int(snapshot.get("version", 0)) == 3, "authority snapshot version was not advanced")
+	_expect(snapshot.has("projectiles") and snapshot.has("skill_areas") and snapshot.has("ultimates"), "authority snapshot omitted combat entities")
 	_expect(is_equal_approx(float(snapshot.get("wave_time_left", 0.0)), 59.0), "authority snapshot omitted wave time")
 	var duplicate_enemy_snapshot := snapshot.duplicate(true)
 	duplicate_enemy_snapshot["enemies"] = [enemy_state, enemy_state.duplicate(true)]
 	_expect(not AuthorityContractScript.validate_snapshot(duplicate_enemy_snapshot), "authority snapshot accepted duplicate enemy ids")
+	var duplicate_combat_entity_snapshot := snapshot.duplicate(true)
+	duplicate_combat_entity_snapshot["projectiles"] = [{"entity_id": 4, "type": "player", "position": Vector2.ZERO}]
+	duplicate_combat_entity_snapshot["skill_areas"] = [{"entity_id": 4, "type": "archer_trap", "position": Vector2.ZERO}]
+	_expect(not AuthorityContractScript.validate_snapshot(duplicate_combat_entity_snapshot), "authority snapshot accepted a duplicate combat entity id")
 
 func _expect(condition: bool, message: String) -> void:
 	if not condition:

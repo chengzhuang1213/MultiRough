@@ -42,7 +42,8 @@ func _ready() -> void:
 
 	start_next_wave_button = Button.new()
 	start_next_wave_button.text = "开启下一波"
-	start_next_wave_button.custom_minimum_size = Vector2(220, 60)
+	start_next_wave_button.custom_minimum_size = Vector2(260, 100)
+	start_next_wave_button.add_theme_font_size_override("font_size", 23)
 	start_next_wave_button.visible = false
 	start_next_wave_button.disabled = true
 	start_next_wave_button.mouse_filter = Control.MOUSE_FILTER_STOP
@@ -51,7 +52,8 @@ func _ready() -> void:
 
 	return_to_menu_button = Button.new()
 	return_to_menu_button.text = "返回主菜单"
-	return_to_menu_button.custom_minimum_size = Vector2(160, 60)
+	return_to_menu_button.custom_minimum_size = Vector2(200, 100)
+	return_to_menu_button.add_theme_font_size_override("font_size", 21)
 	return_to_menu_button.visible = false
 	return_to_menu_button.mouse_filter = Control.MOUSE_FILTER_STOP
 	return_to_menu_button.pressed.connect(func() -> void: return_to_menu_requested.emit())
@@ -70,7 +72,7 @@ func layout(viewport_size: Vector2) -> void:
 	)
 	start_next_wave_button.position = Vector2(
 		(viewport_size.x - start_next_wave_button.custom_minimum_size.x) * 0.5,
-		viewport_size.y - 92
+		viewport_size.y - start_next_wave_button.custom_minimum_size.y - 32
 	)
 	return_to_menu_button.position = Vector2(
 		maxf(16, viewport_size.x - return_to_menu_button.custom_minimum_size.x - 16),
@@ -85,8 +87,3 @@ func set_combat_visible(visible: bool) -> void:
 	player_hud.visible = visible
 	if not visible:
 		hud_right.visible = false
-
-func update_status(state_text: String, wave_text: String, enemies_text: String) -> void:
-	status_label.text = state_text
-	wave_label.text = wave_text
-	enemies_label.text = enemies_text

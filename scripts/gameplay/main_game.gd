@@ -5,9 +5,14 @@ const EnemyScript := preload("res://scripts/enemy/enemy_controller.gd")
 const GameRulesScript := preload("res://scripts/gameplay/game_rules.gd")
 const WaveManagerScript := preload("res://scripts/gameplay/wave_manager.gd")
 const UpgradeManagerScript := preload("res://scripts/upgrades/upgrade_manager.gd")
+const UpgradeSessionScript := preload("res://scripts/upgrades/upgrade_session.gd")
 const CombatManagerScript := preload("res://scripts/gameplay/combat_manager.gd")
+const MapBuilderScript := preload("res://scripts/gameplay/map_builder.gd")
+const EffectManagerScript := preload("res://scripts/gameplay/effect_manager.gd")
+const WaveSpawnerScript := preload("res://scripts/gameplay/wave_spawner.gd")
+const InputSetupScript := preload("res://scripts/input/input_setup.gd")
 const PlayerRosterScript := preload("res://scripts/player/player_roster.gd")
-const AuthorityContractScript := preload("res://scripts/network/authority_contract.gd")
+const AuthoritySyncScript := preload("res://scripts/network/authority_sync.gd")
 const VerdantUIThemeScript := preload("res://scripts/ui/verdant_ui_theme.gd")
 const MainMenuUIScene := preload("res://scenes/ui/main_menu_ui.tscn")
 const CharacterSelectUIScene := preload("res://scenes/ui/character_select_ui.tscn")
@@ -146,6 +151,7 @@ var network_snapshot_sequence := 0
 var network_last_applied_snapshot := -1
 var network_snapshot_time_left := 0.0
 var network_next_enemy_id := 1
+var network_next_combat_entity_id := 1
 
 var player: PlayerController
 var player_two: PlayerController
@@ -188,11 +194,19 @@ var result_ui
 var upgrade_ui_player_index := 1
 var combat_manager
 var player_roster
+var authority_sync
+var map_builder
+var effect_manager
+var wave_spawner
 
 func _ready() -> void:
 	randomize()
 	combat_manager = CombatManagerScript.new(self)
 	player_roster = PlayerRosterScript.new(self, combat_manager)
+	authority_sync = AuthoritySyncScript.new(self)
+	map_builder = MapBuilderScript.new(self)
+	effect_manager = EffectManagerScript.new(self)
+	wave_spawner = WaveSpawnerScript.new(self)
 	_ensure_input_map()
 	_build_world()
 	_build_ui()
@@ -231,49 +245,7 @@ func _try_start_next_wave_from_input(event: InputEvent) -> bool:
 	return true
 
 func _ensure_input_map() -> void:
-	_add_key_action("move_left", [KEY_A])
-	_add_key_action("move_right", [KEY_D])
-	_add_key_action("move_up", [KEY_W])
-	_add_key_action("move_down", [KEY_S])
-	_add_key_action("basic_attack", [KEY_J])
-	_add_mouse_action("basic_attack", MOUSE_BUTTON_LEFT)
-	_add_key_action("network_basic_attack", [KEY_J])
-	_add_key_action("dash", [KEY_SPACE])
-	_remove_key_action("dash", [KEY_K])
-	_add_key_action("active_skill", [KEY_Q])
-	_add_key_action("fan_skill", [KEY_E])
-	_add_key_action("ultimate_skill", [KEY_F])
-	_add_key_action("defend", [KEY_K])
-	_add_mouse_action("defend", MOUSE_BUTTON_RIGHT)
-
-func _add_key_action(action: StringName, keys: Array[int]) -> void:
-	_ensure_input_action(action)
-	for key in keys:
-		var event: InputEventKey = InputEventKey.new()
-		event.physical_keycode = key
-		if not InputMap.action_has_event(action, event):
-			InputMap.action_add_event(action, event)
-
-func _ensure_input_action(action: StringName) -> void:
-	if not InputMap.has_action(action):
-		InputMap.add_action(action)
-
-func _remove_key_action(action: StringName, keys: Array[int]) -> void:
-	if not InputMap.has_action(action):
-		return
-	for key in keys:
-		var event: InputEventKey = InputEventKey.new()
-		event.physical_keycode = key
-		if InputMap.action_has_event(action, event):
-			InputMap.action_erase_event(action, event)
-
-func _add_mouse_action(action: StringName, button_index: int) -> void:
-	if not InputMap.has_action(action):
-		InputMap.add_action(action)
-	var event: InputEventMouseButton = InputEventMouseButton.new()
-	event.button_index = button_index
-	if not InputMap.action_has_event(action, event):
-		InputMap.action_add_event(action, event)
+	InputSetupScript.ensure_default_actions()
 
 func _process(delta: float) -> void:
 	if upgrade_selection_input_lock_left > 0.0:
@@ -290,8 +262,9 @@ func _process(delta: float) -> void:
 		_update_network_authority(delta)
 	_update_camera()
 	_update_player_hud_occlusion(delta)
-	_update_enemy_targets()
-	if _is_combat_active():
+	if network_mode != "client":
+		_update_enemy_targets()
+	if _is_combat_active() and network_mode != "client":
 		combat_manager.update_ultimates(delta)
 		_update_persistent_skill_areas(delta)
 	_update_status()
@@ -700,6 +673,7 @@ func _start_game(player_count: int) -> void:
 	network_last_applied_snapshot = -1
 	network_snapshot_time_left = 0.0
 	network_next_enemy_id = 1
+	network_next_combat_entity_id = 1
 	local_player_slots.clear()
 	if main_menu_panel != null:
 		main_menu_panel.visible = false
@@ -760,6 +734,20 @@ func _get_network_player(player_index: int) -> PlayerController:
 		return player_two
 	return null
 
+func _has_combat_authority() -> bool:
+	return network_mode != "client"
+
+func allocate_combat_entity_id() -> int:
+	var entity_id := network_next_combat_entity_id
+	network_next_combat_entity_id += 1
+	return entity_id
+
+func get_player_network_id(target_player: PlayerController) -> int:
+	for index in range(players.size()):
+		if players[index] == target_player:
+			return index + 1
+	return 0
+
 func _send_network_input() -> void:
 	if network_mode != "client" or multiplayer.multiplayer_peer == null:
 		return
@@ -790,33 +778,7 @@ func _update_network_authority(delta: float) -> void:
 	rpc("_network_receive_authority_snapshot", _build_authority_snapshot())
 
 func _build_authority_snapshot() -> Dictionary:
-	var player_states: Array = []
-	for player_index in range(players.size()):
-		var target_player := players[player_index] as PlayerController
-		if target_player == null or not is_instance_valid(target_player):
-			continue
-		player_states.append(AuthorityContractScript.make_player_state(
-			player_index + 1,
-			target_player.global_position,
-			target_player.health,
-			target_player.max_health,
-			target_player.is_dead,
-			target_player.make_authority_cooldowns()
-		))
-	var enemy_states: Array = []
-	for enemy in enemies:
-		if is_instance_valid(enemy):
-			enemy_states.append(enemy.make_authority_state())
-	return AuthorityContractScript.make_snapshot(
-		network_snapshot_sequence,
-		game_state,
-		wave_index,
-		player_states,
-		enemy_states,
-		wave_time_left,
-		elapsed_time,
-		{"enemies_defeated": enemies_defeated, "damage_dealt": damage_dealt, "damage_taken": damage_taken}
-	)
+	return authority_sync.build_snapshot()
 
 @rpc("authority", "unreliable_ordered")
 func _network_receive_authority_snapshot(snapshot: Dictionary) -> void:
@@ -824,63 +786,43 @@ func _network_receive_authority_snapshot(snapshot: Dictionary) -> void:
 		return
 	_apply_authority_snapshot(snapshot)
 
+func _broadcast_enemy_telegraph(shape: String, payload: Dictionary) -> void:
+	if network_mode == "host":
+		rpc("_network_show_enemy_telegraph", shape, payload)
+
+@rpc("authority", "call_remote", "reliable")
+func _network_show_enemy_telegraph(shape: String, payload: Dictionary) -> void:
+	if network_mode != "client":
+		return
+	_show_enemy_telegraph(shape, payload)
+
+func _show_enemy_telegraph(shape: String, payload: Dictionary) -> void:
+	if shape == "line":
+		_spawn_line_skill_effect(
+			payload.get("origin", Vector2.ZERO) as Vector2,
+			payload.get("direction", Vector2.RIGHT) as Vector2,
+			float(payload.get("length", 0.0)),
+			payload.get("color", Color.WHITE) as Color,
+			float(payload.get("lifetime", 0.1))
+		)
+		return
+	if shape == "ring":
+		_spawn_ring_effect(
+			payload.get("origin", Vector2.ZERO) as Vector2,
+			float(payload.get("radius", 0.0)),
+			payload.get("color", Color.WHITE) as Color,
+			float(payload.get("lifetime", 0.1))
+		)
+		return
+	_spawn_effect(
+		payload.get("origin", Vector2.ZERO) as Vector2,
+		float(payload.get("radius", 0.0)),
+		payload.get("color", Color.WHITE) as Color,
+		float(payload.get("lifetime", 0.1))
+	)
+
 func _apply_authority_snapshot(snapshot: Dictionary) -> bool:
-	if not AuthorityContractScript.validate_snapshot(snapshot):
-		return false
-	var sequence := int(snapshot.get("sequence", -1))
-	if sequence <= network_last_applied_snapshot:
-		return false
-	network_last_applied_snapshot = sequence
-	wave_index = int(snapshot.get("wave_index", wave_index))
-	wave_time_left = maxf(0.0, float(snapshot.get("wave_time_left", wave_time_left)))
-	elapsed_time = maxf(0.0, float(snapshot.get("elapsed_time", elapsed_time)))
-	var authority_phase := str(snapshot.get("phase", game_state))
-	if authority_phase == GameStateScript.VICTORY and game_state != GameStateScript.VICTORY:
-		_enter_victory()
-	elif authority_phase == GameStateScript.DEFEAT and game_state != GameStateScript.DEFEAT:
-		_enter_defeat("房主判定失败")
-	elif authority_phase in [GameStateScript.WAVE_ACTIVE, GameStateScript.BOSS_WAVE, GameStateScript.COUNTDOWN]:
-		game_state = authority_phase
-	for player_state in snapshot.get("players", []) as Array:
-		var target_player := _get_network_player(int((player_state as Dictionary).get("player_id", 0)))
-		if target_player != null and is_instance_valid(target_player):
-			target_player.apply_authority_state(player_state as Dictionary)
-	_apply_authority_enemy_states(snapshot.get("enemies", []) as Array)
-	var metrics: Dictionary = snapshot.get("metrics", {}) as Dictionary
-	enemies_defeated = int(metrics.get("enemies_defeated", enemies_defeated))
-	damage_dealt = float(metrics.get("damage_dealt", damage_dealt))
-	damage_taken = float(metrics.get("damage_taken", damage_taken))
-	return true
-
-func _apply_authority_enemy_states(enemy_states: Array) -> void:
-	var existing_by_id := {}
-	for enemy in enemies:
-		if is_instance_valid(enemy) and enemy.network_id > 0:
-			existing_by_id[enemy.network_id] = enemy
-	var authority_ids := {}
-	for state in enemy_states:
-		var enemy_state := state as Dictionary
-		var enemy_id := int(enemy_state.get("enemy_id", -1))
-		authority_ids[enemy_id] = true
-		var enemy: EnemyController = existing_by_id.get(enemy_id) as EnemyController
-		if enemy == null or not is_instance_valid(enemy):
-			enemy = _create_enemy_from_authority_state(enemy_state)
-		enemy.apply_authority_state(enemy_state)
-	for enemy in enemies.duplicate():
-		if is_instance_valid(enemy) and not authority_ids.has(enemy.network_id):
-			enemies.erase(enemy)
-			enemy.queue_free()
-
-func _create_enemy_from_authority_state(state: Dictionary) -> EnemyController:
-	var enemy: EnemyController = EnemyScript.new()
-	var enemy_type := str(state.get("enemy_type", "melee"))
-	if enemy_type == "boss":
-		enemy.setup_as_boss()
-		_tune_boss_for_mode(enemy)
-	else:
-		_setup_wave_enemy(enemy, enemy_type)
-	_register_enemy(enemy, int(state.get("enemy_id", -1)))
-	return enemy
+	return authority_sync.apply_snapshot(snapshot)
 
 func _get_selected_character_id(slot_index: int) -> String:
 	if slot_index >= 0 and slot_index < selected_character_ids.size():
@@ -955,11 +897,13 @@ func _start_next_wave() -> void:
 	if wave_def.get("boss", false):
 		game_state = GameStateScript.BOSS_WAVE
 		wave_time_left = GameRulesScript.BOSS_WAVE_TIME_LIMIT
-		_spawn_boss()
+		if network_mode != "client":
+			_spawn_boss()
 	else:
 		game_state = GameStateScript.WAVE_ACTIVE
 		wave_time_left = GameRulesScript.NORMAL_WAVE_TIME_LIMIT
-		_spawn_wave(wave_def)
+		if network_mode != "client":
+			_spawn_wave(wave_def)
 
 	_update_status()
 
@@ -980,76 +924,22 @@ func _update_player_wave_damage_growth() -> void:
 			existing_player.wave_damage_multiplier = multiplier
 
 func _spawn_minions(count: int) -> void:
-	for index in range(count):
-		var enemy: EnemyController = EnemyScript.new()
-		enemy.setup_as_minion(wave_index + 1)
-		_tune_enemy_for_mode(enemy)
-		enemy.global_position = _spawn_point(index, count)
-		_register_enemy(enemy)
+	wave_spawner.spawn_minions(count)
 
 func _spawn_wave(wave_def: Dictionary) -> void:
-	var spawn_types: Array[String] = []
-	for enemy_type in ["melee", "heavy", "ranged", "shield"]:
-		var scaled_count := roundi(float(wave_def.get(enemy_type, 0)) * minion_count_multiplier)
-		for _index in range(scaled_count):
-			spawn_types.append(enemy_type)
-	var elite_multiplier := 2 if local_player_count > 1 else 1
-	for enemy_type in ["charger", "bomber"]:
-		for _index in range(int(wave_def.get(enemy_type, 0)) * elite_multiplier):
-			spawn_types.append(enemy_type)
-	for _index in range(int(wave_def.get("priest", 0))):
-		spawn_types.append("priest")
-	spawn_types.shuffle()
-	for index in range(spawn_types.size()):
-		var enemy: EnemyController = EnemyScript.new()
-		_setup_wave_enemy(enemy, spawn_types[index])
-		enemy.global_position = _spawn_point(index, spawn_types.size())
-		_register_enemy(enemy)
+	wave_spawner.spawn_wave(wave_def)
 
 func _setup_wave_enemy(enemy: EnemyController, enemy_type: String) -> void:
-	var wave_number: int = wave_index + 1
-	match enemy_type:
-		"heavy":
-			enemy.setup_as_heavy(wave_number)
-		"ranged":
-			enemy.setup_as_ranged(wave_number)
-		"shield":
-			enemy.setup_as_shield(wave_number)
-		"charger":
-			enemy.setup_as_charger(wave_number)
-		"bomber":
-			enemy.setup_as_bomber(wave_number)
-		"priest":
-			enemy.setup_as_priest(wave_number)
-		_:
-			enemy.setup_as_minion(wave_number)
-	_tune_enemy_for_mode(enemy)
+	wave_spawner.setup_wave_enemy(enemy, enemy_type)
 
 func _spawn_boss() -> void:
-	var boss: EnemyController = EnemyScript.new()
-	boss.setup_as_boss()
-	_tune_boss_for_mode(boss)
-	boss.global_position = Vector2(0, -180)
-	_register_enemy(boss)
-	_spawn_effect(boss.global_position, 120.0, Color(1.0, 0.18, 0.12, 0.20), 0.65)
+	wave_spawner.spawn_boss()
 
 func _tune_enemy_for_mode(enemy: EnemyController) -> void:
-	enemy.max_health *= enemy_health_multiplier
-	enemy.health = enemy.max_health
-	enemy.attack_damage *= enemy_damage_multiplier
-	enemy.projectile_damage *= enemy_damage_multiplier
-	if enemy.enemy_type == EnemyController.TYPE_CHARGER:
-		enemy._charge_damage *= enemy_damage_multiplier
-	elif enemy.enemy_type == EnemyController.TYPE_BOMBER:
-		enemy._bomber_damage *= enemy_damage_multiplier
-	enemy.attack_interval *= 0.96 if local_player_count > 1 else 1.0
+	wave_spawner.tune_enemy_for_mode(enemy)
 
 func _tune_boss_for_mode(boss: EnemyController) -> void:
-	boss.max_health *= boss_health_multiplier
-	boss.health = boss.max_health
-	boss.attack_damage *= boss_damage_multiplier
-	boss.move_speed *= 1.06 if local_player_count > 1 else 1.0
-	boss.attack_interval *= 0.92 if local_player_count > 1 else 1.0
+	wave_spawner.tune_boss_for_mode(boss)
 
 func _register_enemy(enemy: EnemyController, authority_enemy_id: int = -1) -> void:
 	if authority_enemy_id > 0:
@@ -1059,6 +949,7 @@ func _register_enemy(enemy: EnemyController, authority_enemy_id: int = -1) -> vo
 		enemy.network_id = network_next_enemy_id
 		network_next_enemy_id += 1
 	enemy.arena_bounds = ARENA_BOUNDS
+	enemy.authority_enabled = network_mode != "client"
 	enemy.set_target(_find_closest_alive_player(enemy.global_position))
 	enemy.died.connect(_on_enemy_died)
 	enemy.damaged.connect(_on_enemy_damaged)
@@ -1077,121 +968,13 @@ func _register_enemy(enemy: EnemyController, authority_enemy_id: int = -1) -> vo
 func _on_boss_reinforcement_requested(boss: EnemyController) -> void:
 	if not is_instance_valid(boss) or game_state != GameStateScript.BOSS_WAVE:
 		return
-	var reinforcement_types: Array[String] = ["melee", "melee", "ranged", "shield"]
-	if local_player_count > 1:
-		reinforcement_types.append_array(["melee", "ranged"])
-	var offsets := [
-		Vector2(-150.0, -90.0), Vector2(150.0, -90.0),
-		Vector2(-150.0, 90.0), Vector2(150.0, 90.0),
-		Vector2(0.0, -150.0), Vector2(0.0, 150.0),
-	]
-	for index in range(reinforcement_types.size()):
-		var enemy: EnemyController = EnemyScript.new()
-		_setup_wave_enemy(enemy, reinforcement_types[index])
-		enemy.global_position = (boss.global_position + offsets[index]).clamp(ARENA_BOUNDS.position, ARENA_BOUNDS.end)
-		_register_enemy(enemy)
-		_spawn_effect(enemy.global_position, 46.0, Color(0.92, 0.24, 0.18, 0.28), 0.24)
+	wave_spawner.spawn_boss_reinforcements(boss)
 
 func _spawn_point(index: int, count: int) -> Vector2:
-	var side: int = index % 4
-	var lane_index: int = floori(float(index) / 4.0)
-	var lane_center: int = floori(float(count) / 8.0)
-	var lane_offset: float = float(lane_index - lane_center) * 120.0
-	var margin: float = 44.0
-
-	match side:
-		0:
-			return Vector2(clampf(lane_offset, -520.0, 520.0), ARENA_BOUNDS.position.y + margin)
-		1:
-			return Vector2(ARENA_BOUNDS.end.x - margin, clampf(lane_offset, -300.0, 300.0))
-		2:
-			return Vector2(clampf(lane_offset, -520.0, 520.0), ARENA_BOUNDS.end.y - margin)
-		_:
-			return Vector2(ARENA_BOUNDS.position.x + margin, clampf(lane_offset, -300.0, 300.0))
+	return wave_spawner.spawn_point(index, count)
 
 func _build_map() -> void:
-	_build_ground_tiles()
-	_build_soft_obstacles()
-	_build_boundary_props()
-	_build_corner_props()
-
-func _build_ground_tiles() -> void:
-	var background: ColorRect = ColorRect.new()
-	background.name = "GrassBase"
-	background.position = ARENA_BOUNDS.position
-	background.size = ARENA_BOUNDS.size
-	background.color = Color(0.31, 0.52, 0.31)
-	background.z_index = -100
-	map_root.add_child(background)
-
-func _build_soft_obstacles() -> void:
-	var positions: Array[Vector2] = [
-		Vector2(-360.0, -150.0),
-		Vector2(320.0, -120.0),
-		Vector2(-220.0, 190.0),
-		Vector2(430.0, 210.0),
-		Vector2(40.0, -260.0),
-	]
-	for index in range(positions.size()):
-		var path: String = ROCK_PATHS[index % ROCK_PATHS.size()]
-		var prop: Sprite2D = _make_sprite(path, Vector2(64, 64), positions[index], Vector2(0.65, 0.65))
-		prop.name = "SoftObstacle"
-		prop.z_index = -35
-		map_root.add_child(prop)
-
-func _build_boundary_props() -> void:
-	var gap_width: float = 420.0
-	var step: float = 300.0
-	var top_y: float = ARENA_BOUNDS.position.y - 48.0
-	var bottom_y: float = ARENA_BOUNDS.end.y + 44.0
-	var left_x: float = ARENA_BOUNDS.position.x - 44.0
-	var right_x: float = ARENA_BOUNDS.end.x + 44.0
-
-	for x in range(int(ARENA_BOUNDS.position.x), int(ARENA_BOUNDS.end.x) + 1, int(step)):
-		if abs(float(x)) > gap_width * 0.5:
-			_add_boundary_prop(Vector2(float(x), top_y), x)
-			_add_boundary_prop(Vector2(float(x), bottom_y), x + 13)
-
-	for y in range(int(ARENA_BOUNDS.position.y), int(ARENA_BOUNDS.end.y) + 1, int(step)):
-		if abs(float(y)) > gap_width * 0.5:
-			_add_boundary_prop(Vector2(left_x, float(y)), y + 29)
-			_add_boundary_prop(Vector2(right_x, float(y)), y + 47)
-
-func _add_boundary_prop(position: Vector2, seed_value: int) -> void:
-	var sprite: Sprite2D
-	var selector: int = abs(seed_value) % 3
-	if selector == 0:
-		sprite = _make_sprite(TREE_PATHS[abs(seed_value) % TREE_PATHS.size()], Vector2(256, 256), position, Vector2(0.32, 0.32))
-	else:
-		sprite = _make_sprite(ROCK_PATHS[abs(seed_value) % ROCK_PATHS.size()], Vector2(64, 64), position, Vector2(0.55, 0.55))
-	sprite.name = "BoundaryProp"
-	sprite.z_index = -40
-	map_root.add_child(sprite)
-
-func _build_corner_props() -> void:
-	var corner_positions: Array[Vector2] = [
-		Vector2(ARENA_BOUNDS.position.x + 130.0, ARENA_BOUNDS.position.y + 110.0),
-		Vector2(ARENA_BOUNDS.end.x - 140.0, ARENA_BOUNDS.position.y + 120.0),
-		Vector2(ARENA_BOUNDS.position.x + 150.0, ARENA_BOUNDS.end.y - 120.0),
-		Vector2(ARENA_BOUNDS.end.x - 130.0, ARENA_BOUNDS.end.y - 110.0),
-	]
-	for index in range(corner_positions.size()):
-		var prop_path: String = CORNER_PROP_PATHS[index % CORNER_PROP_PATHS.size()]
-		var frame_size: Vector2 = Vector2(192, 256) if prop_path.contains("Stump") else Vector2(64, 64)
-		var prop: Sprite2D = _make_sprite(prop_path, frame_size, corner_positions[index], Vector2(0.45, 0.45))
-		prop.name = "CornerProp"
-		prop.z_index = -30
-		map_root.add_child(prop)
-
-func _make_sprite(path: String, frame_size: Vector2, position: Vector2, sprite_scale: Vector2) -> Sprite2D:
-	var sprite: Sprite2D = Sprite2D.new()
-	sprite.texture = load(path) as Texture2D
-	sprite.centered = true
-	sprite.position = position
-	sprite.region_enabled = true
-	sprite.region_rect = Rect2(Vector2.ZERO, frame_size)
-	sprite.scale = sprite_scale
-	return sprite
+	map_builder.build()
 
 func _update_camera() -> void:
 	if camera == null or players.is_empty():
@@ -1292,6 +1075,10 @@ func _on_enemy_attack_started(enemy: EnemyController, windup_time: float, attack
 	if SHOW_ENEMY_ATTACK_TELEGRAPH and is_instance_valid(enemy):
 		var warning_color: Color = Color(1.0, 0.24, 0.18, 0.20) if enemy.is_boss else Color(1.0, 0.84, 0.25, 0.13)
 		_spawn_effect(enemy.global_position, attack_range, warning_color, windup_time)
+		_broadcast_enemy_telegraph("circle", {
+			"origin": enemy.global_position, "radius": attack_range,
+			"color": warning_color, "lifetime": windup_time,
+		})
 
 func _on_enemy_damaged(enemy: EnemyController, amount: float) -> void:
 	if is_instance_valid(enemy):
@@ -1313,261 +1100,46 @@ func _on_player_cooldown_notice_requested(skill_index: int, source_player: Playe
 		return
 
 func _spawn_effect(origin: Vector2, radius: float, color: Color, lifetime: float = 0.08) -> void:
-	var effect: Polygon2D = Polygon2D.new()
-	var points: PackedVector2Array = []
-	var segments: int = 28
-	for index in range(segments):
-		var angle: float = TAU * float(index) / float(segments)
-		points.append(Vector2(cos(angle), sin(angle)) * radius)
-	effect.polygon = points
-	effect.position = origin
-	effect.color = color
-	effect_root.add_child(effect)
-
-	var timer: SceneTreeTimer = get_tree().create_timer(lifetime)
-	timer.timeout.connect(Callable(effect, "queue_free"))
+	effect_manager.spawn_effect(origin, radius, color, lifetime)
 
 func _add_textured_effect(root: Node2D, texture: Texture2D, diameter: float, position: Vector2 = Vector2.ZERO, tint: Color = Color.WHITE, node_name: String = "TexturedEffect") -> Sprite2D:
-	var sprite := Sprite2D.new()
-	sprite.name = node_name
-	sprite.texture = texture
-	sprite.position = position
-	sprite.modulate = tint
-	var texture_width := maxf(float(texture.get_width()), 1.0)
-	sprite.scale = Vector2.ONE * (diameter / texture_width)
-	var material := CanvasItemMaterial.new()
-	material.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
-	sprite.material = material
-	root.add_child(sprite)
-	return sprite
+	return effect_manager.add_textured_effect(root, texture, diameter, position, tint, node_name)
 
 func _spawn_textured_effect(origin: Vector2, texture: Texture2D, diameter: float, lifetime: float, node_name: String = "TexturedEffect") -> void:
-	var sprite := _add_textured_effect(effect_root, texture, diameter, origin, Color.WHITE, node_name)
-	var final_scale := sprite.scale * 1.12
-	sprite.scale *= 0.72
-	var tween := create_tween()
-	tween.set_parallel(true)
-	tween.tween_property(sprite, "scale", final_scale, lifetime)
-	tween.tween_property(sprite, "modulate:a", 0.0, lifetime)
-	tween.finished.connect(Callable(sprite, "queue_free"))
+	effect_manager.spawn_textured_effect(origin, texture, diameter, lifetime, node_name)
 
 func _animate_effect_rotation(sprite: Sprite2D, duration: float, clockwise: bool) -> void:
-	var tween := sprite.create_tween().set_loops()
-	tween.set_trans(Tween.TRANS_LINEAR)
-	tween.tween_property(sprite, "rotation", TAU if clockwise else -TAU, maxf(duration, 0.05)).from(0.0)
+	effect_manager.animate_effect_rotation(sprite, duration, clockwise)
 
 func _animate_effect_pulse(sprite: Sprite2D, minimum_alpha: float, maximum_alpha: float, duration: float) -> void:
-	sprite.modulate.a = maximum_alpha
-	var tween := sprite.create_tween().set_loops()
-	tween.set_trans(Tween.TRANS_SINE)
-	tween.set_ease(Tween.EASE_IN_OUT)
-	tween.tween_property(sprite, "modulate:a", minimum_alpha, maxf(duration * 0.5, 0.05))
-	tween.tween_property(sprite, "modulate:a", maximum_alpha, maxf(duration * 0.5, 0.05))
+	effect_manager.animate_effect_pulse(sprite, minimum_alpha, maximum_alpha, duration)
 
 func _spawn_inward_streaks(origin: Vector2, radius: float, color: Color, count: int, lifetime: float) -> void:
-	var root := Node2D.new()
-	root.name = "WarriorQInwardStreaks"
-	effect_root.add_child(root)
-	for index in range(count):
-		var angle := TAU * float(index) / float(maxi(count, 1))
-		var direction := Vector2(cos(angle), sin(angle))
-		var streak := Line2D.new()
-		streak.width = 3.0
-		streak.default_color = color
-		streak.position = origin + direction * radius
-		streak.points = PackedVector2Array([-direction * 16.0, direction * 4.0])
-		root.add_child(streak)
-		var tween := streak.create_tween().set_parallel(true)
-		tween.set_trans(Tween.TRANS_QUAD)
-		tween.set_ease(Tween.EASE_IN)
-		tween.tween_property(streak, "position", origin + direction * 10.0, lifetime)
-		tween.tween_property(streak, "modulate:a", 0.0, lifetime)
-	var timer := get_tree().create_timer(lifetime)
-	timer.timeout.connect(Callable(root, "queue_free"))
+	effect_manager.spawn_inward_streaks(origin, radius, color, count, lifetime)
 
 func _spawn_spark_burst(origin: Vector2, color: Color, count: int, distance: float, lifetime: float) -> void:
-	var root := Node2D.new()
-	root.name = "SparkBurst"
-	effect_root.add_child(root)
-	for index in range(count):
-		var angle := TAU * float(index) / float(maxi(count, 1)) + randf_range(-0.16, 0.16)
-		var direction := Vector2(cos(angle), sin(angle))
-		var spark := Line2D.new()
-		spark.width = randf_range(2.0, 4.0)
-		spark.default_color = color
-		spark.position = origin
-		spark.points = PackedVector2Array([Vector2.ZERO, direction * randf_range(7.0, 14.0)])
-		root.add_child(spark)
-		var tween := spark.create_tween().set_parallel(true)
-		tween.set_trans(Tween.TRANS_QUAD)
-		tween.set_ease(Tween.EASE_OUT)
-		tween.tween_property(spark, "position", origin + direction * randf_range(distance * 0.72, distance), lifetime)
-		tween.tween_property(spark, "modulate:a", 0.0, lifetime)
-	var timer := get_tree().create_timer(lifetime)
-	timer.timeout.connect(Callable(root, "queue_free"))
+	effect_manager.spawn_spark_burst(origin, color, count, distance, lifetime)
 
 func _spawn_area_visual(root: Node2D, origin: Vector2, radius: float, color: Color) -> void:
-	var area: Polygon2D = Polygon2D.new()
-	var points: PackedVector2Array = []
-	var segments := 36
-	for index in range(segments):
-		var angle: float = TAU * float(index) / float(segments)
-		points.append(origin + Vector2(cos(angle), sin(angle)) * radius)
-	area.polygon = points
-	area.color = color
-	root.add_child(area)
-
-func _spawn_lancer_barricade_visual(root: Node2D, center: Vector2, forward: Vector2, length: float, depth: float) -> void:
-	var side_axis: Vector2 = Vector2(-forward.y, forward.x)
-	var half_side: float = length * 0.5
-	var half_depth: float = depth * 0.5
-	var area: Polygon2D = Polygon2D.new()
-	area.color = Color(0.55, 0.86, 1.0, 0.14)
-	area.polygon = PackedVector2Array([
-		center - side_axis * half_side - forward * half_depth,
-		center + side_axis * half_side - forward * half_depth,
-		center + side_axis * half_side + forward * half_depth,
-		center - side_axis * half_side + forward * half_depth,
-	])
-	root.add_child(area)
-	for index in range(5):
-		var t: float = -0.5 + float(index) / 4.0
-		var spear_center: Vector2 = center + side_axis * length * t
-		var spear: Line2D = Line2D.new()
-		spear.width = 5.0
-		spear.default_color = Color(0.72, 0.95, 1.0, 0.72)
-		spear.points = PackedVector2Array([
-			spear_center - forward * 42.0,
-			spear_center + forward * 42.0,
-		])
-		root.add_child(spear)
+	effect_manager.spawn_area_visual(root, origin, radius, color)
 
 func _spawn_lancer_sweep_effect(origin: Vector2, direction: Vector2, length: float, half_width: float, texture: Texture2D) -> void:
-	var forward: Vector2 = direction.normalized()
-	if forward == Vector2.ZERO:
-		forward = Vector2.RIGHT
-	var side_axis: Vector2 = Vector2(-forward.y, forward.x)
-	var root := Node2D.new()
-	root.name = "LancerSweep"
-	effect_root.add_child(root)
-	var slash: Sprite2D = _add_textured_effect(root, texture, maxf(length * 1.65, half_width * 1.75), origin + forward * length * 0.44, Color.WHITE, "LancerSweepTexture")
-	slash.rotation = forward.angle() - 0.72
-	var slash_scale := slash.scale
-	slash.scale *= 0.72
-	var slash_tween := slash.create_tween().set_parallel(true)
-	slash_tween.set_trans(Tween.TRANS_QUAD)
-	slash_tween.set_ease(Tween.EASE_OUT)
-	slash_tween.tween_property(slash, "scale", slash_scale * 1.08, 0.18)
-	slash_tween.tween_property(slash, "modulate:a", 0.0, 0.18)
-	for side in [-1.0, 0.0, 1.0]:
-		var line: Line2D = Line2D.new()
-		line.position = origin
-		line.width = 5.0
-		line.default_color = Color(0.65, 0.92, 1.0, 0.48)
-		line.points = PackedVector2Array([
-			side_axis * half_width * side * 0.45,
-			forward * length + side_axis * half_width * side,
-		])
-		root.add_child(line)
-		var line_tween := line.create_tween()
-		line_tween.tween_property(line, "modulate:a", 0.0, 0.14)
-	var timer: SceneTreeTimer = get_tree().create_timer(0.19)
-	timer.timeout.connect(Callable(root, "queue_free"))
-	_spawn_spark_burst(origin + forward * length * 0.72, Color(0.70, 0.96, 1.0, 0.92), 9, half_width * 0.72, 0.16)
-
-func _spawn_shockwave_effect(origin: Vector2, direction: Vector2, length: float) -> void:
-	var forward: Vector2 = direction.normalized()
-	if forward == Vector2.ZERO:
-		forward = Vector2.RIGHT
-	for index in range(4):
-		var t: float = float(index + 1) / 4.0
-		_spawn_effect(origin + forward * length * t, 18.0 + 8.0 * t, Color(0.35, 0.75, 1.0, 0.18), 0.12)
+	effect_manager.spawn_lancer_sweep_effect(origin, direction, length, half_width, texture)
 
 func _spawn_line_skill_effect(origin: Vector2, direction: Vector2, length: float, color: Color = Color(1.0, 0.86, 0.32, 0.55), lifetime: float = 0.09) -> void:
-	var forward: Vector2 = direction.normalized()
-	if forward == Vector2.ZERO:
-		forward = Vector2.RIGHT
-	var line: Line2D = Line2D.new()
-	line.position = origin
-	line.width = 4.0
-	line.default_color = color
-	line.points = PackedVector2Array([
-		Vector2.ZERO,
-		forward * length,
-	])
-	effect_root.add_child(line)
-
-	var timer: SceneTreeTimer = get_tree().create_timer(lifetime)
-	timer.timeout.connect(Callable(line, "queue_free"))
+	effect_manager.spawn_line_skill_effect(origin, direction, length, color, lifetime)
 
 func _spawn_ring_effect(origin: Vector2, radius: float, color: Color, lifetime: float = 0.18) -> void:
-	var ring := Line2D.new()
-	ring.position = origin
-	ring.width = 4.0
-	ring.closed = true
-	ring.default_color = color
-	var points := PackedVector2Array()
-	for index in range(37):
-		var angle := TAU * float(index) / 36.0
-		points.append(Vector2(cos(angle), sin(angle)) * radius)
-	ring.points = points
-	effect_root.add_child(ring)
-	var tween := create_tween()
-	tween.set_parallel(true)
-	tween.tween_property(ring, "scale", Vector2(1.12, 1.12), lifetime)
-	tween.tween_property(ring, "modulate:a", 0.0, lifetime)
-	tween.finished.connect(Callable(ring, "queue_free"))
+	effect_manager.spawn_ring_effect(origin, radius, color, lifetime)
 
 func _spawn_link_effect(start: Vector2, end: Vector2, color: Color, lifetime: float = 0.14) -> void:
-	var line := Line2D.new()
-	line.width = 4.0
-	line.default_color = color
-	line.points = PackedVector2Array([start, end])
-	effect_root.add_child(line)
-	var timer := get_tree().create_timer(lifetime)
-	timer.timeout.connect(Callable(line, "queue_free"))
+	effect_manager.spawn_link_effect(start, end, color, lifetime)
 
 func _spawn_damage_number(origin: Vector2, amount: float, color: Color) -> void:
-	var label: Label = Label.new()
-	label.text = "%d" % roundi(amount)
-	label.position = origin
-	label.modulate = color
-	label.add_theme_font_size_override("font_size", 18)
-	effect_root.add_child(label)
-
-	var tween: Tween = create_tween()
-	tween.set_parallel(true)
-	tween.tween_property(label, "position", origin + Vector2(0.0, -26.0), 0.45)
-	tween.tween_property(label, "modulate:a", 0.0, 0.45)
-	tween.finished.connect(Callable(label, "queue_free"))
+	effect_manager.spawn_damage_number(origin, amount, color)
 
 func _spawn_cooldown_bubble(target_player: PlayerController, text: String) -> void:
-	if target_player == null or not is_instance_valid(target_player):
-		return
-	var bubble: PanelContainer = PanelContainer.new()
-	var style: StyleBoxFlat = StyleBoxFlat.new()
-	style.bg_color = Color(0.05, 0.07, 0.08, 0.78)
-	style.border_color = Color(0.95, 0.95, 0.95, 0.85)
-	style.set_border_width_all(1)
-	style.set_corner_radius_all(8)
-	bubble.add_theme_stylebox_override("panel", style)
-	bubble.position = target_player.global_position + Vector2(-46.0, -88.0)
-	bubble.custom_minimum_size = Vector2(92.0, 28.0)
-
-	var label: Label = Label.new()
-	label.text = text
-	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	label.add_theme_font_size_override("font_size", 16)
-	label.add_theme_color_override("font_color", Color.WHITE)
-	bubble.add_child(label)
-	effect_root.add_child(bubble)
-
-	var tween: Tween = create_tween()
-	tween.set_parallel(true)
-	tween.tween_property(bubble, "position", bubble.position + Vector2(0.0, -10.0), 0.5)
-	tween.tween_property(bubble, "modulate:a", 0.0, 0.5)
-	tween.finished.connect(Callable(bubble, "queue_free"))
+	effect_manager.spawn_cooldown_bubble(target_player, text)
 
 func _enter_upgrade_select() -> void:
 	if local_player_slots.is_empty():
@@ -1575,32 +1147,18 @@ func _enter_upgrade_select() -> void:
 	if network_mode == "client":
 		return
 	_prepare_upgrade_select()
-	var character_ids: Array = []
 	var upgrade_players: Array = []
 	for slot in local_player_slots:
 		var target_player: PlayerController = slot.get("player") as PlayerController
-		character_ids.append(target_player.character_id if target_player != null else "")
 		upgrade_players.append(target_player)
 	var final_upgrade_round := wave_index == wave_manager.boss_wave_index() - 1
 	var force_epic := final_upgrade_round and not epic_upgrade_seen
-	var excluded_rarities: Array = []
-	var upgrade_rarity := "Common"
-	var upgrade_sets: Array = []
-	while excluded_rarities.size() < 3:
-		upgrade_rarity = UpgradeManagerScript.roll_rarity(force_epic and excluded_rarities.is_empty(), excluded_rarities)
-		upgrade_sets = UpgradeManagerScript.roll_for_players(upgrade_players, 3, upgrade_rarity)
-		var complete_roll := true
-		for upgrades in upgrade_sets:
-			if (upgrades as Array).size() < 3:
-				complete_roll = false
-				break
-		if complete_roll:
-			break
-		excluded_rarities.append(upgrade_rarity)
+	var roll_result: Dictionary = UpgradeSessionScript.roll_sets(upgrade_players, force_epic)
+	var upgrade_rarity: String = str(roll_result["rarity"])
+	var upgrade_sets: Array = roll_result["sets"] as Array
 	if upgrade_rarity == "Epic":
 		epic_upgrade_seen = true
-	for slot_index in range(local_player_slots.size()):
-		local_player_slots[slot_index]["upgrades"] = upgrade_sets[slot_index]
+	UpgradeSessionScript.assign_sets(local_player_slots, upgrade_sets)
 	if network_mode == "host":
 		rpc("_network_begin_upgrade_select", upgrade_sets.duplicate(true))
 		_build_single_player_upgrade_panel(local_peer_player_index)
@@ -1617,10 +1175,7 @@ func _prepare_upgrade_select() -> void:
 	_heal_surviving_players_after_wave()
 	_set_player_cooldowns_paused(true)
 	_stop_ultimate()
-	for slot in local_player_slots:
-		slot["upgrades"] = []
-		slot["selected"] = false
-		slot["selection_pending"] = false
+	UpgradeSessionScript.reset_slots(local_player_slots)
 	_clear_upgrade_panel()
 	if combat_hud_ui != null:
 		combat_hud_ui.set_combat_visible(false)
@@ -1637,9 +1192,7 @@ func _network_begin_upgrade_select(upgrade_sets: Array) -> void:
 		return
 	_clear_remaining_enemies()
 	_prepare_upgrade_select()
-	for slot_index in range(mini(local_player_slots.size(), upgrade_sets.size())):
-		var upgrades: Array = upgrade_sets[slot_index] as Array
-		local_player_slots[slot_index]["upgrades"] = upgrades.duplicate(true)
+	UpgradeSessionScript.assign_sets(local_player_slots, upgrade_sets)
 	_build_single_player_upgrade_panel(local_peer_player_index)
 	upgrade_ui.set_selection_enabled(false)
 	upgrade_panel.visible = true
@@ -1746,18 +1299,8 @@ func _network_confirm_upgrade(player_index: int, upgrade_index: int) -> void:
 
 func _apply_confirmed_network_upgrade(player_index: int, upgrade_index: int) -> bool:
 	var slot: Dictionary = _get_local_player_slot(player_index)
-	if slot.is_empty() or bool(slot.get("selected", false)):
+	if not UpgradeSessionScript.apply_choice(slot, upgrade_index):
 		return false
-	var upgrades: Array = slot.get("upgrades", [])
-	if not UpgradeManagerScript.is_valid_choice(upgrades, upgrade_index):
-		return false
-	var target_player: PlayerController = slot.get("player") as PlayerController
-	if target_player == null or not is_instance_valid(target_player):
-		return false
-	target_player.record_upgrade_offer_result(upgrades, str((upgrades[upgrade_index] as Dictionary).get("id", "")))
-	target_player.apply_upgrade(upgrades[upgrade_index] as Dictionary)
-	slot["selected"] = true
-	slot["selection_pending"] = false
 	if player_index == local_peer_player_index:
 		upgrade_panel.visible = false
 		result_label.text = "等待另一名玩家选择升级"
@@ -1779,13 +1322,7 @@ func _network_upgrades_ready() -> void:
 	_set_network_upgrades_ready()
 
 func _all_required_upgrades_selected() -> bool:
-	if local_player_slots.is_empty():
-		return false
-	for slot in local_player_slots:
-		var target_player: PlayerController = slot.get("player") as PlayerController
-		if target_player != null and is_instance_valid(target_player) and not bool(slot.get("selected", false)):
-			return false
-	return true
+	return UpgradeSessionScript.all_selected(local_player_slots)
 
 func _on_start_next_wave_pressed() -> void:
 	if game_state != GameStateScript.UPGRADE_SELECT or not _all_required_upgrades_selected():
@@ -1825,10 +1362,6 @@ func _on_return_to_menu_pressed() -> void:
 	_clear_run_state()
 	result_ui.hide_result()
 	_show_main_menu()
-
-func _position_result_panel() -> void:
-	if result_ui != null:
-		result_ui.layout(_get_viewport_size())
 
 func _format_result_text(title: String) -> String:
 	return "%s\n用时：%.1f 秒\n击杀：%d\n造成伤害：%d\n受到伤害：%d" % [
@@ -1874,6 +1407,7 @@ func _clear_run_state() -> void:
 	network_last_applied_snapshot = -1
 	network_snapshot_time_left = 0.0
 	network_next_enemy_id = 1
+	network_next_combat_entity_id = 1
 	local_player_count = 1
 	var scaling: Dictionary = GameRulesScript.get_mode_scaling(local_player_count)
 	minion_count_multiplier = float(scaling["minion_count"])
