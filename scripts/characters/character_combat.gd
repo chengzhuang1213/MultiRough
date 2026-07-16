@@ -10,5 +10,8 @@ func use_q(_combat, _origin: Vector2, _direction: Vector2, _length: float, _half
 func use_e(_combat, _origin: Vector2, _direction: Vector2, _length: float, _half_width: float, _damage: float, _attacker: PlayerController) -> void:
 	pass
 
+func can_use_e(_combat, _origin: Vector2, _direction: Vector2, _attacker: PlayerController) -> bool:
+	return true
+
 func use_f(_combat, _origin: Vector2, _direction: Vector2, _damage: float, _duration: float, _attacker: PlayerController) -> void:
 	pass

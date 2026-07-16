@@ -17,6 +17,7 @@ var card_art: Dictionary = {}
 var stat_icons: Dictionary = {}
 var current_text_provider: Callable
 var skill_icon_provider: Callable
+var card_buttons: Array[Button] = []
 
 func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -74,6 +75,7 @@ func show_options(title_text: String, upgrades: Array, target_player, viewport_s
 		var button := _build_card(upgrade, target_player, CARD_SIZE)
 		button.pressed.connect(_emit_upgrade.bind(upgrade))
 		cards.add_child(button)
+		card_buttons.append(button)
 
 	var footer := Label.new()
 	footer.text = "点击卡片选择升级 · 游戏已暂停"
@@ -85,11 +87,17 @@ func show_options(title_text: String, upgrades: Array, target_player, viewport_s
 	visible = true
 
 func clear_options() -> void:
+	card_buttons.clear()
 	if content == null:
 		return
 	for child in content.get_children():
 		content.remove_child(child)
 		child.queue_free()
+
+func set_selection_enabled(enabled: bool) -> void:
+	for button in card_buttons:
+		if is_instance_valid(button):
+			button.disabled = not enabled
 
 func build_badge_preview(upgrade: Dictionary, accent: Color) -> Control:
 	return _build_badge(upgrade, accent)

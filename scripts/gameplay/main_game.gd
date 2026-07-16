@@ -110,6 +110,7 @@ const UPGRADE_CARD_ART := {
 }
 const CHARACTER_CONFIGS := GameRulesScript.CHARACTER_CONFIGS
 const NETWORK_SNAPSHOT_INTERVAL := 0.10
+const UPGRADE_SELECTION_INPUT_LOCK_TIME := 1.0
 
 var game_state := GameStateScript.LOBBY
 var wave_index := -1
@@ -131,6 +132,7 @@ var damage_taken := 0.0
 var ultimate_states: Dictionary = {}
 var persistent_skill_areas: Array = []
 var waiting_for_next_wave_input := false
+var upgrade_selection_input_lock_left := 0.0
 var pending_player_count := 1
 var selected_character_ids: Array = ["warrior", "warrior"]
 var character_select_rows: Array = []
@@ -198,6 +200,8 @@ func _ready() -> void:
 	_show_main_menu()
 
 func _input(event: InputEvent) -> void:
+	if _try_start_next_wave_from_input(event):
+		return
 	if not _is_network_game():
 		return
 	var mouse_event := event as InputEventMouseButton
@@ -209,16 +213,22 @@ func _input(event: InputEvent) -> void:
 		Input.action_release("network_basic_attack")
 
 func _unhandled_input(event: InputEvent) -> void:
+	_try_start_next_wave_from_input(event)
+
+func _try_start_next_wave_from_input(event: InputEvent) -> bool:
 	if not waiting_for_next_wave_input:
-		return
+		return false
 	if game_state != GameStateScript.UPGRADE_SELECT or not _all_required_upgrades_selected():
-		return
+		return false
 	if network_mode == "client":
-		return
-	if event is InputEventKey and event.pressed and not event.echo:
-		_start_next_wave_for_all_peers()
-	elif event is InputEventMouseButton and event.pressed:
-		_start_next_wave_for_all_peers()
+		return false
+	var keyboard_confirm: bool = event is InputEventKey and event.pressed and not event.echo
+	var left_click_confirm: bool = event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT
+	if not keyboard_confirm and not left_click_confirm:
+		return false
+	get_viewport().set_input_as_handled()
+	_start_next_wave_for_all_peers()
+	return true
 
 func _ensure_input_map() -> void:
 	_add_key_action("move_left", [KEY_A])
@@ -266,6 +276,10 @@ func _add_mouse_action(action: StringName, button_index: int) -> void:
 		InputMap.action_add_event(action, event)
 
 func _process(delta: float) -> void:
+	if upgrade_selection_input_lock_left > 0.0:
+		upgrade_selection_input_lock_left = maxf(0.0, upgrade_selection_input_lock_left - delta)
+		if upgrade_selection_input_lock_left <= 0.0 and upgrade_ui != null:
+			upgrade_ui.set_selection_enabled(true)
 	if _is_combat_active() and network_mode != "client":
 		elapsed_time += delta
 		wave_time_left = maxf(0.0, wave_time_left - delta)
@@ -926,6 +940,7 @@ func _start_next_wave() -> void:
 	start_next_wave_button.disabled = true
 	result_ui.hide_result()
 	waiting_for_next_wave_input = false
+	upgrade_selection_input_lock_left = 0.0
 	_reset_upgrade_slots()
 
 	if bool(wave_result["complete"]):
@@ -933,6 +948,8 @@ func _start_next_wave() -> void:
 		return
 
 	_revive_dead_players_for_next_wave()
+	_position_players_for_next_wave()
+	_update_player_wave_damage_growth()
 
 	var wave_def: Dictionary = wave_result["definition"] as Dictionary
 	if wave_def.get("boss", false):
@@ -945,6 +962,22 @@ func _start_next_wave() -> void:
 		_spawn_wave(wave_def)
 
 	_update_status()
+
+func _position_players_for_next_wave() -> void:
+	var living_players: Array[PlayerController] = []
+	for existing_player in players:
+		if is_instance_valid(existing_player) and not existing_player.is_dead:
+			living_players.append(existing_player)
+	for index in range(living_players.size()):
+		var target_x := (float(index) - float(living_players.size() - 1) * 0.5) * 84.0
+		living_players[index].global_position = Vector2(target_x, 0.0)
+		living_players[index].velocity = Vector2.ZERO
+
+func _update_player_wave_damage_growth() -> void:
+	var multiplier := 1.0 + float(maxi(wave_index, 0)) * GameRulesScript.PLAYER_DAMAGE_GROWTH_PER_WAVE
+	for existing_player in players:
+		if is_instance_valid(existing_player):
+			existing_player.wave_damage_multiplier = multiplier
 
 func _spawn_minions(count: int) -> void:
 	for index in range(count):
@@ -1573,12 +1606,14 @@ func _enter_upgrade_select() -> void:
 		_build_single_player_upgrade_panel(local_peer_player_index)
 	else:
 		_build_single_player_upgrade_panel()
+	upgrade_ui.set_selection_enabled(false)
 
 	upgrade_panel.visible = true
 	_update_status()
 
 func _prepare_upgrade_select() -> void:
 	game_state = GameStateScript.UPGRADE_SELECT
+	upgrade_selection_input_lock_left = UPGRADE_SELECTION_INPUT_LOCK_TIME
 	_heal_surviving_players_after_wave()
 	_set_player_cooldowns_paused(true)
 	_stop_ultimate()
@@ -1606,6 +1641,7 @@ func _network_begin_upgrade_select(upgrade_sets: Array) -> void:
 		var upgrades: Array = upgrade_sets[slot_index] as Array
 		local_player_slots[slot_index]["upgrades"] = upgrades.duplicate(true)
 	_build_single_player_upgrade_panel(local_peer_player_index)
+	upgrade_ui.set_selection_enabled(false)
 	upgrade_panel.visible = true
 	_update_status()
 
@@ -1649,6 +1685,8 @@ func _revive_dead_players_for_next_wave() -> void:
 
 func _select_upgrade(player_index: int, upgrade: Dictionary) -> void:
 	if game_state != GameStateScript.UPGRADE_SELECT:
+		return
+	if upgrade_selection_input_lock_left > 0.0:
 		return
 	var slot: Dictionary = _get_local_player_slot(player_index)
 	if slot.is_empty() or bool(slot.get("selected", false)) or bool(slot.get("selection_pending", false)):
@@ -1847,6 +1885,7 @@ func _clear_run_state() -> void:
 	start_next_wave_button.disabled = true
 	upgrade_panel.visible = false
 	waiting_for_next_wave_input = false
+	upgrade_selection_input_lock_left = 0.0
 
 func _stop_ultimate() -> void:
 	combat_manager.stop_ultimates()

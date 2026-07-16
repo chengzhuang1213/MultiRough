@@ -25,5 +25,10 @@ func use_e(combat, origin: Vector2, direction: Vector2, _length: float, _half_wi
 	var empowered := attacker.get_upgrade_level("archer_e_mark") > 0
 	combat.mark_nearest_enemy(origin, direction, 420.0, 12.0 if empowered else 8.0, 1.70 if empowered else 1.55, attacker)
 
+func can_use_e(combat, origin: Vector2, direction: Vector2, attacker: PlayerController) -> bool:
+	if attacker.get_upgrade_level("archer_e_trap") > 0:
+		return true
+	return combat.has_enemy_in_aim_cone(origin, direction, 420.0, 0.35)
+
 func use_f(combat, origin: Vector2, direction: Vector2, damage: float, duration: float, attacker: PlayerController) -> void:
 	combat.add_arrow_rain(origin, direction, damage, minf(duration, 5.0), attacker)

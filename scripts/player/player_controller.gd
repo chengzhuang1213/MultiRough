@@ -78,6 +78,8 @@ var warrior_counter_reflect_multiplier := 1.30
 var warrior_counter_pulse_multiplier := 1.0
 var archer_charge_time_multiplier := 1.0
 var archer_q_fully_charged := false
+var wave_damage_multiplier := 1.0
+var fan_skill_validator: Callable
 
 var _base_max_health := 120.0
 var _base_move_speed := 240.0
@@ -217,10 +219,11 @@ func _physics_process(delta: float) -> void:
 	if not cooldowns_paused and _consume_fan_pressed():
 		if _fan_skill_timer <= 0.0:
 			var fan_direction: Vector2 = _get_attack_direction()
-			_last_direction = fan_direction
-			_fan_skill_timer = fan_skill_cooldown
-			_queue_combat_event("e", fan_direction, fan_skill_damage)
-			_start_cast_animation()
+			if _can_use_fan_skill(fan_direction):
+				_last_direction = fan_direction
+				_fan_skill_timer = fan_skill_cooldown
+				fan_skill_requested.emit(global_position, fan_direction, fan_skill_length, fan_skill_half_width, _roll_damage(fan_skill_damage))
+				_start_cast_animation()
 		else:
 			cooldown_notice_requested.emit(2)
 
@@ -453,6 +456,11 @@ func record_upgrade_offer_result(offered_upgrades: Array, selected_id: String) -
 
 func get_attack_range_multiplier() -> float:
 	return attack_range / maxf(_base_attack_range, 0.001)
+
+func _can_use_fan_skill(direction: Vector2) -> bool:
+	if not fan_skill_validator.is_valid():
+		return true
+	return bool(fan_skill_validator.call(global_position, direction))
 
 func _consume_basic_pressed() -> bool:
 	if not external_input_enabled:

@@ -2,6 +2,7 @@ extends SceneTree
 
 const MainScene := preload("res://scenes/main/main.tscn")
 const GameStateScript := preload("res://scripts/core/game_state.gd")
+const GameRulesScript := preload("res://scripts/gameplay/game_rules.gd")
 const UpgradeCatalogScript := preload("res://scripts/upgrades/upgrade_catalog.gd")
 
 var failures: Array[String] = []
@@ -73,6 +74,9 @@ func _check_complete_single_player_run() -> void:
 	for expected_wave_index in range(game.wave_manager.wave_count()):
 		_expect(game.wave_index == expected_wave_index, "wave index did not advance in order")
 		_expect(not game.enemies.is_empty(), "wave started without enemies")
+		_expect(game.players[0].global_position.is_equal_approx(Vector2.ZERO), "player was not returned to the arena center before the wave spawned")
+		var expected_damage_multiplier := 1.0 + float(expected_wave_index) * GameRulesScript.PLAYER_DAMAGE_GROWTH_PER_WAVE
+		_expect(is_equal_approx(game.players[0].wave_damage_multiplier, expected_damage_multiplier), "player wave damage growth did not advance with the wave")
 		var boss_wave: bool = game.game_state == GameStateScript.BOSS_WAVE
 		if boss_wave:
 			_expect(game.wave_time_left > 60.0 and game.wave_time_left <= 120.0, "boss wave did not start with a 120-second limit")
@@ -92,9 +96,16 @@ func _check_complete_single_player_run() -> void:
 		_expect(upgrades.size() == 3, "upgrade selection did not provide three choices")
 		if upgrades.is_empty():
 			return
+		game.upgrade_selection_input_lock_left = 1.0
+		game._select_upgrade(1, upgrades[0])
+		_expect(not game._all_required_upgrades_selected(), "upgrade selection accepted input during its one-second safety lock")
+		game._process(1.0)
 		game._select_upgrade(1, upgrades[0])
 		_expect(game._all_required_upgrades_selected(), "selected upgrade was not confirmed")
-		game._start_next_wave_for_all_peers()
+		var left_click := InputEventMouseButton.new()
+		left_click.button_index = MOUSE_BUTTON_LEFT
+		left_click.pressed = true
+		game._input(left_click)
 		await process_frame
 
 	_expect(game.restart_button.visible, "victory did not expose restart")

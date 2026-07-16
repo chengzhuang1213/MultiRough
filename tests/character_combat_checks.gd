@@ -17,6 +17,7 @@ func _run() -> void:
 		await _check_character(character_id)
 	await _check_archer_full_charge_piercing()
 	await _check_mage_combat()
+	await _check_e_cast_validation()
 	await _check_secondary_actions()
 	await _check_e_upgrade_branches()
 	await _check_common_damage_accounting()
@@ -27,6 +28,74 @@ func _run() -> void:
 	for failure in failures:
 		printerr("FAIL: %s" % failure)
 	quit(1)
+
+func _check_e_cast_validation() -> void:
+	game.selected_character_ids = ["archer", "archer"]
+	game._start_game(1)
+	await _wait_for_enemy()
+	var player: PlayerController = game.players[0]
+	var enemy: EnemyController = game.enemies[0]
+	player.external_input_enabled = true
+	player.global_position = Vector2.ZERO
+	enemy.global_position = Vector2(500.0, 0.0)
+	player.apply_external_input({"fan": true, "aim": Vector2.RIGHT})
+	player._physics_process(0.01)
+	_expect(is_zero_approx(player._fan_skill_timer), "archer E consumed cooldown without a target in cast range")
+	enemy.global_position = Vector2(400.0, 0.0)
+	player.apply_external_input({"fan": true, "aim": Vector2.RIGHT})
+	player._physics_process(0.01)
+	_expect(player._fan_skill_timer > 0.0, "archer E did not enter cooldown after a valid cast")
+	_expect(enemy._marked_by == player, "archer E did not execute after a valid target entered cast range")
+	player._fan_skill_timer = 0.0
+	enemy._marked_by = null
+	enemy.global_position = player.global_position
+	player.apply_external_input({"fan": true, "aim": Vector2.RIGHT})
+	player._physics_process(0.01)
+	_expect(enemy._marked_by == player, "archer E validation and execution disagreed for an overlapping target")
+	game._clear_run_state()
+	await process_frame
+
+	game.selected_character_ids = ["mage", "mage"]
+	game._start_game(1)
+	await _wait_for_enemy()
+	player = game.players[0]
+	enemy = game.enemies[0]
+	player.external_input_enabled = true
+	player.global_position = Vector2.ZERO
+	enemy.global_position = Vector2(500.0, 0.0)
+	player.apply_external_input({"fan": true, "aim": Vector2.RIGHT})
+	player._physics_process(0.01)
+	_expect(player._fan_skill_timer > 0.0, "mage base E did not enter cooldown after creating its field")
+	_expect(_has_persistent_area("mage_field"), "mage base E press did not immediately create its field")
+	game._clear_run_state()
+	await process_frame
+
+	game.selected_character_ids = ["mage", "mage"]
+	game._start_game(1)
+	await _wait_for_enemy()
+	player = game.players[0]
+	enemy = game.enemies[0]
+	player.external_input_enabled = true
+	player.global_position = Vector2.ZERO
+	enemy.global_position = Vector2(500.0, 0.0)
+	_grant_upgrade(player, "mage_e_chain")
+	player.apply_external_input({"fan": true, "aim": Vector2.RIGHT})
+	player._physics_process(0.01)
+	_expect(is_zero_approx(player._fan_skill_timer), "mage chain E consumed cooldown without a target in cast range")
+	enemy.global_position = Vector2(300.0, 0.0)
+	player.apply_external_input({"fan": true, "aim": Vector2.RIGHT})
+	player._physics_process(0.01)
+	_expect(player._fan_skill_timer > 0.0, "mage chain E did not enter cooldown after a valid cast")
+	_expect(enemy.health < enemy.max_health, "mage chain E did not execute after a valid target entered cast range")
+	player._fan_skill_timer = 0.0
+	game._spawn_minions(1)
+	enemy = game.enemies.back()
+	enemy.global_position = player.global_position
+	player.apply_external_input({"fan": true, "aim": Vector2.RIGHT})
+	player._physics_process(0.01)
+	_expect(enemy.health < enemy.max_health, "mage chain E validation and execution disagreed for an overlapping target")
+	game._clear_run_state()
+	await process_frame
 
 func _check_character(character_id: String) -> void:
 	game.selected_character_ids = [character_id, character_id]
@@ -600,6 +669,7 @@ func _check_mage_e_branches() -> void:
 	_expect(enemy.health < enemy.max_health and second_enemy.health < second_enemy.max_health, "mage alternate E did not chain across multiple enemies")
 	_expect(not _has_persistent_area("mage_field"), "mage alternate E still created a persistent circle")
 	_expect(_has_effect_node("MageChainCast"), "mage chain E did not create its textured conduction cast")
+	_expect(_has_effect_node("MageChainLightning"), "mage chain E did not create its dedicated lightning texture")
 	game._clear_run_state()
 	await process_frame
 

@@ -5,6 +5,7 @@ const WAVE_CLEAR_HEAL_AMOUNT := 20.0
 const REVIVE_HEALTH_RATIO := 0.5
 const NORMAL_WAVE_TIME_LIMIT := 60.0
 const BOSS_WAVE_TIME_LIMIT := 120.0
+const PLAYER_DAMAGE_GROWTH_PER_WAVE := 0.08
 
 const CHARACTER_ORDER := ["warrior", "archer", "lancer", "mage"]
 const REQUIRED_CHARACTER_STATS := [

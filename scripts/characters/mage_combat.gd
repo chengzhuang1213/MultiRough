@@ -29,6 +29,11 @@ func use_e(combat, origin: Vector2, direction: Vector2, length: float, half_widt
 		radius *= 1.25
 	combat.add_mage_field(origin + forward * minf(length * 0.55, E_MAX_CAST_RANGE), radius, damage, attacker, 5.0 if expanded else 4.0, attacker.get_upgrade_level("mage_e_accumulation") > 0)
 
+func can_use_e(combat, origin: Vector2, direction: Vector2, attacker: PlayerController) -> bool:
+	if attacker.get_upgrade_level("mage_e_chain") <= 0:
+		return true
+	return combat.has_enemy_in_aim_cone(origin, direction, 320.0, 0.25)
+
 func use_f(combat, origin: Vector2, direction: Vector2, damage: float, duration: float, attacker: PlayerController) -> void:
 	var forward := direction.normalized() if direction != Vector2.ZERO else Vector2.RIGHT
 	combat.add_mage_storm(origin + forward * F_MAX_CAST_RANGE, damage, duration, attacker)

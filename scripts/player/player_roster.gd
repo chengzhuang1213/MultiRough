@@ -19,6 +19,7 @@ func create_player(player_name: String, spawn_position: Vector2, tint: Color, mo
 	player.player_tint = tint
 	player.use_mouse_aim = mouse_aim
 	player.apply_character_config(character_config)
+	player.fan_skill_validator = combat.can_player_use_e.bind(player)
 	player.basic_attack_requested.connect(combat.on_player_basic_attack.bind(player))
 	player.projectile_attack_requested.connect(combat.on_player_projectile_attack.bind(player))
 	player.active_skill_requested.connect(combat.on_player_active_skill.bind(player))

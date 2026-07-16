@@ -15,6 +15,7 @@ const ArcherEVfxTexture := preload("res://assets/effects/archer/archer_e_vfx.png
 const ArcherFVfxTexture := preload("res://assets/effects/archer/archer_f_vfx.png")
 const MageQVfxTexture := preload("res://assets/effects/mage/mage_q_vfx.png")
 const MageEVfxTexture := preload("res://assets/effects/mage/mage_e_vfx.png")
+const MageChainLightningVfxTexture := preload("res://assets/effects/mage/mage_chain_lightning_vfx.png")
 const MageFVfxTexture := preload("res://assets/effects/mage/mage_f_vfx.png")
 const LancerQVfxTexture := preload("res://assets/effects/lancer/lancer_q_vfx.png")
 const LancerEVfxTexture := preload("res://assets/effects/lancer/lancer_e_vfx.png")
@@ -47,10 +48,25 @@ func _init(game_node: Node) -> void:
 func get_character_module(character_id: String):
 	return character_modules.get(character_id, character_modules["warrior"])
 
+func can_player_use_e(origin: Vector2, direction: Vector2, attacker: PlayerController) -> bool:
+	return get_character_module(attacker.character_id).can_use_e(self, origin, direction, attacker)
+
+func has_enemy_in_aim_cone(origin: Vector2, direction: Vector2, max_range: float, minimum_dot: float) -> bool:
+	var forward := direction.normalized() if direction != Vector2.ZERO else Vector2.RIGHT
+	for enemy in game.enemies.duplicate():
+		if not is_instance_valid(enemy):
+			continue
+		var offset: Vector2 = enemy.global_position - origin
+		var distance := offset.length()
+		if distance <= max_range and (distance <= 1.0 or offset.normalized().dot(forward) >= minimum_dot):
+			return true
+	return false
+
 func damage_enemy(enemy: EnemyController, amount: float, attacker: PlayerController, knockback_origin: Vector2 = Vector2.ZERO, knockback_force: float = 90.0, allow_lifesteal: bool = true, cause_stagger: bool = true) -> void:
 	if enemy == null or not is_instance_valid(enemy):
 		return
-	var final_amount := amount * enemy.get_damage_multiplier(attacker)
+	var wave_multiplier := attacker.wave_damage_multiplier if attacker != null else 1.0
+	var final_amount := amount * wave_multiplier * enemy.get_damage_multiplier(attacker)
 	var can_transfer_mark := attacker != null and attacker.get_upgrade_level("archer_e_mark_transfer") > 0 and enemy.is_marked_by(attacker)
 	var death_position := enemy.global_position
 	var effective_amount: float = enemy.apply_damage(final_amount, knockback_origin, knockback_force, cause_stagger)
@@ -221,9 +237,10 @@ func mark_nearest_enemy(origin: Vector2, direction: Vector2, max_range: float, d
 		if not is_instance_valid(enemy):
 			continue
 		var offset: Vector2 = enemy.global_position - origin
-		if offset.length() > max_range or offset.normalized().dot(forward) < 0.35:
+		var distance := offset.length()
+		if distance > max_range or (distance > 1.0 and offset.normalized().dot(forward) < 0.35):
 			continue
-		var score := offset.length() - offset.normalized().dot(forward) * 80.0
+		var score := distance - (offset.normalized().dot(forward) * 80.0 if distance > 1.0 else 80.0)
 		if score < best_score:
 			best = enemy
 			best_score = score
@@ -283,7 +300,7 @@ func cast_chain_lightning(origin: Vector2, direction: Vector2, damage: float, ow
 			if hit_count == 0:
 				var forward := direction.normalized() if direction != Vector2.ZERO else Vector2.RIGHT
 				var offset := enemy.global_position - origin
-				if distance > 320.0 or offset.normalized().dot(forward) < 0.25:
+				if distance > 320.0 or (distance > 1.0 and offset.normalized().dot(forward) < 0.25):
 					continue
 			elif distance > jump_range:
 				continue
@@ -293,13 +310,33 @@ func cast_chain_lightning(origin: Vector2, direction: Vector2, damage: float, ow
 		if best == null:
 			break
 		var hit_damage := damage if empowered else damage * pow(0.85, hit_count)
-		game._spawn_link_effect(current_position, best.global_position, Color(0.52, 0.76, 1.0, 0.92), 0.16)
-		game._spawn_textured_effect(best.global_position, MageQVfxTexture, 58.0, 0.18, "MageChainImpact")
+		_spawn_mage_chain_lightning(current_position, best.global_position)
 		game._spawn_spark_burst(best.global_position, Color(0.34, 0.78, 1.0, 0.94), 7, 32.0, 0.16)
 		damage_enemy(best, hit_damage, owner, current_position, 0.0)
 		current_position = best.global_position
 		remaining.erase(best)
 		hit_count += 1
+
+func _spawn_mage_chain_lightning(start: Vector2, finish: Vector2) -> void:
+	var offset := finish - start
+	var distance := maxf(offset.length(), 1.0)
+	var sprite := Sprite2D.new()
+	sprite.name = "MageChainLightning"
+	sprite.texture = MageChainLightningVfxTexture
+	sprite.global_position = start.lerp(finish, 0.5)
+	sprite.rotation = offset.angle()
+	sprite.scale = Vector2(
+		distance / maxf(float(MageChainLightningVfxTexture.get_width()), 1.0),
+		0.36
+	)
+	var material := CanvasItemMaterial.new()
+	material.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	sprite.material = material
+	game.effect_root.add_child(sprite)
+	var tween := sprite.create_tween().set_parallel(true)
+	tween.tween_property(sprite, "scale:y", sprite.scale.y * 0.72, 0.18)
+	tween.tween_property(sprite, "modulate:a", 0.0, 0.18)
+	tween.finished.connect(Callable(sprite, "queue_free"))
 
 func lancer_dash_spin(owner: PlayerController, direction: Vector2, distance: float, damage: float) -> void:
 	var forward := direction.normalized() if direction != Vector2.ZERO else Vector2.RIGHT
