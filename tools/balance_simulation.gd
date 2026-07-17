@@ -113,6 +113,8 @@ func _run_single(character_id: String, run_number: int, run_seed: int) -> Dictio
 						game._select_upgrade(1, choice)
 				if game._all_required_upgrades_selected():
 					game._start_next_wave_for_all_peers()
+			elif game.game_state == GameStateScript.REST:
+				game._on_rest_ready_pressed()
 		await process_frame
 		frames += 1
 	if active_wave >= 0:
@@ -180,38 +182,44 @@ func _drive_bot(game: Node, player: PlayerController, timers: Dictionary) -> voi
 		_use_q(game, player, target, aim)
 		timers["q"] = now + player.skill_cooldown
 	if now >= float(timers["e"]):
-		game.combat_manager.on_player_fan_skill(player.global_position, aim, player.fan_skill_length, player.fan_skill_half_width, player.roll_damage(player.fan_skill_damage), player)
+		var fan_damage := player.roll_damage_context(player.fan_skill_damage)
+		game.combat_manager.on_player_fan_skill(player.global_position, aim, player.fan_skill_length, player.fan_skill_half_width, float(fan_damage["amount"]), bool(fan_damage["is_critical"]), player)
 		timers["e"] = now + player.fan_skill_cooldown
 	if now >= float(timers["f"]):
-		game.combat_manager.on_player_ultimate_skill(player.global_position, aim, player.roll_damage(player.attack_damage * 1.5 * player.ultimate_damage_multiplier), player.ultimate_duration, player)
+		var ultimate_damage := player.roll_damage_context(player.attack_damage * 1.5 * player.ultimate_damage_multiplier)
+		game.combat_manager.on_player_ultimate_skill(player.global_position, aim, float(ultimate_damage["amount"]), player.ultimate_duration, bool(ultimate_damage["is_critical"]), player)
 		timers["f"] = now + player.ultimate_cooldown
 
 func _use_basic(game: Node, player: PlayerController, target: EnemyController, aim: Vector2, distance: float) -> void:
-	var damage := player.roll_damage(player.attack_damage)
+	var damage_context := player.roll_damage_context(player.attack_damage)
+	var damage := float(damage_context["amount"])
+	var is_critical := bool(damage_context["is_critical"])
 	if player.character_id == "mage":
 		if distance <= 650.0 and randf() <= 0.90:
-			game.combat_manager.damage_enemies_in_radius(target.global_position, 70.0, damage, player)
+			game.combat_manager.damage_enemies_in_radius(target.global_position, 70.0, damage, player, is_critical)
 	elif player.character_id == "archer":
 		if distance <= 650.0 and randf() <= 0.90:
-			game.combat_manager.damage_enemy(target, damage, player, player.global_position, player.attack_knockback)
+			game.combat_manager.damage_enemy(target, damage, player, player.global_position, player.attack_knockback, true, true, false, is_critical)
 	else:
-		game.combat_manager.on_player_basic_attack(player.global_position, aim, player.attack_range, player.attack_half_width, damage, player)
+		game.combat_manager.on_player_basic_attack(player.global_position, aim, player.attack_range, player.attack_half_width, damage, is_critical, player)
 
 func _use_q(game: Node, player: PlayerController, target: EnemyController, aim: Vector2) -> void:
-	var damage := player.roll_damage(player.skill_damage)
+	var damage_context := player.roll_damage_context(player.skill_damage)
+	var damage := float(damage_context["amount"])
+	var is_critical := bool(damage_context["is_critical"])
 	if player.character_id == "archer":
 		if player.get_upgrade_level("archer_q_damage") > 0:
 			damage *= 1.25
-		game.combat_manager.damage_enemy(target, damage, player, player.global_position, player.attack_knockback)
+		game.combat_manager.damage_enemy(target, damage, player, player.global_position, player.attack_knockback, true, true, false, is_critical)
 	elif player.character_id == "mage":
 		var radius := maxf(72.0, player.skill_half_width * 1.8)
 		if player.get_upgrade_level("mage_q_radius") > 0:
 			radius *= 1.20
 		if player.get_upgrade_level("mage_q_damage") > 0:
 			damage *= 1.20
-		game.combat_manager._mage_fireball_explode(target.global_position, damage, player, radius)
+		game.combat_manager._mage_fireball_explode(target.global_position, damage, player, radius, is_critical)
 	else:
-		game.combat_manager.on_player_active_skill(player.global_position, aim, player.skill_length, player.skill_half_width, damage, player)
+		game.combat_manager.on_player_active_skill(player.global_position, aim, player.skill_length, player.skill_half_width, damage, is_critical, player)
 
 func _choose_target(game: Node, player: PlayerController) -> EnemyController:
 	var best: EnemyController

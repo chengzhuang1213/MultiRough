@@ -194,19 +194,53 @@ func _check_complete_single_player_run() -> void:
 		_expect(game.local_player_slots.size() == 1, "upgrade selection lost the player slot")
 		var upgrades: Array = game.local_player_slots[0].get("upgrades", [])
 		_expect(upgrades.size() == 3, "upgrade selection did not provide three choices")
+		if expected_wave_index >= 4:
+			_expect(upgrades.all(func(upgrade): return str((upgrade as Dictionary).get("rarity", "Common")) != "Common"), "post-mini-boss upgrade selection still offered a common card")
 		if upgrades.is_empty():
 			return
 		game.upgrade_selection_input_lock_left = 1.0
 		game._select_upgrade(1, upgrades[0])
 		_expect(not game._all_required_upgrades_selected(), "upgrade selection accepted input during its one-second safety lock")
 		game._process(1.0)
+		game.players[0].restore_cooldowns({"ultimate": 22.0})
 		game._select_upgrade(1, upgrades[0])
 		_expect(game._all_required_upgrades_selected(), "selected upgrade was not confirmed")
-		var left_click := InputEventMouseButton.new()
-		left_click.button_index = MOUSE_BUTTON_LEFT
-		left_click.pressed = true
-		game._input(left_click)
+		_expect(game.game_state == GameStateScript.REST and game.rest_ui.visible, "confirmed upgrade did not open the rest page")
+		_expect(not game.rest_ui.latest_label.text.is_empty(), "rest page omitted the latest upgrade")
+		_expect(game.rest_ui.intel_label.text.contains("第 %d 波" % (expected_wave_index + 2)), "rest page omitted the next-wave number")
+		_expect(game.rest_ui.latest_icon.texture != null and game.rest_ui.build_icon.texture != null and game.rest_ui.intel_icon.texture != null, "rest top bar omitted one or more information icons")
+		_expect(not game.rest_ui.latest_button.tooltip_text.is_empty() and not game.rest_ui.build_button.tooltip_text.is_empty() and not game.rest_ui.intel_button.tooltip_text.is_empty(), "rest top-bar icons omitted their detailed tooltips")
+		_expect(game.rest_ui.avatar_label.text.contains("头像待补"), "rest HUD did not reserve the portrait slot")
+		_expect(game.rest_ui.skill_buttons.size() == 3 and game.rest_ui.skill_buttons.all(func(button): return not (button as Button).tooltip_text.is_empty()), "rest HUD did not provide three detailed Q/E/F skill entries")
+		_expect(game.rest_ui.skill_buttons.all(func(button): return ((button as Button).get_node("Icon") as TextureRect).texture != null), "rest HUD omitted a Q/E/F skill icon")
+		_expect(not game.hud_left.visible, "legacy top-left combat text overlaps the rest HUD")
+		game.rest_ui.build_button.pressed.emit()
+		_expect(game.rest_ui.stats_drawer.visible and game.rest_ui.stats_text.text.contains("暴击率") and game.rest_ui.stats_text.text.contains("Q CD"), "detailed stats button did not expose critical chance and cooldown details")
+		game.rest_ui.build_button.pressed.emit()
+		_expect(game.rest_arena.visible and not game.map_root.visible, "rest phase did not switch to the training map")
+		_expect(game.enemies.size() == 2 and game.enemies.all(func(enemy): return (enemy as EnemyController).is_training_dummy), "rest training map did not contain exactly two dummies")
+		_expect(not game.players[0].cooldowns_paused and game.players[0].arena_bounds.size == Vector2(840.0, 500.0), "rest phase did not enable player training controls inside the small arena")
+		var damage_before_training: float = game.damage_dealt
+		var dummy := game.enemies[0] as EnemyController
+		_expect(game.enemies[0].global_position.x < 0.0 and game.enemies[1].global_position.x > 0.0, "training bosses were not placed on the left and right")
+		dummy.apply_damage(25.0)
+		_expect(dummy.health < dummy.max_health and dummy.training_damage_total == 25.0 and game.damage_dealt == damage_before_training, "training dummy damage statistic was incorrect or polluted run statistics")
+		_expect(dummy._training_damage_label.text.contains("25"), "training dummy did not display its five-second damage total")
+		dummy._physics_process(4.9)
+		_expect(dummy.health < dummy.max_health and dummy.training_damage_total == 25.0, "training dummy reset before five damage-free seconds")
+		dummy._physics_process(0.2)
+		_expect(dummy.health == dummy.max_health and dummy.training_damage_total == 0.0, "training dummy did not reset after five damage-free seconds")
+		dummy.health = 0.0
+		dummy._die()
+		_expect(dummy.health == dummy.max_health and not dummy.is_queued_for_deletion(), "training dummy death fallback did not revive it at full health")
+		_expect((game.players[0].make_authority_cooldowns() as Dictionary).values().all(func(value): return is_zero_approx(float(value))), "training map did not reset skill cooldowns")
+		game._on_rest_ready_pressed()
+		var restored_ultimate_cooldown := float(game.players[0].make_authority_cooldowns().get("ultimate", 0.0))
+		_expect(is_equal_approx(restored_ultimate_cooldown, 22.0), "leaving the training room did not restore the pre-card ultimate cooldown: %.2f" % restored_ultimate_cooldown)
 		await process_frame
+		_expect(not game.rest_arena.visible and game.map_root.visible, "starting the next wave did not restore the combat map")
+		_expect(game.enemies.all(func(enemy): return not (enemy as EnemyController).is_training_dummy), "training dummies leaked into the next wave")
+		expected_wave_start_position = Vector2(-42.0, 0.0)
 
 	_expect(game.restart_button.visible, "victory did not expose restart")
 	_expect(game.enemies.is_empty(), "victory left enemies in the tracked list")
@@ -287,6 +321,8 @@ func _check_network_upgrade_and_snapshot_sync() -> void:
 	_expect(client._apply_authority_snapshot(snapshot), "client rejected a valid host snapshot")
 	_expect(client.network_last_applied_snapshot == 7, "client did not advance the snapshot sequence")
 	_expect(client.players[0].global_position.is_equal_approx(host.players[0].global_position), "host player position was not corrected from snapshot")
+	_expect(client.players[0].authority_presentation_only, "remote host player did not enter interpolated presentation mode")
+	_expect(client.players[1].network_local_prediction_enabled, "client-owned player did not keep local movement prediction")
 	_expect(is_equal_approx(client.players[0]._skill_timer, host.players[0]._skill_timer), "skill cooldown drifted after host snapshot")
 	_expect(is_equal_approx(client.wave_time_left, host.wave_time_left), "wave timer drifted after host snapshot")
 	_expect(client.enemies_defeated == host.enemies_defeated, "defeated-enemy count drifted after host snapshot")
@@ -307,6 +343,8 @@ func _check_network_upgrade_and_snapshot_sync() -> void:
 	_expect(not client._apply_authority_snapshot(stale_snapshot), "client accepted an out-of-order authority snapshot")
 	host_projectile.global_position = Vector2(-500.0, -400.0)
 	var client_enemy_position_before_update: Vector2 = client_enemy.global_position
+	var client_host_player_position_before_update: Vector2 = client.players[0].global_position
+	host.players[0].global_position += Vector2(120.0, 0.0)
 	host_enemy.global_position += Vector2(120.0, 0.0)
 	host.network_snapshot_sequence = 8
 	var update_snapshot: Dictionary = host._build_authority_snapshot()
@@ -314,9 +352,14 @@ func _check_network_upgrade_and_snapshot_sync() -> void:
 	var updated_client_projectile = _find_network_projectile(client, projectile_id)
 	_expect(updated_client_projectile != null and updated_client_projectile.global_position.is_equal_approx(host_projectile.global_position), "client did not update the host projectile position")
 	_expect(client_enemy.authority_target_position.is_equal_approx(host_enemy.global_position), "client enemy did not receive the host interpolation target")
+	_expect(client.players[0].authority_target_position.is_equal_approx(host.players[0].global_position), "client host player did not receive the interpolation target")
+	_expect(client.players[0].global_position.is_equal_approx(client_host_player_position_before_update), "client host player snapped instead of preserving its interpolation origin")
 	var distance_before_interpolation: float = client_enemy_position_before_update.distance_to(host_enemy.global_position)
+	var player_distance_before_interpolation: float = client_host_player_position_before_update.distance_to(host.players[0].global_position)
 	client_enemy._physics_process(0.05)
+	client.players[0]._physics_process(0.05)
 	_expect(client_enemy.global_position.distance_to(host_enemy.global_position) < distance_before_interpolation, "client enemy did not interpolate toward the host position")
+	_expect(client.players[0].global_position.distance_to(host.players[0].global_position) < player_distance_before_interpolation, "client host player did not interpolate toward the host position")
 	host_projectile.queue_free()
 	host.combat_manager.remove_persistent_skill_area(host_area)
 	host_enemy._mark_left = 0.0
@@ -335,6 +378,26 @@ func _check_network_upgrade_and_snapshot_sync() -> void:
 		"lifetime": 0.8,
 	})
 	_expect(client.effect_root.get_child_count() == client_effect_count + 1, "client did not render a synchronized instantaneous enemy warning")
+	client._network_show_combat_visual(1, "mage_chain_lightning", {
+		"points": [Vector2(20.0, 10.0), Vector2(80.0, 30.0), Vector2(140.0, -20.0)],
+	})
+	_expect(client.effect_root.get_node_or_null("MageChainLightning") != null, "client did not render a synchronized mage chain-lightning event")
+	var visual_count_after_event: int = client.effect_root.get_child_count()
+	client._network_show_combat_visual(1, "mage_chain_lightning", {
+		"points": [Vector2.ZERO, Vector2.RIGHT * 40.0],
+	})
+	_expect(client.effect_root.get_child_count() == visual_count_after_event, "client replayed a duplicate combat visual event")
+	host._set_network_upgrades_ready()
+	client._set_network_upgrades_ready()
+	_expect(host.game_state == GameStateScript.REST and client.game_state == GameStateScript.REST, "network upgrade completion did not enter the shared rest phase")
+	_expect(host.rest_ui.visible and client.rest_ui.visible, "network rest page was not visible to both peers")
+	_expect(host.rest_arena.visible and client.rest_arena.visible, "network rest phase did not open the training map for both peers")
+	_expect(host.enemies.size() == 2 and host.enemies.all(func(enemy): return (enemy as EnemyController).is_training_dummy), "network host did not own exactly two training dummies")
+	host.rest_ready_players = {1: true, 2: true}
+	host._refresh_rest_ready_ui()
+	client._network_sync_rest_ready({1: true, 2: true})
+	_expect(host.rest_ui.ready_button.text == "开启下一波", "host could not open the next wave after both players readied")
+	_expect(client.rest_ui.ready_button.disabled, "client could start the next wave instead of waiting for the host")
 
 	host._clear_run_state()
 	client._clear_run_state()

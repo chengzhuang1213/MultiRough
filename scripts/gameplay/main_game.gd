@@ -6,18 +6,22 @@ const GameRulesScript := preload("res://scripts/gameplay/game_rules.gd")
 const WaveManagerScript := preload("res://scripts/gameplay/wave_manager.gd")
 const UpgradeManagerScript := preload("res://scripts/upgrades/upgrade_manager.gd")
 const UpgradeSessionScript := preload("res://scripts/upgrades/upgrade_session.gd")
+const UpgradeCatalogScript := preload("res://scripts/upgrades/upgrade_catalog.gd")
+const EnemyArchetypesScript := preload("res://scripts/enemy/enemy_archetypes.gd")
 const CombatManagerScript := preload("res://scripts/gameplay/combat_manager.gd")
 const MapBuilderScript := preload("res://scripts/gameplay/map_builder.gd")
+const RestArenaScript := preload("res://scripts/gameplay/rest_arena.gd")
 const EffectManagerScript := preload("res://scripts/gameplay/effect_manager.gd")
 const WaveSpawnerScript := preload("res://scripts/gameplay/wave_spawner.gd")
 const InputSetupScript := preload("res://scripts/input/input_setup.gd")
 const PlayerRosterScript := preload("res://scripts/player/player_roster.gd")
 const AuthoritySyncScript := preload("res://scripts/network/authority_sync.gd")
-const VerdantUIThemeScript := preload("res://scripts/ui/verdant_ui_theme.gd")
+const CampaignSatchelUIThemeScript := preload("res://scripts/ui/campaign_satchel_ui_theme.gd")
 const MainMenuUIScene := preload("res://scenes/ui/main_menu_ui.tscn")
 const CharacterSelectUIScene := preload("res://scenes/ui/character_select_ui.tscn")
 const CombatHUDUIScene := preload("res://scenes/ui/combat_hud_ui.tscn")
 const UpgradeUIScene := preload("res://scenes/ui/upgrade_ui.tscn")
+const RestUIScene := preload("res://scenes/ui/rest_ui.tscn")
 const ResultUIScene := preload("res://scenes/ui/result_ui.tscn")
 
 const ARENA_BOUNDS := Rect2(Vector2(-960, -540), Vector2(1920, 1080))
@@ -110,13 +114,29 @@ const CHARACTER_STAT_ICONS := {
 	"cooldown": "res://assets/ui/character_select/stat_cooldown.png",
 }
 const UPGRADE_CARD_ART := {
-	"Common": "res://assets/ui/upgrades/upgrade_card_common.png",
-	"Rare": "res://assets/ui/upgrades/upgrade_card_rare.png",
-	"Epic": "res://assets/ui/upgrades/upgrade_card_epic.png",
+	"Common": "res://assets/ui/theme/campaign_satchel/upgrade_card_common.png",
+	"Rare": "res://assets/ui/theme/campaign_satchel/upgrade_card_rare.png",
+	"Epic": "res://assets/ui/theme/campaign_satchel/upgrade_card_epic.png",
 }
 const CHARACTER_CONFIGS := GameRulesScript.CHARACTER_CONFIGS
 const NETWORK_SNAPSHOT_INTERVAL := 0.10
 const UPGRADE_SELECTION_INPUT_LOCK_TIME := 1.0
+const ENEMY_DISPLAY_NAMES := {
+	"melee": "近战兵", "heavy": "重装兵", "ranged": "远程兵", "shield": "盾卫",
+	"charger": "冲锋者", "bomber": "爆破者", "priest": "祭司",
+	"mini_boss": "紫晶统领", "boss": "最终首领",
+}
+const ENEMY_SKILL_INTEL := {
+	"melee": "近身攻击；第7波起低血量进入血性狂怒",
+	"heavy": "高伤害近战；第7波起周期性预警震地",
+	"ranged": "保持距离射击；第7波起连续射击后侧移",
+	"shield": "正面仅承受30%伤害，需要绕后",
+	"charger": "预警后沿直线高速突进",
+	"bomber": "接近目标后预警自爆",
+	"priest": "周期治疗范围内受伤友军",
+	"mini_boss": "周期范围攻击；半血短暂无敌并进入狂暴；不会召唤援军",
+	"boss": "阶段锁血、范围攻击、援军、狂暴与低血量绝境攻击",
+}
 
 var game_state := GameStateScript.LOBBY
 var wave_index := -1
@@ -151,14 +171,18 @@ var network_status_text := ""
 var network_snapshot_sequence := 0
 var network_last_applied_snapshot := -1
 var network_snapshot_time_left := 0.0
+var network_next_visual_event_id := 1
+var network_last_visual_event_id := 0
 var network_next_enemy_id := 1
 var network_next_combat_entity_id := 1
+var network_return_confirmation_requester := 0
 
 var player: PlayerController
 var player_two: PlayerController
 var players: Array[PlayerController] = []
 var camera: Camera2D
 var map_root: Node2D
+var rest_arena: Node2D
 var enemy_root: Node2D
 var projectile_root: Node2D
 var effect_root: Node2D
@@ -191,6 +215,7 @@ var main_menu_ui
 var character_select_ui
 var combat_hud_ui
 var upgrade_ui
+var rest_ui
 var result_ui
 var upgrade_ui_player_index := 1
 var combat_manager
@@ -199,6 +224,8 @@ var authority_sync
 var map_builder
 var effect_manager
 var wave_spawner
+var rest_ready_players: Dictionary = {}
+var rest_saved_player_cooldowns: Dictionary = {}
 
 func _ready() -> void:
 	randomize()
@@ -265,7 +292,7 @@ func _process(delta: float) -> void:
 	_update_player_hud_occlusion(delta)
 	if network_mode != "client":
 		_update_enemy_targets()
-	if _is_combat_active() and network_mode != "client":
+	if _is_player_action_active() and network_mode != "client":
 		combat_manager.update_ultimates(delta)
 		_update_persistent_skill_areas(delta)
 	_update_status()
@@ -285,6 +312,10 @@ func _build_world() -> void:
 	map_root.z_index = -100
 	add_child(map_root)
 	_build_map()
+	rest_arena = RestArenaScript.new()
+	rest_arena.name = "RestArena"
+	rest_arena.visible = false
+	add_child(rest_arena)
 
 	enemy_root = Node2D.new()
 	enemy_root.name = "Enemies"
@@ -305,13 +336,15 @@ func _build_ui() -> void:
 	ui_root = Control.new()
 	ui_root.name = "VerdantUIRoot"
 	ui_root.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	ui_root.theme = VerdantUIThemeScript.build_theme()
+	ui_root.theme = CampaignSatchelUIThemeScript.build_theme()
 	ui_layer.add_child(ui_root)
 
 	combat_hud_ui = CombatHUDUIScene.instantiate()
 	ui_root.add_child(combat_hud_ui)
 	combat_hud_ui.next_wave_requested.connect(_on_start_next_wave_pressed)
-	combat_hud_ui.return_to_menu_requested.connect(_on_return_to_menu_pressed)
+	combat_hud_ui.return_confirmation_open_requested.connect(_on_return_confirmation_open_requested)
+	combat_hud_ui.return_confirmation_cancel_requested.connect(_on_return_confirmation_cancel_requested)
+	combat_hud_ui.return_to_menu_requested.connect(_on_return_confirmation_confirmed)
 	combat_hud_ui.create_player_hud(player_roster)
 	hud_left = combat_hud_ui.hud_left
 	hud_right = combat_hud_ui.hud_right
@@ -347,6 +380,10 @@ func _build_ui() -> void:
 	upgrade_panel = upgrade_ui
 	upgrade_content = upgrade_ui.content
 
+	rest_ui = RestUIScene.instantiate()
+	ui_root.add_child(rest_ui)
+	rest_ui.ready_pressed.connect(_on_rest_ready_pressed)
+
 	result_ui = ResultUIScene.instantiate()
 	ui_root.add_child(result_ui)
 	result_ui.restart_requested.connect(_on_restart_pressed)
@@ -373,6 +410,8 @@ func _layout_ui() -> void:
 		character_select_panel.position = (viewport_size - character_select_panel.custom_minimum_size) * 0.5
 	if upgrade_ui != null:
 		upgrade_ui.layout(viewport_size)
+	if rest_ui != null:
+		rest_ui.layout(viewport_size)
 	if result_ui != null:
 		result_ui.layout(viewport_size)
 
@@ -406,6 +445,9 @@ func _has_actor_behind_player_hud() -> bool:
 	return false
 
 func _show_main_menu() -> void:
+	if combat_hud_ui != null and combat_hud_ui.return_confirmation_overlay.visible:
+		combat_hud_ui.hide_return_confirmation(true)
+	network_return_confirmation_requester = 0
 	game_state = GameStateScript.LOBBY
 	if result_ui != null:
 		result_ui.hide_result()
@@ -413,6 +455,11 @@ func _show_main_menu() -> void:
 		main_menu_panel.visible = true
 	if character_select_panel != null:
 		character_select_panel.visible = false
+	if rest_ui != null:
+		rest_ui.hide_rest()
+	_set_main_map_active(true)
+	if rest_arena != null:
+		rest_arena.visible = false
 	if hud_left != null:
 		hud_left.visible = false
 	if hud_right != null:
@@ -518,6 +565,9 @@ func _is_private_ipv4(address: String) -> bool:
 	return first == 10 or (first == 172 and second >= 16 and second <= 31) or (first == 192 and second == 168)
 
 func _on_network_server_disconnected() -> void:
+	if combat_hud_ui != null:
+		combat_hud_ui.hide_return_confirmation(true)
+	network_return_confirmation_requester = 0
 	_set_network_status("已断开连接")
 	network_mode = "none"
 	network_peer_joined = false
@@ -536,6 +586,83 @@ func _set_network_status(text: String) -> void:
 func _network_enter_room(character_ids: Array) -> void:
 	selected_character_ids = character_ids.duplicate()
 	_show_character_select(2)
+
+@rpc("any_peer", "call_remote", "reliable")
+func _network_request_return_confirmation(action: String) -> void:
+	if network_mode != "host" or multiplayer.get_remote_sender_id() != 2:
+		return
+	_handle_host_return_confirmation_action(action, 2)
+
+@rpc("authority", "call_remote", "reliable")
+func _network_set_return_confirmation(open: bool, requester_index: int, confirmed: bool = false) -> void:
+	if network_mode != "client":
+		return
+	_apply_return_confirmation_state(open, requester_index)
+	if confirmed and requester_index == local_peer_player_index:
+		call_deferred("_on_return_to_menu_pressed")
+
+func _on_return_confirmation_open_requested() -> void:
+	if network_mode == "none":
+		_apply_return_confirmation_state(true, local_peer_player_index)
+		return
+	if network_mode == "host":
+		_handle_host_return_confirmation_action("open", 1)
+		return
+	if multiplayer.multiplayer_peer != null:
+		rpc_id(1, "_network_request_return_confirmation", "open")
+
+func _on_return_confirmation_cancel_requested() -> void:
+	if network_mode == "none":
+		_apply_return_confirmation_state(false, local_peer_player_index)
+		return
+	if network_mode == "host":
+		_handle_host_return_confirmation_action("cancel", 1)
+		return
+	if multiplayer.multiplayer_peer != null:
+		rpc_id(1, "_network_request_return_confirmation", "cancel")
+
+func _on_return_confirmation_confirmed() -> void:
+	if network_mode == "none":
+		_apply_return_confirmation_state(false, local_peer_player_index, true)
+		_on_return_to_menu_pressed()
+		return
+	if network_mode == "host":
+		_handle_host_return_confirmation_action("confirm", 1)
+		return
+	if multiplayer.multiplayer_peer != null:
+		rpc_id(1, "_network_request_return_confirmation", "confirm")
+
+func _handle_host_return_confirmation_action(action: String, requester_index: int) -> void:
+	if network_mode != "host" or requester_index < 1 or requester_index > 2:
+		return
+	match action:
+		"open":
+			if network_return_confirmation_requester != 0:
+				return
+			network_return_confirmation_requester = requester_index
+			_apply_return_confirmation_state(true, requester_index)
+			_broadcast_return_confirmation(true, requester_index)
+		"cancel", "confirm":
+			if network_return_confirmation_requester != requester_index:
+				return
+			var confirmed := action == "confirm"
+			network_return_confirmation_requester = 0
+			_apply_return_confirmation_state(false, requester_index, true)
+			_broadcast_return_confirmation(false, requester_index, confirmed)
+			if confirmed and requester_index == 1:
+				call_deferred("_on_return_to_menu_pressed")
+
+func _broadcast_return_confirmation(open: bool, requester_index: int, confirmed: bool = false) -> void:
+	if multiplayer.multiplayer_peer != null and network_peer_joined:
+		rpc("_network_set_return_confirmation", open, requester_index, confirmed)
+
+func _apply_return_confirmation_state(open: bool, requester_index: int, force_unpause: bool = false) -> void:
+	if combat_hud_ui == null:
+		return
+	if open:
+		combat_hud_ui.show_return_confirmation(requester_index == local_peer_player_index)
+	else:
+		combat_hud_ui.hide_return_confirmation(force_unpause)
 
 @rpc("any_peer", "reliable")
 func _network_set_character(player_index: int, character_id: String) -> void:
@@ -673,8 +800,12 @@ func _start_game(player_count: int) -> void:
 	network_snapshot_sequence = 0
 	network_last_applied_snapshot = -1
 	network_snapshot_time_left = 0.0
+	network_next_visual_event_id = 1
+	network_last_visual_event_id = 0
 	network_next_enemy_id = 1
 	network_next_combat_entity_id = 1
+	rest_ready_players.clear()
+	rest_saved_player_cooldowns.clear()
 	local_player_slots.clear()
 	if main_menu_panel != null:
 		main_menu_panel.visible = false
@@ -703,11 +834,15 @@ func _spawn_players(player_count: int) -> void:
 func _configure_network_players() -> void:
 	if player != null:
 		player.external_input_enabled = local_peer_player_index != 1
+		player.authority_presentation_only = network_mode == "client" and local_peer_player_index != 1
+		player.network_local_prediction_enabled = network_mode == "client" and local_peer_player_index == 1
 		player.use_mouse_aim = local_peer_player_index == 1
 		if local_peer_player_index == 1:
 			player.basic_attack_action = "network_basic_attack"
 	if player_two != null:
 		player_two.external_input_enabled = local_peer_player_index != 2
+		player_two.authority_presentation_only = network_mode == "client" and local_peer_player_index != 2
+		player_two.network_local_prediction_enabled = network_mode == "client" and local_peer_player_index == 2
 		player_two.use_mouse_aim = local_peer_player_index == 2
 		if local_peer_player_index == 2:
 			player_two.move_left_action = "move_left"
@@ -781,7 +916,7 @@ func _update_network_authority(delta: float) -> void:
 func _build_authority_snapshot() -> Dictionary:
 	return authority_sync.build_snapshot()
 
-@rpc("authority", "unreliable_ordered")
+@rpc("authority", "call_remote", "unreliable_ordered", 1)
 func _network_receive_authority_snapshot(snapshot: Dictionary) -> void:
 	if network_mode != "client":
 		return
@@ -790,6 +925,20 @@ func _network_receive_authority_snapshot(snapshot: Dictionary) -> void:
 func _broadcast_enemy_telegraph(shape: String, payload: Dictionary) -> void:
 	if network_mode == "host":
 		rpc("_network_show_enemy_telegraph", shape, payload)
+
+func _broadcast_combat_visual(event_type: String, payload: Dictionary) -> void:
+	if network_mode != "host" or not network_peer_joined or multiplayer.multiplayer_peer == null:
+		return
+	var event_id := network_next_visual_event_id
+	network_next_visual_event_id += 1
+	rpc("_network_show_combat_visual", event_id, event_type, payload)
+
+@rpc("authority", "call_remote", "reliable", 2)
+func _network_show_combat_visual(event_id: int, event_type: String, payload: Dictionary) -> void:
+	if network_mode != "client" or event_id <= network_last_visual_event_id:
+		return
+	network_last_visual_event_id = event_id
+	combat_manager.show_network_visual_event(event_type, payload)
 
 @rpc("authority", "call_remote", "reliable")
 func _network_show_enemy_telegraph(shape: String, payload: Dictionary) -> void:
@@ -864,8 +1013,12 @@ func _assign_player_hud(index: int, target_player: PlayerController) -> void:
 func _start_next_wave() -> void:
 	if game_state == GameStateScript.UPGRADE_SELECT and not _all_required_upgrades_selected():
 		return
+	if game_state == GameStateScript.REST and network_mode != "client" and not _all_rest_players_ready():
+		return
 	if game_state == GameStateScript.VICTORY or game_state == GameStateScript.DEFEAT:
 		return
+	if game_state == GameStateScript.REST:
+		_leave_rest_arena()
 	if _is_network_game():
 		seed(NETWORK_SYNC_SEED + (wave_index + 1) * 1009)
 	_set_player_cooldowns_paused(false)
@@ -875,6 +1028,8 @@ func _start_next_wave() -> void:
 	_clear_upgrade_panel()
 	_clear_projectiles()
 	upgrade_panel.visible = false
+	if rest_ui != null:
+		rest_ui.hide_rest()
 	if combat_hud_ui != null:
 		combat_hud_ui.set_combat_visible(true)
 	if return_to_menu_button != null:
@@ -883,6 +1038,7 @@ func _start_next_wave() -> void:
 	start_next_wave_button.disabled = true
 	result_ui.hide_result()
 	waiting_for_next_wave_input = false
+	rest_ready_players.clear()
 	upgrade_selection_input_lock_left = 0.0
 	_reset_upgrade_slots()
 
@@ -1030,12 +1186,17 @@ func _all_players_dead() -> bool:
 func _is_combat_active() -> bool:
 	return game_state == GameStateScript.WAVE_ACTIVE or game_state == GameStateScript.BOSS_WAVE
 
+func _is_player_action_active() -> bool:
+	return _is_combat_active() or game_state == GameStateScript.REST
+
 func _set_player_cooldowns_paused(paused: bool) -> void:
 	for existing_player in players:
 		if is_instance_valid(existing_player):
 			existing_player.cooldowns_paused = paused
 
 func _on_enemy_died(enemy: EnemyController) -> void:
+	if enemy != null and enemy.is_training_dummy:
+		return
 	if network_mode == "client":
 		enemies.erase(enemy)
 		return
@@ -1082,7 +1243,8 @@ func _on_enemy_attack_started(enemy: EnemyController, windup_time: float, attack
 
 func _on_enemy_damaged(enemy: EnemyController, amount: float) -> void:
 	if is_instance_valid(enemy):
-		damage_dealt += amount
+		if not enemy.is_training_dummy:
+			damage_dealt += amount
 		_spawn_effect(enemy.global_position, 22.0, Color(1.0, 0.95, 0.55, 0.24), 0.06)
 		_spawn_damage_number(enemy.global_position + Vector2(-10.0, -34.0), amount, Color(1.0, 0.92, 0.42, 1.0))
 
@@ -1153,7 +1315,8 @@ func _enter_upgrade_select() -> void:
 		upgrade_players.append(target_player)
 	var final_upgrade_round := wave_index == wave_manager.boss_wave_index() - 1
 	var force_epic := final_upgrade_round and not epic_upgrade_seen
-	var roll_result: Dictionary = UpgradeSessionScript.roll_sets(upgrade_players, force_epic)
+	var excluded_rarities: Array = ["Common"] if wave_manager.is_post_midboss_upgrade() else []
+	var roll_result: Dictionary = UpgradeSessionScript.roll_sets(upgrade_players, force_epic, excluded_rarities)
 	var upgrade_rarity: String = str(roll_result["rarity"])
 	var upgrade_sets: Array = roll_result["sets"] as Array
 	if upgrade_rarity == "Epic":
@@ -1185,6 +1348,8 @@ func _prepare_upgrade_select() -> void:
 	start_next_wave_button.disabled = true
 	waiting_for_next_wave_input = false
 	result_ui.hide_result()
+	if rest_ui != null:
+		rest_ui.hide_rest()
 
 @rpc("authority", "reliable")
 func _network_begin_upgrade_select(upgrade_sets: Array) -> void:
@@ -1263,14 +1428,11 @@ func _select_upgrade(player_index: int, upgrade: Dictionary) -> void:
 	target_player.record_upgrade_offer_result(slot.get("upgrades", []) as Array, str(upgrade.get("id", "")))
 	target_player.apply_upgrade(upgrade)
 	slot["selected"] = true
+	slot["last_upgrade"] = upgrade.duplicate(true)
 	if not _all_required_upgrades_selected():
 		return
 	upgrade_panel.visible = false
-	start_next_wave_button.visible = false
-	start_next_wave_button.disabled = true
-	waiting_for_next_wave_input = true
-	result_label.text = "按任意键开启下一波"
-	result_panel.visible = true
+	_enter_rest_phase()
 
 @rpc("any_peer", "reliable")
 func _network_choose_upgrade(player_index: int, upgrade_index: int) -> void:
@@ -1308,12 +1470,7 @@ func _apply_confirmed_network_upgrade(player_index: int, upgrade_index: int) -> 
 	return true
 
 func _set_network_upgrades_ready() -> void:
-	upgrade_panel.visible = false
-	start_next_wave_button.visible = false
-	start_next_wave_button.disabled = true
-	waiting_for_next_wave_input = true
-	result_label.text = "等待房主开启下一波" if network_mode == "client" else "按任意键开启下一波"
-	result_panel.visible = true
+	_enter_rest_phase()
 
 @rpc("authority", "reliable")
 func _network_upgrades_ready() -> void:
@@ -1323,6 +1480,298 @@ func _network_upgrades_ready() -> void:
 
 func _all_required_upgrades_selected() -> bool:
 	return UpgradeSessionScript.all_selected(local_player_slots)
+
+func _enter_rest_phase() -> void:
+	game_state = GameStateScript.REST
+	upgrade_panel.visible = false
+	result_ui.hide_result()
+	waiting_for_next_wave_input = false
+	rest_ready_players.clear()
+	_enter_rest_arena()
+	var local_slot: Dictionary = _get_local_player_slot(local_peer_player_index)
+	var local_player: PlayerController = local_slot.get("player") as PlayerController
+	var latest_upgrade := local_slot.get("last_upgrade", {}) as Dictionary
+	var next_wave_intel := _format_next_wave_intel()
+	rest_ui.show_rest(
+		"第 %d 波完成 · 战备休息" % (wave_index + 1),
+		_format_latest_upgrade(latest_upgrade, local_player),
+		_format_current_build(local_player),
+		next_wave_intel,
+		_get_viewport_size(),
+		_get_rest_info_icon_paths(latest_upgrade, local_player),
+		_get_rest_info_summaries(latest_upgrade, local_player),
+		_get_rest_hud_context(latest_upgrade, local_player, _format_current_build(local_player))
+	)
+	_refresh_rest_ready_ui()
+	_update_status()
+
+func _enter_rest_arena() -> void:
+	_clear_remaining_enemies()
+	_clear_effects()
+	_set_main_map_active(false)
+	if rest_arena != null:
+		rest_arena.visible = true
+	_revive_dead_players_for_next_wave()
+	rest_saved_player_cooldowns.clear()
+	var spawn_positions := [Vector2(-45.0, 150.0), Vector2(45.0, 150.0)]
+	for index in range(players.size()):
+		var existing_player := players[index]
+		if not is_instance_valid(existing_player):
+			continue
+		existing_player.arena_bounds = RestArenaScript.BOUNDS
+		existing_player.global_position = spawn_positions[mini(index, spawn_positions.size() - 1)]
+		existing_player.velocity = Vector2.ZERO
+		rest_saved_player_cooldowns[index + 1] = existing_player.make_authority_cooldowns().duplicate(true)
+		existing_player.reset_training_cooldowns()
+		existing_player.cooldowns_paused = false
+	if combat_hud_ui != null:
+		combat_hud_ui.set_combat_visible(true)
+		hud_left.visible = false
+	if return_to_menu_button != null:
+		return_to_menu_button.visible = true
+	if network_mode != "client":
+		_spawn_training_dummies()
+
+func _spawn_training_dummies() -> void:
+	var positions := [Vector2(-180.0, -20.0), Vector2(180.0, -20.0)]
+	for index in range(positions.size()):
+		var dummy: EnemyController = EnemyScript.new()
+		dummy.name = "TrainingDummy%d" % (index + 1)
+		dummy.setup_as_training_dummy()
+		dummy.global_position = positions[index]
+		_register_enemy(dummy)
+		dummy.arena_bounds = RestArenaScript.BOUNDS
+
+func _leave_rest_arena() -> void:
+	_clear_remaining_enemies()
+	_clear_effects()
+	_set_main_map_active(true)
+	if rest_arena != null:
+		rest_arena.visible = false
+	var spawn_positions := [Vector2(-42.0, 0.0), Vector2(42.0, 0.0)]
+	for index in range(players.size()):
+		var existing_player := players[index]
+		if not is_instance_valid(existing_player):
+			continue
+		existing_player.arena_bounds = ARENA_BOUNDS
+		existing_player.global_position = spawn_positions[mini(index, spawn_positions.size() - 1)]
+		existing_player.velocity = Vector2.ZERO
+		existing_player.restore_cooldowns(rest_saved_player_cooldowns.get(index + 1, {}) as Dictionary)
+	rest_saved_player_cooldowns.clear()
+
+func _set_main_map_active(active: bool) -> void:
+	if map_root == null:
+		return
+	map_root.visible = active
+	for node in map_root.find_children("*", "CollisionShape2D", true, false):
+		var collision := node as CollisionShape2D
+		if collision != null:
+			collision.disabled = not active
+
+func _format_latest_upgrade(upgrade: Dictionary, target_player: PlayerController) -> String:
+	if upgrade.is_empty():
+		return "本轮升级信息不可用"
+	return "%s\n\n%s\n\n当前结果：%s" % [
+		str(upgrade.get("title", "升级")),
+		str(upgrade.get("description", "")),
+		_format_upgrade_current(upgrade, target_player),
+	]
+
+func _format_current_build(target_player: PlayerController) -> String:
+	if target_player == null or not is_instance_valid(target_player) or target_player.upgrade_levels.is_empty():
+		return "尚未获得升级"
+	var lines: Array[String] = []
+	for upgrade_id_value in target_player.upgrade_levels.keys():
+		var upgrade := UpgradeCatalogScript.get_by_id(str(upgrade_id_value))
+		if upgrade.is_empty():
+			continue
+		var slot := str(upgrade.get("skill_slot", "属性"))
+		lines.append("[%s] %s\n%s" % [slot, str(upgrade.get("title", upgrade_id_value)), str(upgrade.get("description", ""))])
+	return "\n\n".join(lines) if not lines.is_empty() else "尚未获得升级"
+
+func _get_rest_info_icon_paths(latest_upgrade: Dictionary, target_player: PlayerController) -> Array[String]:
+	var latest_icon_path := str(CHARACTER_STAT_ICONS.get("attack", ""))
+	var character_id := target_player.character_id if target_player != null else "warrior"
+	var skill_slot := str(latest_upgrade.get("skill_slot", ""))
+	if not skill_slot.is_empty():
+		latest_icon_path = get_character_skill_icon_path(character_id, skill_slot)
+	else:
+		var stat := str(latest_upgrade.get("stat", ""))
+		if stat in ["max_health", "heal_percent", "lifesteal"]:
+			latest_icon_path = str(CHARACTER_STAT_ICONS.get("health", latest_icon_path))
+		elif stat in ["move_speed", "dash_cooldown", "dash_charges"]:
+			latest_icon_path = str(CHARACTER_STAT_ICONS.get("speed", latest_icon_path))
+		elif stat.ends_with("cooldown") or stat.ends_with("duration"):
+			latest_icon_path = str(CHARACTER_STAT_ICONS.get("cooldown", latest_icon_path))
+	var build_icon_path := get_character_skill_icon_path(character_id, "BASIC")
+	return [latest_icon_path, build_icon_path, str(CHARACTER_STAT_ICONS.get("health", ""))]
+
+func _get_rest_info_summaries(latest_upgrade: Dictionary, target_player: PlayerController) -> Array[String]:
+	var upgrade_count := 0
+	if target_player != null:
+		for level_value in target_player.upgrade_levels.values():
+			upgrade_count += int(level_value)
+	var next_wave_index := wave_index + 1
+	var next_enemy_count := 0
+	if next_wave_index >= 0 and next_wave_index < wave_manager.wave_definitions.size():
+		var wave_def := wave_manager.wave_definitions[next_wave_index] as Dictionary
+		for enemy_type in ["mini_boss", "boss", "melee", "heavy", "ranged", "shield", "charger", "bomber", "priest"]:
+			next_enemy_count += _get_wave_intel_count(wave_def, enemy_type)
+	return [
+		str(latest_upgrade.get("title", "新强化")),
+		"%d 项强化" % upgrade_count,
+		"第 %d 波 · %d个目标" % [next_wave_index + 1, next_enemy_count],
+	]
+
+func _get_rest_hud_context(latest_upgrade: Dictionary, target_player: PlayerController, build_text: String) -> Dictionary:
+	if target_player == null:
+		return {}
+	var skills: Array[Dictionary] = []
+	for skill_key in ["Q", "E", "F"]:
+		var detail := GameRulesScript.get_action_tooltip(target_player.character_id, skill_key)
+		var upgrade_lines: Array[String] = []
+		for upgrade_id_value in target_player.upgrade_levels.keys():
+			var upgrade := UpgradeCatalogScript.get_by_id(str(upgrade_id_value))
+			if str(upgrade.get("skill_slot", "")).to_upper() != skill_key:
+				continue
+			upgrade_lines.append("%s ×%d：%s" % [
+				str(upgrade.get("title", upgrade_id_value)),
+				int(target_player.upgrade_levels[upgrade_id_value]),
+				str(upgrade.get("description", "")),
+			])
+		if not upgrade_lines.is_empty():
+			detail += "\n\n当前强化\n" + "\n".join(upgrade_lines)
+		skills.append({
+			"key": skill_key,
+			"icon": get_character_skill_icon_path(target_player.character_id, skill_key),
+			"tooltip": "%s 技能\n\n%s" % [skill_key, detail],
+		})
+	var saved_cooldowns := rest_saved_player_cooldowns.get(local_peer_player_index, {}) as Dictionary
+	var stats_lines: Array[String] = [
+		"角色：%s" % _get_character_name(target_player.character_id),
+		"生命：%d / %d" % [roundi(target_player.health), roundi(target_player.max_health)],
+		"攻击：%.1f　技能伤害：%.1f" % [target_player.attack_damage * target_player.wave_damage_multiplier, target_player.skill_damage * target_player.wave_damage_multiplier],
+		"移动速度：%.1f　击退：%.1f" % [target_player.move_speed, target_player.attack_knockback],
+		"暴击率：%.1f%%　暴击伤害：%.0f%%" % [target_player.crit_chance * 100.0, target_player.crit_multiplier * 100.0],
+		"吸血：%.1f%%" % (target_player.lifesteal_ratio * 100.0),
+		"普攻 CD：%.2f秒　闪避 CD：%.2f秒" % [target_player.attack_cooldown, target_player.dash_cooldown],
+		"Q CD：%.2f秒　E CD：%.2f秒　F CD：%.2f秒" % [target_player.skill_cooldown, target_player.fan_skill_cooldown, target_player.ultimate_cooldown],
+		"选卡前剩余 CD：Q %.1f / E %.1f / F %.1f秒" % [
+			float(saved_cooldowns.get("skill", 0.0)),
+			float(saved_cooldowns.get("fan", 0.0)),
+			float(saved_cooldowns.get("ultimate", 0.0)),
+		],
+	]
+	stats_lines.append("\n当前构筑\n%s" % build_text)
+	var icons := _get_rest_info_icon_paths(latest_upgrade, target_player)
+	var summaries := _get_rest_info_summaries(latest_upgrade, target_player)
+	return {
+		"character_name": _get_character_name(target_player.character_id),
+		"skills": skills,
+		"stats_icon": str(CHARACTER_STAT_ICONS.get("attack", "")),
+		"stats_text": "\n".join(stats_lines),
+		"latest_icon": icons[0],
+		"latest_summary": summaries[0],
+		"intel_icon": icons[2],
+		"intel_summary": summaries[2],
+	}
+
+func _format_next_wave_intel() -> String:
+	var next_wave_index := wave_index + 1
+	if next_wave_index < 0 or next_wave_index >= wave_manager.wave_definitions.size():
+		return "所有波次已经完成"
+	var wave_def: Dictionary = wave_manager.wave_definitions[next_wave_index] as Dictionary
+	var lines: Array[String] = ["第 %d 波" % (next_wave_index + 1)]
+	for enemy_type in ["mini_boss", "boss", "melee", "heavy", "ranged", "shield", "charger", "bomber", "priest"]:
+		var count := _get_wave_intel_count(wave_def, enemy_type)
+		if count <= 0:
+			continue
+		var stats := EnemyArchetypesScript.get_stats(enemy_type, next_wave_index + 1)
+		var boss_class: bool = enemy_type in ["mini_boss", "boss"]
+		var health_multiplier := boss_health_multiplier if boss_class else enemy_health_multiplier
+		var damage_multiplier := boss_damage_multiplier if boss_class else enemy_damage_multiplier
+		lines.append("\n%s ×%d\n生命 %d　攻击 %d\n%s" % [
+			str(ENEMY_DISPLAY_NAMES.get(enemy_type, enemy_type)), count,
+			roundi(float(stats.get("max_health", 0.0)) * health_multiplier),
+			roundi(float(stats.get("attack_damage", 0.0)) * damage_multiplier),
+			str(ENEMY_SKILL_INTEL.get(enemy_type, "无特殊技能")),
+		])
+	return "\n".join(lines)
+
+func _get_wave_intel_count(wave_def: Dictionary, enemy_type: String) -> int:
+	if enemy_type in ["mini_boss", "boss"]:
+		return 1 if bool(wave_def.get(enemy_type, false)) else 0
+	var base_count := int(wave_def.get(enemy_type, 0))
+	if enemy_type in ["charger", "bomber"] and local_player_count > 1:
+		return base_count * 2
+	if enemy_type == "priest":
+		return base_count
+	return roundi(float(base_count) * minion_count_multiplier)
+
+func _on_rest_ready_pressed() -> void:
+	if game_state != GameStateScript.REST:
+		return
+	if network_mode == "none":
+		rest_ready_players[1] = true
+		_start_next_wave_for_all_peers()
+		return
+	if network_mode == "client":
+		if bool(rest_ready_players.get(local_peer_player_index, false)):
+			return
+		rpc_id(1, "_network_set_rest_ready", local_peer_player_index)
+		rest_ui.set_ready_state("准备请求已发送，等待房主确认", "等待确认", false)
+		return
+	if _all_rest_players_ready():
+		_start_next_wave_for_all_peers()
+		return
+	rest_ready_players[local_peer_player_index] = true
+	_broadcast_rest_ready_state()
+	_refresh_rest_ready_ui()
+
+@rpc("any_peer", "reliable")
+func _network_set_rest_ready(player_index: int) -> void:
+	if network_mode != "host" or multiplayer.get_remote_sender_id() != 2 or player_index != 2 or game_state != GameStateScript.REST:
+		return
+	rest_ready_players[player_index] = true
+	_broadcast_rest_ready_state()
+	_refresh_rest_ready_ui()
+
+func _broadcast_rest_ready_state() -> void:
+	if network_mode == "host":
+		rpc("_network_sync_rest_ready", rest_ready_players.duplicate(true))
+
+@rpc("authority", "reliable")
+func _network_sync_rest_ready(ready_players: Dictionary) -> void:
+	if network_mode != "client" or game_state != GameStateScript.REST:
+		return
+	rest_ready_players = ready_players.duplicate(true)
+	_refresh_rest_ready_ui()
+
+func _all_rest_players_ready() -> bool:
+	var required_count := 2 if _is_network_game() else 1
+	for player_index in range(1, required_count + 1):
+		if not bool(rest_ready_players.get(player_index, false)):
+			return false
+	return true
+
+func _refresh_rest_ready_ui() -> void:
+	if rest_ui == null or game_state != GameStateScript.REST:
+		return
+	if network_mode == "none":
+		rest_ui.set_ready_state("阅读完成后进入下一波", "准备完成并继续", true)
+		return
+	var host_ready := bool(rest_ready_players.get(1, false))
+	var client_ready := bool(rest_ready_players.get(2, false))
+	var status_text := "房主：%s　朋友：%s" % ["已准备" if host_ready else "准备中", "已准备" if client_ready else "准备中"]
+	if network_mode == "client":
+		rest_ui.set_ready_state(status_text, "已准备" if client_ready else "准备完成", not client_ready)
+		return
+	if host_ready and client_ready:
+		rest_ui.set_ready_state(status_text, "开启下一波", true)
+	elif host_ready:
+		rest_ui.set_ready_state(status_text, "等待朋友", false)
+	else:
+		rest_ui.set_ready_state(status_text, "准备完成", true)
 
 func _on_start_next_wave_pressed() -> void:
 	if game_state != GameStateScript.UPGRADE_SELECT or not _all_required_upgrades_selected():
@@ -1384,6 +1833,10 @@ func _clear_run_state() -> void:
 	_clear_remaining_enemies()
 	_clear_upgrade_panel()
 	_clear_effects()
+	if rest_ui != null:
+		rest_ui.hide_rest()
+	rest_ready_players.clear()
+	rest_saved_player_cooldowns.clear()
 	for existing_player in players:
 		if is_instance_valid(existing_player):
 			existing_player.queue_free()
@@ -1406,6 +1859,8 @@ func _clear_run_state() -> void:
 	network_snapshot_sequence = 0
 	network_last_applied_snapshot = -1
 	network_snapshot_time_left = 0.0
+	network_next_visual_event_id = 1
+	network_last_visual_event_id = 0
 	network_next_enemy_id = 1
 	network_next_combat_entity_id = 1
 	local_player_count = 1
@@ -1458,17 +1913,20 @@ func _on_player_died() -> void:
 func _update_status() -> void:
 	status_label.text = "状态：%s" % _format_game_state(game_state)
 	if _is_combat_active():
-		wave_label.text = "波次：%d / %d　剩余：%d秒" % [
+		wave_label.text = "波次：%d / %d" % [
 			clampi(wave_index + 1, 1, WAVE_DEFS.size()),
 			WAVE_DEFS.size(),
-			ceili(wave_time_left),
 		]
+		combat_hud_ui.wave_timer_label.text = str(ceili(wave_time_left))
+		combat_hud_ui.wave_timer_label.visible = hud_left.visible
 	else:
 		wave_label.text = "波次：%d / %d" % [
 			clampi(wave_index + 1, 1, WAVE_DEFS.size()),
 			WAVE_DEFS.size(),
 		]
-	enemies_label.text = "剩余敌人：%d" % enemies.size()
+		combat_hud_ui.wave_timer_label.text = ""
+		combat_hud_ui.wave_timer_label.visible = false
+	enemies_label.text = "训练木桩：%d" % enemies.size() if game_state == GameStateScript.REST else "剩余敌人：%d" % enemies.size()
 	_update_player_health_labels()
 
 func _format_upgrade_current(upgrade: Dictionary, target_player: PlayerController = null) -> String:
@@ -1532,6 +1990,8 @@ func _format_game_state(state: String) -> String:
 			return "战斗中"
 		GameStateScript.UPGRADE_SELECT:
 			return "升级选择"
+		GameStateScript.REST:
+			return "战备休息"
 		GameStateScript.BOSS_WAVE:
 			return "首领战"
 		GameStateScript.VICTORY:

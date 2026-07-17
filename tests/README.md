@@ -16,11 +16,13 @@ Run the non-visual logic checks from the project root:
 godot --headless --path . --script res://tests/ui_theme_checks.gd
 ```
 
-The UI checks load the real main scene and verify Verdant theme resources,
-framed-text safety, main-menu controls, single-player and network character-card
-containment, active and legacy portrait paths, mipmapped portrait filtering,
-class-specific Q/E/F icons, the selected badge, upgrade layout, result controls,
-and the compact combat HUD dimensions. These checks validate code and layout
+The UI checks load the real main scene and verify Campaign Satchel theme resources,
+framed-text safety, single-layer tooltip framing and blue-area clearance, main-menu controls, single-player and
+network character-card containment, the dedicated character-card texture, active
+and legacy portrait paths, mipmapped portrait filtering, class-specific Q/E/F icons,
+the selected badge, upgrade layout, result controls, the compact horizontal combat
+HUD, top-center number-only wave countdown, paused return-to-menu confirmation, ready-label cleanup, rest-bar icon containment, parchment text contrast, outside-click drawer dismissal, deleted legacy-theme directories,
+and the new upgrade-card resource paths. These checks validate code and layout
 constraints; they do not replace in-game visual review.
 
 Run the non-visual gameplay logic checks from the project root:
@@ -47,10 +49,18 @@ separate restarts. It also verifies the single-layer water, grass-island,
 meadow-patch, building, tree, and bush map structure, player-to-HUD binding, player attack signal
 routing, persistent skill-area registration and cleanup after the managers are
 split out of the main scene script, synchronized E-branch upgrades across host
-and client instances, ordered authority-snapshot correction, stale snapshot
-rejection, host-only enemy simulation, stable combat-entity IDs, projectile and
+and client instances, ordered authority-snapshot correction, remote-player
+interpolation, local-player prediction, stale snapshot rejection, host-only
+enemy simulation, stable combat-entity IDs, projectile and
 persistent-area creation/update/removal, hunter-mark ownership, warrior ultimate
-state, synchronized enemy warning events, and network-run upgrade cleanup.
+state, synchronized enemy warning and chain-lightning visual events, duplicate
+visual-event rejection, the post-upgrade training map, its left/right Boss
+dummies, five-second damage reset and death fallback, statistic isolation,
+pre-card cooldown restoration, map restoration, host/client ready ownership,
+and network-run upgrade cleanup.
+The rest-HUD assertions also enforce the portrait placeholder, separate Q/E/F
+slots, icon containment, hidden legacy status text, and the clickable detailed
+stats drawer with critical-rate and cooldown data.
 
 Run the character combat regression checks:
 
@@ -71,7 +81,8 @@ Run the enemy roster and behavior checks:
 godot --headless --path . --script res://tests/enemy_behavior_checks.gd
 ```
 
-These checks cover the ten-wave enemy composition, all seven non-boss enemy
+These checks cover the ten-reward-wave composition, the single fifth-wave
+mini-boss and its half-health enrage, all seven standard non-boss enemy
 types, shield directional reduction, charger windup, bomber self-destruction,
 the grand-elite priest's area healing, wave-seven melee blood rage, heavy stomp,
 ranged repositioning, and the boss reinforcement, enrage,

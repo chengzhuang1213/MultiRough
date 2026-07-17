@@ -26,6 +26,8 @@ const TYPE_SHIELD := "shield"
 const TYPE_CHARGER := "charger"
 const TYPE_BOMBER := "bomber"
 const TYPE_PRIEST := "priest"
+const TYPE_TRAINING_DUMMY := "training_dummy"
+const TYPE_MINI_BOSS := "mini_boss"
 const TYPE_BOSS := "boss"
 const MINOR_SKILL_START_WAVE := 7
 const MELEE_BLOOD_RAGE_HEALTH_RATIO := 0.40
@@ -59,6 +61,8 @@ var preferred_range := 0.0
 var projectile_damage := 8.0
 var enemy_type := TYPE_MELEE
 var is_boss := false
+var is_mini_boss := false
+var is_training_dummy := false
 var network_id := -1
 var authority_enabled := true
 var authority_target_position := Vector2.ZERO
@@ -124,9 +128,12 @@ var _ranged_reposition_left := 0.0
 var _ranged_reposition_direction := Vector2.ZERO
 var _ranged_reposition_side := 1.0
 var _is_dying := false
+var _training_dummy_reset_left := 0.0
+var training_damage_total := 0.0
 
 var _sprite: Sprite2D
 var _health_bar: ProgressBar
+var _training_damage_label: Label
 
 func _ready() -> void:
 	add_to_group("enemies")
@@ -134,6 +141,10 @@ func _ready() -> void:
 
 func _reset_special_state() -> void:
 	is_boss = false
+	is_mini_boss = false
+	is_training_dummy = false
+	_training_dummy_reset_left = 0.0
+	training_damage_total = 0.0
 	_is_dying = false
 	_facing_direction = Vector2.RIGHT
 	_charge_cooldown_left = 0.0
@@ -188,6 +199,13 @@ func setup_as_bomber(wave_number: int) -> void:
 func setup_as_priest(wave_number: int) -> void:
 	_apply_archetype(TYPE_PRIEST, wave_number)
 
+func setup_as_training_dummy() -> void:
+	_apply_archetype(TYPE_TRAINING_DUMMY, 0)
+	is_training_dummy = true
+	if is_node_ready():
+		_update_health_bar()
+		_update_training_damage_label()
+
 func setup_as_boss() -> void:
 	_apply_archetype(TYPE_BOSS, 0)
 	_boss_cataclysm_timer = 5.0
@@ -196,10 +214,19 @@ func setup_as_boss() -> void:
 	_boss_invulnerability_left = 0.0
 	_boss_desperation_timer = BOSS_DESPERATION_COOLDOWN
 
+func setup_as_mini_boss() -> void:
+	_apply_archetype(TYPE_MINI_BOSS, 5)
+	is_boss = true
+	is_mini_boss = true
+	_boss_cataclysm_timer = 4.5
+	_boss_enraged = false
+	_boss_invulnerability_left = 0.0
+
 func _apply_archetype(type_id: String, wave_number: int) -> void:
 	_reset_special_state()
 	enemy_type = type_id
-	is_boss = type_id == TYPE_BOSS
+	is_boss = type_id in [TYPE_BOSS, TYPE_MINI_BOSS]
+	is_mini_boss = type_id == TYPE_MINI_BOSS
 	minor_skill_enabled = wave_number >= MINOR_SKILL_START_WAVE and type_id in [TYPE_MELEE, TYPE_HEAVY, TYPE_RANGED]
 	var stats: Dictionary = EnemyArchetypesScript.get_stats(type_id, wave_number)
 	max_health = float(stats["max_health"])
@@ -284,6 +311,20 @@ func _physics_process(delta: float) -> void:
 		velocity = authority_velocity
 		_play_animation(authority_animation)
 		_advance_current_animation(delta)
+		_update_feedback()
+		return
+	if is_training_dummy:
+		velocity = Vector2.ZERO
+		if _is_dying or health <= 0.0:
+			_is_dying = false
+			health = max_health
+		_training_dummy_reset_left = maxf(0.0, _training_dummy_reset_left - delta)
+		if _training_dummy_reset_left <= 0.0 and (health < max_health or training_damage_total > 0.0):
+			health = max_health
+			training_damage_total = 0.0
+		_update_health_bar()
+		_update_training_damage_label()
+		_update_animation(delta, false)
 		_update_feedback()
 		return
 	_forced_target_left = maxf(0.0, _forced_target_left - delta)
@@ -515,7 +556,17 @@ func apply_damage(amount: float, knockback_origin: Vector2 = Vector2.ZERO, knock
 	if _is_dying or (is_boss and _boss_invulnerability_left > 0.0):
 		return 0.0
 	var resolved_amount := amount
-	if is_boss:
+	if is_training_dummy:
+		var dummy_amount := minf(max_health, maxf(0.0, resolved_amount))
+		health = maxf(1.0, health - dummy_amount)
+		training_damage_total += dummy_amount
+		_training_dummy_reset_left = 5.0
+		_update_health_bar()
+		_update_training_damage_label()
+		_hit_flash_left = 0.10
+		damaged.emit(self, dummy_amount)
+		return dummy_amount
+	if is_boss and not is_mini_boss:
 		resolved_amount *= get_boss_damage_taken_multiplier()
 		if is_aoe:
 			resolved_amount *= BOSS_AOE_DAMAGE_TAKEN_MULTIPLIER
@@ -561,6 +612,10 @@ func get_boss_damage_taken_multiplier(health_ratio: float = -1.0) -> float:
 	return 0.75
 
 func _get_next_boss_phase_health() -> float:
+	if is_mini_boss:
+		if not _boss_phase_40_triggered and health > max_health * 0.50:
+			return max_health * 0.50
+		return -1.0
 	if not _boss_phase_70_triggered and health > max_health * 0.70:
 		return max_health * 0.70
 	if not _boss_phase_40_triggered and health > max_health * 0.40:
@@ -573,6 +628,12 @@ func _get_next_boss_phase_health() -> float:
 
 func _update_boss_phase_transitions() -> void:
 	var transitioned := false
+	if is_mini_boss:
+		if not _boss_phase_40_triggered and health <= max_health * 0.50:
+			_boss_phase_40_triggered = true
+			_enter_boss_enrage()
+			_boss_invulnerability_left = 0.40
+		return
 	if not _boss_phase_70_triggered and health <= max_health * 0.70:
 		_boss_phase_70_triggered = true
 		_boss_reinforcements_called = true
@@ -621,6 +682,8 @@ func make_authority_state(marked_by_player_id: int = 0, guaranteed_crit_player_i
 		"animation": _current_anim,
 		"minor_skill_enabled": minor_skill_enabled,
 		"melee_blood_rage_left": _melee_blood_rage_left,
+		"training_damage_total": training_damage_total,
+		"training_damage_reset_left": _training_dummy_reset_left,
 	}
 
 func apply_authority_state(state: Dictionary) -> void:
@@ -634,6 +697,8 @@ func apply_authority_state(state: Dictionary) -> void:
 	authority_animation = str(state.get("animation", authority_animation))
 	minor_skill_enabled = bool(state.get("minor_skill_enabled", minor_skill_enabled))
 	_melee_blood_rage_left = maxf(0.0, float(state.get("melee_blood_rage_left", _melee_blood_rage_left)))
+	training_damage_total = maxf(0.0, float(state.get("training_damage_total", training_damage_total)))
+	_training_dummy_reset_left = maxf(0.0, float(state.get("training_damage_reset_left", _training_dummy_reset_left)))
 	_authority_state_received = true
 	max_health = maxf(1.0, float(state.get("maximum_health", max_health)))
 	health = clampf(float(state.get("health", health)), 0.0, max_health)
@@ -645,12 +710,21 @@ func apply_authority_state(state: Dictionary) -> void:
 	_slow_move_multiplier = float(state.get("slow_move_multiplier", 1.0))
 	_is_dying = false
 	_update_health_bar()
+	_update_training_damage_label()
 
 func apply_authority_owners(marked_by: PlayerController, guaranteed_crit_by: PlayerController) -> void:
 	_marked_by = marked_by if _mark_left > 0.0 else null
 	_guaranteed_arrow_crit_by = guaranteed_crit_by
 
 func _die() -> void:
+	if is_training_dummy:
+		_is_dying = false
+		health = max_health
+		training_damage_total = 0.0
+		_training_dummy_reset_left = 0.0
+		_update_health_bar()
+		_update_training_damage_label()
+		return
 	if _is_dying:
 		return
 	_is_dying = true
@@ -692,7 +766,22 @@ func _setup_nodes() -> void:
 		add_child(_health_bar)
 	else:
 		_health_bar = get_node("HealthBar") as ProgressBar
+	if not has_node("TrainingDamageLabel"):
+		_training_damage_label = Label.new()
+		_training_damage_label.name = "TrainingDamageLabel"
+		_training_damage_label.position = Vector2(-82.0, -86.0)
+		_training_damage_label.custom_minimum_size = Vector2(164.0, 26.0)
+		_training_damage_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		_training_damage_label.add_theme_font_size_override("font_size", 16)
+		_training_damage_label.add_theme_color_override("font_color", Color(1.0, 0.88, 0.38, 1.0))
+		_training_damage_label.add_theme_color_override("font_outline_color", Color(0.02, 0.03, 0.02, 0.98))
+		_training_damage_label.add_theme_constant_override("outline_size", 3)
+		_training_damage_label.z_index = 21
+		add_child(_training_damage_label)
+	else:
+		_training_damage_label = get_node("TrainingDamageLabel") as Label
 	_update_health_bar()
+	_update_training_damage_label()
 	_play_animation(ANIM_IDLE, true)
 
 func _update_health_bar() -> void:
@@ -700,7 +789,13 @@ func _update_health_bar() -> void:
 		return
 	_health_bar.max_value = max_health
 	_health_bar.value = health
-	_health_bar.visible = health < max_health
+	_health_bar.visible = is_training_dummy or health < max_health
+
+func _update_training_damage_label() -> void:
+	if _training_damage_label == null:
+		return
+	_training_damage_label.visible = is_training_dummy
+	_training_damage_label.text = "5秒伤害：%d" % roundi(training_damage_total)
 
 func _update_variant_visual() -> void:
 	if _sprite == null:

@@ -4,7 +4,7 @@ class_name UpgradeUI
 signal upgrade_selected(upgrade: Dictionary)
 
 const UIFactoryScript := preload("res://scripts/ui/ui_factory.gd")
-const VerdantUIThemeScript := preload("res://scripts/ui/verdant_ui_theme.gd")
+const CampaignSatchelUIThemeScript := preload("res://scripts/ui/campaign_satchel_ui_theme.gd")
 const ReadableTooltipButtonScript := preload("res://scripts/ui/readable_tooltip_button.gd")
 
 const PANEL_SIZE := Vector2(1120, 600)
@@ -62,7 +62,7 @@ func show_options(title_text: String, upgrades: Array, target_player, viewport_s
 	subtitle.custom_minimum_size = Vector2(CONTENT_WIDTH, 20)
 	subtitle.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	subtitle.add_theme_font_size_override("font_size", 14)
-	subtitle.add_theme_color_override("font_color", VerdantUIThemeScript.TEXT_MUTED)
+	subtitle.add_theme_color_override("font_color", CampaignSatchelUIThemeScript.TEXT_MUTED)
 	content.add_child(subtitle)
 	content.add_child(UIFactoryScript.build_separator(Vector2(CONTENT_WIDTH, 10)))
 
@@ -83,7 +83,7 @@ func show_options(title_text: String, upgrades: Array, target_player, viewport_s
 	footer.custom_minimum_size = Vector2(CONTENT_WIDTH, 20)
 	footer.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	footer.add_theme_font_size_override("font_size", 14)
-	footer.add_theme_color_override("font_color", VerdantUIThemeScript.TEXT_MUTED)
+	footer.add_theme_color_override("font_color", CampaignSatchelUIThemeScript.TEXT_MUTED)
 	content.add_child(footer)
 	visible = true
 
@@ -191,7 +191,7 @@ func _build_card(upgrade: Dictionary, target_player, card_size: Vector2) -> Butt
 	description.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	description.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	description.add_theme_font_size_override("font_size", 14)
-	description.add_theme_color_override("font_color", Color(0.88, 0.90, 0.92))
+	description.add_theme_color_override("font_color", CampaignSatchelUIThemeScript.TEXT_MUTED)
 	card_content.add_child(description)
 
 	var spacer := Control.new()
@@ -208,13 +208,13 @@ func _build_card(upgrade: Dictionary, target_player, card_size: Vector2) -> Butt
 	var current := Label.new()
 	current.text = "当前 · %s" % current_text
 	current.add_theme_font_size_override("font_size", 13)
-	current.add_theme_color_override("font_color", Color(0.70, 0.78, 0.72))
+	current.add_theme_color_override("font_color", Color(0.82, 0.82, 0.78, 1.0))
 	result_content.add_child(current)
 	var after := Label.new()
 	after.text = "升级后 · %s" % _compact_effect(upgrade)
 	after.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	after.add_theme_font_size_override("font_size", 14)
-	after.add_theme_color_override("font_color", Color(0.20, 0.72, 0.62))
+	after.add_theme_color_override("font_color", Color(0.52, 0.72, 1.0, 1.0))
 	result_content.add_child(after)
 	_ignore_card_mouse_input(button)
 	return button
@@ -229,7 +229,7 @@ func _build_badge(upgrade: Dictionary, accent: Color) -> Control:
 	if not skill_slot.is_empty():
 		var skill_panel := PanelContainer.new()
 		skill_panel.custom_minimum_size = badge_size
-		var style := VerdantUIThemeScript.make_skill_slot_style(Color(0.86, 0.90, 0.82).lerp(accent, 0.12))
+		var style := CampaignSatchelUIThemeScript.make_skill_slot_style(Color.WHITE.lerp(accent, 0.10))
 		style.content_margin_left = 7
 		style.content_margin_top = 7
 		style.content_margin_right = 7
@@ -311,7 +311,7 @@ func _compact_effect(upgrade: Dictionary) -> String:
 
 func _make_rarity_style(accent: Color) -> StyleBoxFlat:
 	var style := StyleBoxFlat.new()
-	style.bg_color = Color(0.02, 0.18, 0.12, 0.96)
+	style.bg_color = CampaignSatchelUIThemeScript.ACCENT_BLUE_DARK
 	style.border_color = accent
 	style.set_border_width_all(1)
 	style.set_corner_radius_all(12)
@@ -321,7 +321,7 @@ func _make_rarity_style(accent: Color) -> StyleBoxFlat:
 
 func _make_result_style(accent: Color) -> StyleBoxFlat:
 	var style := StyleBoxFlat.new()
-	style.bg_color = Color(0.015, 0.09, 0.065, 0.94)
+	style.bg_color = CampaignSatchelUIThemeScript.ACCENT_BLUE_DARK
 	style.border_color = accent
 	style.set_border_width_all(1)
 	style.set_corner_radius_all(6)

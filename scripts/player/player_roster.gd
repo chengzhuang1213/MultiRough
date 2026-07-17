@@ -2,7 +2,7 @@ extends RefCounted
 class_name PlayerRoster
 
 const PlayerScript := preload("res://scripts/player/player_controller.gd")
-const VerdantUIThemeScript := preload("res://scripts/ui/verdant_ui_theme.gd")
+const CampaignSatchelUIThemeScript := preload("res://scripts/ui/campaign_satchel_ui_theme.gd")
 const GameRulesScript := preload("res://scripts/gameplay/game_rules.gd")
 const CharacterTooltipPanelScript := preload("res://scripts/ui/character_tooltip_panel.gd")
 
@@ -56,10 +56,12 @@ func reset_upgrade_slots() -> void:
 		slot["selection_pending"] = false
 
 func create_hud(parent: PanelContainer, skill_labels: Array[String], hud_width: float = 440.0) -> void:
-	parent.add_theme_stylebox_override("panel", VerdantUIThemeScript.make_compact_panel_style(Color(1.0, 1.0, 1.0, 0.96)))
+	parent.add_theme_stylebox_override("panel", CampaignSatchelUIThemeScript.make_hud_dock_style(Color(1.0, 1.0, 1.0, 0.96)))
 	var margin := MarginContainer.new()
-	for side in ["margin_left", "margin_top", "margin_right", "margin_bottom"]:
-		margin.add_theme_constant_override(side, 8)
+	margin.add_theme_constant_override("margin_left", 12)
+	margin.add_theme_constant_override("margin_top", 8)
+	margin.add_theme_constant_override("margin_right", 12)
+	margin.add_theme_constant_override("margin_bottom", 8)
 	parent.add_child(margin)
 
 	var content := VBoxContainer.new()
@@ -84,7 +86,7 @@ func create_hud(parent: PanelContainer, skill_labels: Array[String], hud_width: 
 	health_frame.name = "HealthFrame"
 	health_frame.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	health_frame.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	health_frame.add_theme_stylebox_override("panel", VerdantUIThemeScript.make_hud_bar_style())
+	health_frame.add_theme_stylebox_override("panel", CampaignSatchelUIThemeScript.make_hud_bar_style())
 	health_layer.add_child(health_frame)
 	health_layer.move_child(health_frame, 0)
 	var health_label := Label.new()
@@ -108,8 +110,8 @@ func create_hud(parent: PanelContainer, skill_labels: Array[String], hud_width: 
 	var action_cooldown_overlays: Array[ColorRect] = []
 	var skill_icons: Array[TextureRect] = []
 	var cooldown_overlays: Array[ColorRect] = []
-	var ready_style := VerdantUIThemeScript.make_skill_slot_style()
-	var cooldown_style := VerdantUIThemeScript.make_skill_slot_style(Color(0.66, 0.62, 0.48, 1.0))
+	var ready_style := CampaignSatchelUIThemeScript.make_skill_slot_style()
+	var cooldown_style := CampaignSatchelUIThemeScript.make_skill_slot_style(Color(0.58, 0.58, 0.58, 1.0))
 	for action_index in range(action_names.size()):
 		var action_name: String = action_names[action_index]
 		var panel := CharacterTooltipPanelScript.new()
@@ -257,9 +259,9 @@ func update_hud(index: int) -> void:
 		player.get_skill_ready(), player.get_fan_skill_ready(), player.get_ultimate_ready(),
 	]
 	var status_texts: Array[String] = [
-		"就绪" if ready_states[0] else "%.1f秒" % player.get_attack_remaining(),
-		"就绪 %d/%d" % [player.dash_charges, player.dash_max_charges] if ready_states[1] else "%.1f秒 %d/%d" % [player.get_dash_remaining(), player.dash_charges, player.dash_max_charges],
-		"就绪" if ready_states[2] else "%.1f秒" % player.get_secondary_remaining(),
+		"" if ready_states[0] else "%.1f" % player.get_attack_remaining(),
+		"%d/%d" % [player.dash_charges, player.dash_max_charges] if ready_states[1] else "%.1f  %d/%d" % [player.get_dash_remaining(), player.dash_charges, player.dash_max_charges],
+		"" if ready_states[2] else "%.1f" % player.get_secondary_remaining(),
 		"" if ready_states[3] else "%.1f" % player.get_skill_remaining(),
 		"" if ready_states[4] else "%.1f" % player.get_fan_skill_remaining(),
 		"" if ready_states[5] else "%.1f" % player.get_ultimate_remaining(),

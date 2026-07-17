@@ -1,9 +1,9 @@
 extends RefCounted
 class_name AuthorityContract
 
-const SNAPSHOT_VERSION := 3
+const SNAPSHOT_VERSION := 4
 
-static func make_player_state(player_id: int, position: Vector2, health: float, maximum_health: float, dead: bool, cooldowns: Dictionary = {}) -> Dictionary:
+static func make_player_state(player_id: int, position: Vector2, health: float, maximum_health: float, dead: bool, cooldowns: Dictionary = {}, velocity: Vector2 = Vector2.ZERO, facing_direction: Vector2 = Vector2.RIGHT, animation: String = "idle") -> Dictionary:
 	return {
 		"player_id": player_id,
 		"position": position,
@@ -11,6 +11,9 @@ static func make_player_state(player_id: int, position: Vector2, health: float, 
 		"maximum_health": maximum_health,
 		"dead": dead,
 		"cooldowns": cooldowns.duplicate(true),
+		"velocity": velocity,
+		"facing_direction": facing_direction,
+		"animation": animation,
 	}
 
 static func make_enemy_state(enemy_id: int, enemy_type: String, position: Vector2, health: float, maximum_health: float) -> Dictionary:
@@ -50,7 +53,7 @@ static func validate_snapshot(snapshot: Dictionary) -> bool:
 		return false
 	var player_ids := {}
 	for player_state in snapshot["players"] as Array:
-		for key in ["player_id", "position", "health", "maximum_health", "dead", "cooldowns"]:
+		for key in ["player_id", "position", "health", "maximum_health", "dead", "cooldowns", "velocity", "facing_direction", "animation"]:
 			if not (player_state as Dictionary).has(key):
 				return false
 		var player_id := int((player_state as Dictionary)["player_id"])

@@ -15,6 +15,7 @@ func _run() -> void:
 	root.add_child(game)
 	await process_frame
 	_check_wave_roster()
+	await _check_mini_boss()
 	await _check_enemy_variants()
 	await _check_basic_enemy_minor_skills()
 	await _check_shield_directional_reduction()
@@ -35,12 +36,33 @@ func _check_wave_roster() -> void:
 	var waves: Array = WaveManagerScript.DEFAULT_WAVES
 	_expect(waves.size() == 11, "wave roster is not ten normal waves plus one boss wave")
 	_expect(bool((waves[10] as Dictionary).get("boss", false)), "wave 11 is not the boss wave")
+	_expect(bool((waves[4] as Dictionary).get("mini_boss", false)) and (waves[4] as Dictionary).size() == 1, "wave five is not a single mini-boss")
 	var roster := {}
 	for index in range(10):
 		for enemy_type in (waves[index] as Dictionary).keys():
 			roster[enemy_type] = true
 	for enemy_type in ["melee", "heavy", "ranged", "shield", "charger", "bomber", "priest"]:
 		_expect(roster.has(enemy_type), "normal waves never spawn enemy type: %s" % enemy_type)
+
+func _check_mini_boss() -> void:
+	game.wave_index = 4
+	game.local_player_count = 1
+	game.boss_health_multiplier = 1.0
+	game.boss_damage_multiplier = 1.0
+	game.wave_spawner.spawn_wave(WaveManagerScript.DEFAULT_WAVES[4])
+	_expect(game.enemies.size() == 1, "wave five did not spawn exactly one mini-boss")
+	if game.enemies.size() == 1:
+		var mini_boss: EnemyController = game.enemies[0]
+		_expect(mini_boss.enemy_type == EnemyController.TYPE_MINI_BOSS and mini_boss.is_mini_boss, "wave five spawned the wrong enemy type")
+		_expect(is_equal_approx(mini_boss.max_health, 520.0), "mini-boss base health changed")
+		var reinforcements_called := [false]
+		mini_boss.boss_reinforcement_requested.connect(func(_enemy): reinforcements_called[0] = true)
+		mini_boss.apply_damage(mini_boss.max_health * 0.60, Vector2.ZERO, 0.0, false)
+		_expect(is_equal_approx(mini_boss.health, mini_boss.max_health * 0.50), "mini-boss did not stop once at its half-health transition")
+		_expect(mini_boss._boss_enraged, "mini-boss did not enrage at half health")
+		_expect(not reinforcements_called[0], "mini-boss incorrectly requested reinforcements")
+	game._clear_remaining_enemies()
+	await process_frame
 
 func _check_enemy_variants() -> void:
 	var setups := {

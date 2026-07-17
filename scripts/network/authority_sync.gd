@@ -23,7 +23,10 @@ func build_snapshot() -> Dictionary:
 			target_player.health,
 			target_player.max_health,
 			target_player.is_dead,
-			target_player.make_authority_cooldowns()
+			target_player.make_authority_cooldowns(),
+			target_player.velocity,
+			target_player.get_authority_facing_direction(),
+			target_player.get_authority_animation()
 		))
 	var enemy_states: Array = []
 	for enemy in game.enemies:
@@ -65,7 +68,7 @@ func apply_snapshot(snapshot: Dictionary) -> bool:
 		game._enter_victory()
 	elif authority_phase == game.GameStateScript.DEFEAT and game.game_state != game.GameStateScript.DEFEAT:
 		game._enter_defeat("房主判定失败")
-	elif authority_phase in [game.GameStateScript.WAVE_ACTIVE, game.GameStateScript.BOSS_WAVE, game.GameStateScript.COUNTDOWN]:
+	elif authority_phase in [game.GameStateScript.WAVE_ACTIVE, game.GameStateScript.BOSS_WAVE, game.GameStateScript.COUNTDOWN, game.GameStateScript.UPGRADE_SELECT, game.GameStateScript.REST]:
 		game.game_state = authority_phase
 	for player_state in snapshot.get("players", []) as Array:
 		var target_player: PlayerController = game._get_network_player(int((player_state as Dictionary).get("player_id", 0))) as PlayerController

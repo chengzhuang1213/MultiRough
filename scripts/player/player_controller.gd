@@ -111,6 +111,12 @@ var unit_color_folder := "Blue Units"
 var character_id := CHARACTER_WARRIOR
 var cooldowns_paused := false
 var external_input_enabled := false
+var authority_presentation_only := false
+var network_local_prediction_enabled := false
+var authority_target_position := Vector2.ZERO
+var authority_velocity := Vector2.ZERO
+var authority_animation := ANIM_IDLE
+var _authority_position_received := false
 
 var _attack_timer := 0.0
 var _dash_timer := 0.0
@@ -177,6 +183,9 @@ func _ready() -> void:
 	health_changed.emit(health, max_health)
 
 func _physics_process(delta: float) -> void:
+	if authority_presentation_only:
+		_update_authority_presentation(delta)
+		return
 	if is_dead:
 		velocity = Vector2.ZERO
 		if not _death_anim_finished:
@@ -256,6 +265,8 @@ func _physics_process(delta: float) -> void:
 	velocity = _last_direction * speed if _dash_time_left > 0.0 else input_direction * speed
 	move_and_slide()
 	global_position = global_position.clamp(arena_bounds.position, arena_bounds.end)
+	if network_local_prediction_enabled and _authority_position_received and input_direction.is_zero_approx():
+		global_position = global_position.lerp(authority_target_position, clampf(delta * 8.0, 0.0, 1.0))
 	_update_animation(delta, input_direction)
 	_update_feedback()
 	_update_skill_ascension_aura(delta)
@@ -578,8 +589,51 @@ func make_authority_cooldowns() -> Dictionary:
 		"secondary": _secondary_timer,
 	}
 
+func reset_training_cooldowns() -> void:
+	_attack_timer = 0.0
+	_dash_timer = 0.0
+	_skill_timer = 0.0
+	_fan_skill_timer = 0.0
+	_ultimate_timer = 0.0
+	_secondary_timer = 0.0
+	dash_charges = dash_max_charges
+	_reset_transient_action_state()
+
+func restore_cooldowns(cooldowns: Dictionary) -> void:
+	_attack_timer = maxf(0.0, float(cooldowns.get("attack", _attack_timer)))
+	_dash_timer = maxf(0.0, float(cooldowns.get("dash", _dash_timer)))
+	_skill_timer = maxf(0.0, float(cooldowns.get("skill", _skill_timer)))
+	_fan_skill_timer = maxf(0.0, float(cooldowns.get("fan", _fan_skill_timer)))
+	_ultimate_timer = maxf(0.0, float(cooldowns.get("ultimate", _ultimate_timer)))
+	_secondary_timer = maxf(0.0, float(cooldowns.get("secondary", _secondary_timer)))
+	_reset_transient_action_state()
+
+func get_authority_facing_direction() -> Vector2:
+	return _last_direction
+
+func get_authority_animation() -> String:
+	return _current_anim
+
 func apply_authority_state(state: Dictionary) -> void:
-	global_position = state.get("position", global_position) as Vector2
+	var next_position := state.get("position", global_position) as Vector2
+	if authority_presentation_only:
+		if not _authority_position_received:
+			global_position = next_position
+		authority_target_position = next_position
+		_authority_position_received = true
+	elif network_local_prediction_enabled:
+		authority_target_position = next_position
+		_authority_position_received = true
+		if global_position.distance_to(next_position) > 96.0:
+			global_position = next_position
+	else:
+		global_position = next_position
+	if authority_presentation_only:
+		authority_velocity = state.get("velocity", authority_velocity) as Vector2
+		var authority_facing := state.get("facing_direction", _last_direction) as Vector2
+		if not authority_facing.is_zero_approx():
+			_last_direction = authority_facing.normalized()
+		authority_animation = str(state.get("animation", authority_animation))
 	max_health = maxf(1.0, float(state.get("maximum_health", max_health)))
 	var authority_dead := bool(state.get("dead", false))
 	if authority_dead and not is_dead:
@@ -598,6 +652,22 @@ func apply_authority_state(state: Dictionary) -> void:
 	_ultimate_timer = maxf(0.0, float(cooldowns.get("ultimate", _ultimate_timer)))
 	_secondary_timer = maxf(0.0, float(cooldowns.get("secondary", _secondary_timer)))
 	health_changed.emit(health, max_health)
+
+func _update_authority_presentation(delta: float) -> void:
+	if _authority_position_received:
+		global_position = global_position.lerp(authority_target_position, clampf(delta * 14.0, 0.0, 1.0))
+	velocity = authority_velocity
+	if is_dead:
+		if not _death_anim_finished:
+			_play_animation(ANIM_DEATH)
+			_advance_animation(delta)
+			var death_data := _get_animation_data(ANIM_DEATH)
+			_death_anim_finished = _anim_frame >= int(death_data["frames"]) - 1
+	else:
+		_play_animation(authority_animation)
+		_advance_animation(delta)
+	_update_feedback()
+	_update_skill_ascension_aura(delta)
 
 func _reset_transient_action_state() -> void:
 	velocity = Vector2.ZERO

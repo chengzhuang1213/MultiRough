@@ -1,0 +1,63 @@
+{
+  "style": "campaign_satchel_pixel_fantasy",
+  "reference_viewport": [1280, 720],
+  "assets": {
+    "panel_large_9slice.png": {
+      "size": [512, 512],
+      "patch_margin": {"left": 84, "top": 84, "right": 84, "bottom": 84}
+    },
+    "tooltip_9slice.png": {
+      "size": [512, 512],
+      "patch_margin": {"left": 36, "top": 28, "right": 36, "bottom": 28}
+    },
+    "title_plate_9slice.png": {
+      "size": [768, 256],
+      "patch_margin": {"left": 64, "top": 20, "right": 64, "bottom": 20}
+    },
+    "button_normal_9slice.png": {
+      "size": [512, 160],
+      "patch_margin": {"left": 24, "top": 18, "right": 24, "bottom": 18}
+    },
+    "button_hover_9slice.png": {
+      "size": [512, 160],
+      "patch_margin": {"left": 24, "top": 18, "right": 24, "bottom": 18}
+    },
+    "button_pressed_9slice.png": {
+      "size": [512, 160],
+      "patch_margin": {"left": 24, "top": 18, "right": 24, "bottom": 18}
+    },
+    "button_disabled_9slice.png": {
+      "size": [512, 160],
+      "patch_margin": {"left": 24, "top": 18, "right": 24, "bottom": 18}
+    },
+    "input_field_9slice.png": {
+      "size": [512, 128],
+      "patch_margin": {"left": 52, "top": 16, "right": 52, "bottom": 16}
+    },
+    "hud_bar_frame_9slice.png": {
+      "size": [512, 96],
+      "patch_margin": {"left": 44, "top": 10, "right": 44, "bottom": 10}
+    },
+    "skill_slot_frame.png": {
+      "size": [192, 192],
+      "stretch": false
+    },
+    "separator_tile.png": {
+      "size": [512, 48],
+      "tile_axis": "horizontal",
+      "protected_end_width": 60
+    },
+    "upgrade_card_common.png": {
+      "size": [294, 380],
+      "rarity": "Common"
+    },
+    "upgrade_card_rare.png": {
+      "size": [294, 380],
+      "rarity": "Rare"
+    },
+    "upgrade_card_epic.png": {
+      "size": [294, 380],
+      "rarity": "Epic"
+    }
+  }
+}

@@ -6,7 +6,7 @@ signal host_requested
 signal join_requested
 
 const UIFactoryScript := preload("res://scripts/ui/ui_factory.gd")
-const VerdantUIThemeScript := preload("res://scripts/ui/verdant_ui_theme.gd")
+const CampaignSatchelUIThemeScript := preload("res://scripts/ui/campaign_satchel_ui_theme.gd")
 
 const PANEL_SIZE := Vector2(800, 680)
 const CONTENT_WIDTH := 500.0
@@ -27,7 +27,7 @@ func _ready() -> void:
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	title.add_theme_font_size_override("font_size", 42)
-	title.add_theme_color_override("font_color", VerdantUIThemeScript.TEXT_PRIMARY)
+	title.add_theme_color_override("font_color", CampaignSatchelUIThemeScript.TEXT_PRIMARY)
 	content.add_child(title)
 
 	var subtitle := Label.new()
@@ -35,7 +35,7 @@ func _ready() -> void:
 	subtitle.custom_minimum_size = Vector2(CONTENT_WIDTH, 24)
 	subtitle.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	subtitle.add_theme_font_size_override("font_size", 16)
-	subtitle.add_theme_color_override("font_color", VerdantUIThemeScript.TEXT_MUTED)
+	subtitle.add_theme_color_override("font_color", CampaignSatchelUIThemeScript.TEXT_MUTED)
 	content.add_child(subtitle)
 
 	content.add_child(UIFactoryScript.build_separator(Vector2(CONTENT_WIDTH, 12)))
@@ -88,7 +88,7 @@ func _ready() -> void:
 	network_status_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	network_status_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	network_status_label.add_theme_font_size_override("font_size", 14)
-	network_status_label.add_theme_color_override("font_color", VerdantUIThemeScript.TEXT_MUTED)
+	network_status_label.add_theme_color_override("font_color", CampaignSatchelUIThemeScript.TEXT_MUTED)
 	content.add_child(network_status_label)
 
 func set_status(text: String) -> void:

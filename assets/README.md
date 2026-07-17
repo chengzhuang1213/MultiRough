@@ -24,7 +24,7 @@ Top-level folders currently available:
 
 ## Project UI assets
 
-- Unified Verdant theme: `res://assets/ui/theme/verdant_pixel/`
+- Unified Campaign Satchel theme: `res://assets/ui/theme/campaign_satchel/`
 - Character-select stat and skill icons: `res://assets/ui/character_select/`
 - Active landscape character cards: `res://assets/original/characters/<class>/<class>_card_select_redraw_v1.png`
 - Legacy character cards remain in their original `*_card_v*.png` paths and are retained by `CHARACTER_CARD_ART_LEGACY` in `scripts/gameplay/main_game.gd`.

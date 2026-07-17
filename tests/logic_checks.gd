@@ -4,6 +4,7 @@ const GameRulesScript := preload("res://scripts/gameplay/game_rules.gd")
 const WaveManagerScript := preload("res://scripts/gameplay/wave_manager.gd")
 const UpgradeCatalogScript := preload("res://scripts/upgrades/upgrade_catalog.gd")
 const UpgradeManagerScript := preload("res://scripts/upgrades/upgrade_manager.gd")
+const UpgradeSessionScript := preload("res://scripts/upgrades/upgrade_session.gd")
 const PlayerScript := preload("res://scripts/player/player_controller.gd")
 const AuthorityContractScript := preload("res://scripts/network/authority_contract.gd")
 
@@ -395,8 +396,18 @@ func _check_wave_progression() -> void:
 		if bool((result["definition"] as Dictionary).get("boss", false)):
 			boss_seen = true
 			_expect(expected_index == manager.boss_wave_index(), "boss appeared at an unexpected wave")
+		if expected_index == 4:
+			_expect(bool((result["definition"] as Dictionary).get("mini_boss", false)), "wave five is not the mid-run mini-boss")
+			_expect(manager.is_post_midboss_upgrade(), "wave five did not activate the post-midboss rarity rule")
 	_expect(boss_seen, "wave progression never reached a boss")
 	_expect(bool(manager.advance()["complete"]), "wave progression did not complete after the boss")
+	for _index in range(100):
+		_expect(UpgradeManagerScript.roll_rarity(false, ["Common"]) != "Common", "post-midboss rarity roll returned a common card")
+	var final_player = PlayerScript.new()
+	final_player.apply_character_config(GameRulesScript.get_character_config("mage"))
+	var forced_final_roll: Dictionary = UpgradeSessionScript.roll_sets([final_player], true, ["Common"])
+	_expect(str(forced_final_roll.get("rarity", "")) == "Epic", "final upgrade stopped forcing epic after common cards were excluded")
+	final_player.free()
 
 func _check_multiplayer_scaling_and_revival() -> void:
 	var single: Dictionary = GameRulesScript.get_mode_scaling(1)
@@ -546,7 +557,9 @@ func _check_authority_snapshot_contract() -> void:
 	var enemy_state: Dictionary = AuthorityContractScript.make_enemy_state(1, "melee", Vector2(40.0, 20.0), 35.0, 46.0)
 	var snapshot: Dictionary = AuthorityContractScript.make_snapshot(1, "WAVE_ACTIVE", 0, [player_state], [enemy_state], 59.0, 1.0, {"enemies_defeated": 2})
 	_expect(AuthorityContractScript.validate_snapshot(snapshot), "authority snapshot contract is invalid")
-	_expect(int(snapshot.get("version", 0)) == 3, "authority snapshot version was not advanced")
+	_expect(int(snapshot.get("version", 0)) == 4, "authority snapshot version was not advanced")
+	_expect((player_state.get("velocity", Vector2.INF) as Vector2).is_equal_approx(Vector2.ZERO), "authority player state omitted velocity")
+	_expect(str(player_state.get("animation", "")) == "idle", "authority player state omitted animation")
 	_expect(snapshot.has("projectiles") and snapshot.has("skill_areas") and snapshot.has("ultimates"), "authority snapshot omitted combat entities")
 	_expect(is_equal_approx(float(snapshot.get("wave_time_left", 0.0)), 59.0), "authority snapshot omitted wave time")
 	var duplicate_enemy_snapshot := snapshot.duplicate(true)

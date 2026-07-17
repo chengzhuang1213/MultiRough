@@ -73,6 +73,13 @@ const BEHAVIOR_POOL: Array = [
 	{"id": "lancer_f_finisher", "title": "长枪 F · 破阵终击", "description": "大招结束时发动一次大范围、高伤害横扫。", "stat": "behavior_upgrade", "rarity": "Epic", "skill_slot": "F", "character_id": "lancer", "max_level": 1},
 ]
 
+static func get_by_id(upgrade_id: String) -> Dictionary:
+	for pool in [GENERAL_POOL, SKILL_POOL, BEHAVIOR_POOL]:
+		for upgrade in pool:
+			if str((upgrade as Dictionary).get("id", "")) == upgrade_id:
+				return (upgrade as Dictionary).duplicate(true)
+	return {}
+
 static func roll(count: int = 3, character_id: String = "", upgrade_levels: Dictionary = {}, rarity: String = "", offer_misses: Dictionary = {}) -> Array:
 	var result: Array = []
 	var used_ids: Dictionary = {}

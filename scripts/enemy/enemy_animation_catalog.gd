@@ -5,6 +5,11 @@ const FRAME_SIZE := Vector2(192, 192)
 const BOSS_FRAME_SIZE := Vector2(320, 320)
 
 const DATA := {
+	"training_dummy": {
+		"idle": ["res://assets/tiny_swords_free_pack/Units/Black Units/Lancer/Lancer_Idle.png", 12, 0.11],
+		"run": ["res://assets/tiny_swords_free_pack/Units/Black Units/Lancer/Lancer_Idle.png", 12, 0.11],
+		"attack": ["res://assets/tiny_swords_free_pack/Units/Black Units/Lancer/Lancer_Idle.png", 12, 0.11],
+	},
 	"melee": {
 		"idle": ["res://assets/tiny_swords_free_pack/Units/Red Units/Pawn/Pawn_Idle.png", 8, 0.12],
 		"run": ["res://assets/tiny_swords_free_pack/Units/Red Units/Pawn/Pawn_Run.png", 6, 0.085],
@@ -54,12 +59,13 @@ static func get_animation(enemy_type: String, anim_name: String, is_boss: bool =
 	return {"path": values[0], "frames": values[1], "frame_time": values[2]}
 
 static func get_frame_size(enemy_type: String, is_boss: bool) -> Vector2:
-	return BOSS_FRAME_SIZE if is_boss or enemy_type == "charger" else FRAME_SIZE
+	return BOSS_FRAME_SIZE if is_boss or enemy_type in ["charger", "training_dummy"] else FRAME_SIZE
 
 static func get_scale(enemy_type: String, is_boss: bool) -> Vector2:
 	if is_boss:
 		return Vector2(0.85, 0.85)
 	return {
+		"training_dummy": Vector2(0.68, 0.68),
 		"heavy": Vector2(0.68, 0.68), "ranged": Vector2(0.52, 0.52),
 		"shield": Vector2(0.60, 0.60), "charger": Vector2(0.58, 0.58),
 		"bomber": Vector2(0.62, 0.62), "priest": Vector2(0.60, 0.60),
@@ -67,6 +73,8 @@ static func get_scale(enemy_type: String, is_boss: bool) -> Vector2:
 
 static func get_tint(enemy_type: String) -> Color:
 	return {
+		"training_dummy": Color(0.72, 0.48, 0.26, 1.0),
+		"mini_boss": Color(0.82, 0.58, 1.0, 1.0),
 		"heavy": Color(0.82, 0.82, 0.92, 1.0), "ranged": Color(0.95, 0.86, 0.58, 1.0),
 		"shield": Color(0.72, 0.86, 1.0, 1.0), "charger": Color(1.0, 0.72, 0.72, 1.0),
 		"bomber": Color(1.0, 0.68, 0.34, 1.0), "priest": Color(0.68, 1.0, 0.72, 1.0),

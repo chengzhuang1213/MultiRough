@@ -99,7 +99,7 @@ func damage_enemy(enemy: EnemyController, amount: float, attacker: PlayerControl
 	var can_transfer_mark := attacker != null and attacker.get_upgrade_level("archer_e_mark_transfer") > 0 and enemy.is_marked_by(attacker)
 	var death_position := enemy.global_position
 	var effective_amount: float = enemy.apply_damage(final_amount, knockback_origin, knockback_force, cause_stagger, is_aoe)
-	if allow_lifesteal:
+	if allow_lifesteal and not enemy.is_training_dummy:
 		apply_lifesteal(attacker, effective_amount)
 	if can_transfer_mark and enemy.health <= 0.0:
 		transfer_hunter_mark(death_position, attacker, enemy)
@@ -354,6 +354,7 @@ func sync_authority_mark_visual(target: EnemyController, marked: bool, duration:
 func cast_chain_lightning(origin: Vector2, direction: Vector2, damage: float, owner: PlayerController, empowered: bool, is_critical: bool = false) -> void:
 	game._spawn_textured_effect(origin, MageEVfxTexture, 118.0, 0.24, "MageChainCast")
 	game._spawn_spark_burst(origin, Color(0.42, 0.72, 1.0, 0.94), 10, 46.0, 0.18)
+	var visual_points: Array = [origin]
 	var remaining: Array[EnemyController] = []
 	for enemy in game.enemies.duplicate():
 		if is_instance_valid(enemy):
@@ -384,10 +385,28 @@ func cast_chain_lightning(origin: Vector2, direction: Vector2, damage: float, ow
 		var hit_damage := damage if empowered else damage * pow(0.85, hit_count)
 		_spawn_mage_chain_lightning(current_position, best.global_position)
 		game._spawn_spark_burst(best.global_position, Color(0.34, 0.78, 1.0, 0.94), 7, 32.0, 0.16)
+		visual_points.append(best.global_position)
 		damage_enemy(best, hit_damage, owner, current_position, 0.0, true, true, false, is_critical)
 		current_position = best.global_position
 		remaining.erase(best)
 		hit_count += 1
+	if visual_points.size() > 1:
+		game._broadcast_combat_visual("mage_chain_lightning", {"points": visual_points})
+
+func show_network_visual_event(event_type: String, payload: Dictionary) -> void:
+	if event_type != "mage_chain_lightning":
+		return
+	var points: Array = payload.get("points", []) as Array
+	if points.size() < 2:
+		return
+	var cast_origin := points[0] as Vector2
+	game._spawn_textured_effect(cast_origin, MageEVfxTexture, 118.0, 0.24, "MageChainCast")
+	game._spawn_spark_burst(cast_origin, Color(0.42, 0.72, 1.0, 0.94), 10, 46.0, 0.18)
+	for index in range(1, points.size()):
+		var start := points[index - 1] as Vector2
+		var finish := points[index] as Vector2
+		_spawn_mage_chain_lightning(start, finish)
+		game._spawn_spark_burst(finish, Color(0.34, 0.78, 1.0, 0.94), 7, 32.0, 0.16)
 
 func _spawn_mage_chain_lightning(start: Vector2, finish: Vector2) -> void:
 	var offset := finish - start

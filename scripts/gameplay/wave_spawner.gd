@@ -17,6 +17,9 @@ func spawn_minions(count: int) -> void:
 		game._register_enemy(enemy)
 
 func spawn_wave(wave_def: Dictionary) -> void:
+	if bool(wave_def.get("mini_boss", false)):
+		spawn_mini_boss()
+		return
 	var spawn_types: Array[String] = []
 	for enemy_type in ["melee", "heavy", "ranged", "shield"]:
 		var scaled_count := roundi(float(wave_def.get(enemy_type, 0)) * game.minion_count_multiplier)
@@ -38,6 +41,8 @@ func spawn_wave(wave_def: Dictionary) -> void:
 func setup_wave_enemy(enemy: EnemyController, enemy_type: String) -> void:
 	var wave_number: int = game.wave_index + 1
 	match enemy_type:
+		"training_dummy": enemy.setup_as_training_dummy()
+		"mini_boss": enemy.setup_as_mini_boss()
 		"heavy": enemy.setup_as_heavy(wave_number)
 		"ranged": enemy.setup_as_ranged(wave_number)
 		"shield": enemy.setup_as_shield(wave_number)
@@ -46,6 +51,16 @@ func setup_wave_enemy(enemy: EnemyController, enemy_type: String) -> void:
 		"priest": enemy.setup_as_priest(wave_number)
 		_: enemy.setup_as_minion(wave_number)
 	tune_enemy_for_mode(enemy)
+
+func spawn_mini_boss() -> void:
+	var mini_boss: EnemyController = EnemyScript.new()
+	mini_boss.setup_as_mini_boss()
+	mini_boss.max_health *= game.boss_health_multiplier
+	mini_boss.health = mini_boss.max_health
+	mini_boss.attack_damage *= game.boss_damage_multiplier
+	mini_boss.global_position = Vector2(0, -160)
+	game._register_enemy(mini_boss)
+	game._spawn_effect(mini_boss.global_position, 96.0, Color(0.72, 0.32, 1.0, 0.24), 0.55)
 
 func spawn_boss() -> void:
 	var boss: EnemyController = EnemyScript.new()

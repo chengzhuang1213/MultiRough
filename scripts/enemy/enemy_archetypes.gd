@@ -2,6 +2,19 @@ extends RefCounted
 class_name EnemyArchetypes
 
 static func get_stats(enemy_type: String, wave_number: int = 0) -> Dictionary:
+	if enemy_type == "training_dummy":
+		return {
+			"max_health": 10000.0, "move_speed": 0.0, "attack_damage": 0.0,
+			"attack_interval": 999.0, "attack_range": 0.0,
+			"attack_windup_time": 0.0, "attack_recovery_time": 0.0,
+		}
+	if enemy_type == "mini_boss":
+		return {
+			"max_health": 520.0, "move_speed": 78.0, "attack_damage": 14.0,
+			"attack_interval": 0.78, "attack_range": 54.0,
+			"attack_windup_time": 0.38, "attack_recovery_time": 0.30,
+			"boss_area_timer": 1.8,
+		}
 	if enemy_type == "boss":
 		return {
 			"max_health": 1200.0, "move_speed": 70.0, "attack_damage": 18.0,

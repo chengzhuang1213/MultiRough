@@ -6,7 +6,7 @@ signal character_requested(character_id: String)
 signal start_requested
 
 const UIFactoryScript := preload("res://scripts/ui/ui_factory.gd")
-const VerdantUIThemeScript := preload("res://scripts/ui/verdant_ui_theme.gd")
+const CampaignSatchelUIThemeScript := preload("res://scripts/ui/campaign_satchel_ui_theme.gd")
 const GameRulesScript := preload("res://scripts/gameplay/game_rules.gd")
 const CharacterTooltipPanelScript := preload("res://scripts/ui/character_tooltip_panel.gd")
 
@@ -52,7 +52,7 @@ func rebuild(new_context: Dictionary) -> void:
 	subtitle.custom_minimum_size = Vector2(CONTENT_WIDTH, 22)
 	subtitle.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	subtitle.add_theme_font_size_override("font_size", 15)
-	subtitle.add_theme_color_override("font_color", VerdantUIThemeScript.TEXT_MUTED)
+	subtitle.add_theme_color_override("font_color", CampaignSatchelUIThemeScript.TEXT_MUTED)
 	content.add_child(subtitle)
 	content.add_child(UIFactoryScript.build_separator(Vector2(CONTENT_WIDTH, 10)))
 
@@ -63,7 +63,7 @@ func rebuild(new_context: Dictionary) -> void:
 		room_status.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		room_status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		room_status.add_theme_font_size_override("font_size", 14)
-		room_status.add_theme_color_override("font_color", VerdantUIThemeScript.TEXT_MUTED)
+		room_status.add_theme_color_override("font_color", CampaignSatchelUIThemeScript.TEXT_MUTED)
 		content.add_child(room_status)
 
 	if player_count > 1:
@@ -151,8 +151,10 @@ func _build_character_card(character_id: String, card_size: Vector2) -> Dictiona
 
 	var margin := MarginContainer.new()
 	margin.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	for side in ["margin_left", "margin_top", "margin_right", "margin_bottom"]:
-		margin.add_theme_constant_override(side, 10)
+	margin.add_theme_constant_override("margin_left", 14)
+	margin.add_theme_constant_override("margin_top", 24 if card_size.y >= SINGLE_CARD_HEIGHT else 14)
+	margin.add_theme_constant_override("margin_right", 14)
+	margin.add_theme_constant_override("margin_bottom", 14)
 	margin.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	button.add_child(margin)
 
@@ -162,17 +164,17 @@ func _build_character_card(character_id: String, card_size: Vector2) -> Dictiona
 	margin.add_child(card_content)
 
 	var title_row := HBoxContainer.new()
-	title_row.custom_minimum_size = Vector2(220, 34)
+	title_row.custom_minimum_size = Vector2(212, 36)
 	card_content.add_child(title_row)
 	var title_label := Label.new()
 	title_label.text = _character_name(character_id)
 	title_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	title_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	title_label.add_theme_font_size_override("font_size", 22)
+	title_label.add_theme_font_size_override("font_size", 20)
 	title_row.add_child(title_label)
 	var selected_badge := PanelContainer.new()
 	selected_badge.custom_minimum_size = Vector2(90, 36)
-	selected_badge.add_theme_stylebox_override("panel", _make_chip_style(Color(0.88, 0.72, 0.37), Color(0.88, 0.72, 0.37)))
+	selected_badge.add_theme_stylebox_override("panel", _make_chip_style(CampaignSatchelUIThemeScript.ACCENT_BLUE_DARK, CampaignSatchelUIThemeScript.ACCENT_BRASS))
 	selected_badge.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	title_row.add_child(selected_badge)
 	var selected_label := Label.new()
@@ -180,19 +182,19 @@ func _build_character_card(character_id: String, card_size: Vector2) -> Dictiona
 	selected_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	selected_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	selected_label.add_theme_font_size_override("font_size", 16)
-	selected_label.add_theme_color_override("font_color", Color(0.015, 0.055, 0.035))
+	selected_label.add_theme_color_override("font_color", CampaignSatchelUIThemeScript.TOOLTIP_TEXT)
 	selected_label.add_theme_color_override("font_shadow_color", Color.TRANSPARENT)
 	selected_badge.add_child(selected_label)
 
 	var role_label := Label.new()
 	role_label.text = _character_role(character_id)
-	role_label.custom_minimum_size = Vector2(220, 20)
-	role_label.add_theme_font_size_override("font_size", 14)
-	role_label.add_theme_color_override("font_color", VerdantUIThemeScript.TEXT_MUTED)
+	role_label.custom_minimum_size = Vector2(212, 18)
+	role_label.add_theme_font_size_override("font_size", 13)
+	role_label.add_theme_color_override("font_color", CampaignSatchelUIThemeScript.TEXT_MUTED)
 	card_content.add_child(role_label)
 
 	var art_frame := Control.new()
-	art_frame.custom_minimum_size = Vector2(220, 187 if card_size.y >= SINGLE_CARD_HEIGHT else 120)
+	art_frame.custom_minimum_size = Vector2(212, 165 if card_size.y >= SINGLE_CARD_HEIGHT else 110)
 	art_frame.clip_contents = true
 	art_frame.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	card_content.add_child(art_frame)
@@ -219,9 +221,9 @@ func _build_character_card(character_id: String, card_size: Vector2) -> Dictiona
 
 	var compact := card_size.y < SINGLE_CARD_HEIGHT
 	var skills := HBoxContainer.new()
-	skills.custom_minimum_size = Vector2(220, 34 if compact else 52)
+	skills.custom_minimum_size = Vector2(212, 34 if compact else 48)
 	skills.alignment = BoxContainer.ALIGNMENT_CENTER
-	skills.add_theme_constant_override("separation", 12)
+	skills.add_theme_constant_override("separation", 8)
 	card_content.add_child(skills)
 	var skill_panels: Array[PanelContainer] = []
 	for skill_key in ["Q", "E", "F"]:
@@ -257,8 +259,8 @@ func _layout_portrait_top_aligned(frame: Control, art: TextureRect) -> void:
 
 func _build_stat(text: String) -> PanelContainer:
 	var panel := PanelContainer.new()
-	panel.custom_minimum_size = Vector2(106, 30)
-	panel.add_theme_stylebox_override("panel", _make_chip_style(Color(0.015, 0.035, 0.025, 0.88), Color(0.82, 0.66, 0.28)))
+	panel.custom_minimum_size = Vector2(102, 28)
+	panel.add_theme_stylebox_override("panel", _make_chip_style(Color(0.92, 0.84, 0.68, 0.96), CampaignSatchelUIThemeScript.ACCENT_BRASS))
 	var label := Label.new()
 	label.text = text
 	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -271,8 +273,8 @@ func _build_skill_key(character_id: String, skill_key: String, compact: bool) ->
 	var panel := CharacterTooltipPanelScript.new()
 	panel.tooltip_accent = (context.get("card_accents", {}) as Dictionary).get(character_id, Color.WHITE)
 	panel.tooltip_text = GameRulesScript.get_action_tooltip(character_id, skill_key)
-	panel.custom_minimum_size = Vector2(65, 34 if compact else 52)
-	panel.add_theme_stylebox_override("panel", _make_chip_style(Color(0.025, 0.09, 0.07, 0.92), Color(0.82, 0.66, 0.28)))
+	panel.custom_minimum_size = Vector2(64, 34 if compact else 48)
+	panel.add_theme_stylebox_override("panel", _make_chip_style(CampaignSatchelUIThemeScript.ACCENT_BLUE_DARK, CampaignSatchelUIThemeScript.ACCENT_BRASS))
 	panel.clip_contents = true
 	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var icon_center := CenterContainer.new()
@@ -282,7 +284,7 @@ func _build_skill_key(character_id: String, skill_key: String, compact: bool) ->
 	icon.name = "SkillIcon"
 	var character_icons: Dictionary = (context.get("skill_icons", {}) as Dictionary).get(character_id, {})
 	icon.texture = load(str(character_icons.get(skill_key, ""))) as Texture2D
-	icon.custom_minimum_size = Vector2(28, 28) if compact else Vector2(44, 44)
+	icon.custom_minimum_size = Vector2(28, 28) if compact else Vector2(40, 40)
 	icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -292,8 +294,8 @@ func _build_skill_key(character_id: String, skill_key: String, compact: bool) ->
 	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 	label.vertical_alignment = VERTICAL_ALIGNMENT_TOP
 	label.add_theme_font_size_override("font_size", 11 if compact else 12)
-	label.add_theme_color_override("font_color", VerdantUIThemeScript.TEXT_PRIMARY)
-	label.add_theme_color_override("font_outline_color", VerdantUIThemeScript.TEXT_OUTLINE)
+	label.add_theme_color_override("font_color", CampaignSatchelUIThemeScript.TOOLTIP_TEXT)
+	label.add_theme_color_override("font_outline_color", CampaignSatchelUIThemeScript.TOOLTIP_OUTLINE)
 	label.add_theme_constant_override("outline_size", 3)
 	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	panel.add_child(label)
@@ -334,30 +336,19 @@ func _make_chip_style(background: Color, border: Color) -> StyleBoxFlat:
 func _style_card_button(button: Button, selected: bool, accent: Color) -> void:
 	if button == null:
 		return
-	var normal := StyleBoxFlat.new()
-	normal.bg_color = Color(0.015, 0.09, 0.065, 0.96)
-	normal.border_color = Color(0.98, 0.90, 0.66) if selected else Color(0.82, 0.66, 0.28)
-	normal.set_border_width_all(3 if selected else 1)
-	normal.set_corner_radius_all(10)
-	normal.content_margin_left = 0
-	normal.content_margin_top = 0
-	normal.content_margin_right = 0
-	normal.content_margin_bottom = 0
-	var hover: StyleBoxFlat = normal.duplicate()
-	hover.bg_color = Color(0.025, 0.13, 0.09, 0.98).lerp(accent, 0.04)
-	hover.border_color = Color(0.98, 0.90, 0.66)
-	hover.set_border_width_all(3)
-	var pressed: StyleBoxFlat = hover.duplicate()
-	pressed.bg_color = Color(0.04, 0.16, 0.11, 0.98).lerp(accent, 0.06)
+	var normal_tint := Color.WHITE.lerp(accent, 0.05 if selected else 0.0)
+	var normal := CampaignSatchelUIThemeScript.make_character_card_style(normal_tint)
+	var hover := CampaignSatchelUIThemeScript.make_character_card_style(Color.WHITE.lerp(accent, 0.10))
+	var pressed := CampaignSatchelUIThemeScript.make_character_card_style(Color(0.88, 0.84, 0.76, 1.0).lerp(accent, 0.08))
 	button.add_theme_stylebox_override("normal", normal)
 	button.add_theme_stylebox_override("hover", hover)
 	button.add_theme_stylebox_override("pressed", pressed)
 	button.add_theme_stylebox_override("focus", hover)
 
 func _style_slot_button(button: Button, active: bool) -> void:
-	button.add_theme_stylebox_override("normal", VerdantUIThemeScript.make_button_style(
-		VerdantUIThemeScript.BUTTON_HOVER_TEXTURE if active else VerdantUIThemeScript.BUTTON_NORMAL_TEXTURE
+	button.add_theme_stylebox_override("normal", CampaignSatchelUIThemeScript.make_button_style(
+		CampaignSatchelUIThemeScript.BUTTON_HOVER_TEXTURE if active else CampaignSatchelUIThemeScript.BUTTON_NORMAL_TEXTURE
 	))
-	button.add_theme_stylebox_override("hover", VerdantUIThemeScript.make_button_style(VerdantUIThemeScript.BUTTON_HOVER_TEXTURE))
-	button.add_theme_stylebox_override("pressed", VerdantUIThemeScript.make_button_style(VerdantUIThemeScript.BUTTON_PRESSED_TEXTURE))
-	button.add_theme_stylebox_override("disabled", VerdantUIThemeScript.make_button_style(VerdantUIThemeScript.BUTTON_DISABLED_TEXTURE))
+	button.add_theme_stylebox_override("hover", CampaignSatchelUIThemeScript.make_button_style(CampaignSatchelUIThemeScript.BUTTON_HOVER_TEXTURE))
+	button.add_theme_stylebox_override("pressed", CampaignSatchelUIThemeScript.make_button_style(CampaignSatchelUIThemeScript.BUTTON_PRESSED_TEXTURE))
+	button.add_theme_stylebox_override("disabled", CampaignSatchelUIThemeScript.make_button_style(CampaignSatchelUIThemeScript.BUTTON_DISABLED_TEXTURE))

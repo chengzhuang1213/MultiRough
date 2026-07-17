@@ -6,7 +6,7 @@ const DEFAULT_WAVES := [
 	{"melee": 5, "ranged": 2},
 	{"melee": 6, "heavy": 2, "ranged": 2},
 	{"melee": 6, "shield": 3, "ranged": 2},
-	{"melee": 8, "heavy": 2, "charger": 1},
+	{"mini_boss": true},
 	{"melee": 8, "ranged": 4, "bomber": 1},
 	{"melee": 8, "heavy": 3, "shield": 3, "charger": 1},
 	{"melee": 8, "ranged": 5, "shield": 3, "priest": 1},
@@ -42,3 +42,6 @@ func boss_wave_index() -> int:
 		if bool((wave_definitions[index] as Dictionary).get("boss", false)):
 			return index
 	return -1
+
+func is_post_midboss_upgrade() -> bool:
+	return wave_index >= 4
