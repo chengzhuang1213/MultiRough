@@ -22,6 +22,7 @@ const ResultUIScene := preload("res://scenes/ui/result_ui.tscn")
 
 const ARENA_BOUNDS := Rect2(Vector2(-960, -540), Vector2(1920, 1080))
 const VIEWPORT_SIZE := Vector2(1280, 720)
+const MAP_VIEW_MARGIN := 160.0
 const PLAYER_HUD_OCCLUDED_ALPHA := 0.20
 const PLAYER_HUD_FADE_OUT_TIME := 0.12
 const PLAYER_HUD_FADE_IN_TIME := 0.20
@@ -890,7 +891,7 @@ func _start_next_wave() -> void:
 		return
 
 	_revive_dead_players_for_next_wave()
-	_position_players_for_next_wave()
+	_prepare_players_for_next_wave()
 	_update_player_wave_damage_growth()
 
 	var wave_def: Dictionary = wave_result["definition"] as Dictionary
@@ -907,15 +908,13 @@ func _start_next_wave() -> void:
 
 	_update_status()
 
-func _position_players_for_next_wave() -> void:
-	var living_players: Array[PlayerController] = []
+func _prepare_players_for_next_wave() -> void:
 	for existing_player in players:
-		if is_instance_valid(existing_player) and not existing_player.is_dead:
-			living_players.append(existing_player)
-	for index in range(living_players.size()):
-		var target_x := (float(index) - float(living_players.size() - 1) * 0.5) * 84.0
-		living_players[index].global_position = Vector2(target_x, 0.0)
-		living_players[index].velocity = Vector2.ZERO
+		if not is_instance_valid(existing_player) or existing_player.is_dead:
+			continue
+		if not existing_player.global_position.is_finite() or not ARENA_BOUNDS.has_point(existing_player.global_position):
+			existing_player.global_position = ARENA_BOUNDS.get_center()
+		existing_player.velocity = Vector2.ZERO
 
 func _update_player_wave_damage_growth() -> void:
 	var multiplier := 1.0 + float(maxi(wave_index, 0)) * GameRulesScript.PLAYER_DAMAGE_GROWTH_PER_WAVE
@@ -981,11 +980,12 @@ func _update_camera() -> void:
 		return
 	var focus: Vector2 = _get_alive_players_center()
 	var half_view: Vector2 = _get_viewport_size() * 0.5
-	var min_position: Vector2 = ARENA_BOUNDS.position + half_view
-	var max_position: Vector2 = ARENA_BOUNDS.end - half_view
+	var camera_bounds := ARENA_BOUNDS.grow(MAP_VIEW_MARGIN)
+	var min_position: Vector2 = camera_bounds.position + half_view
+	var max_position: Vector2 = camera_bounds.end - half_view
 	camera.global_position = Vector2(
-		_clamp_camera_axis(focus.x, min_position.x, max_position.x, ARENA_BOUNDS.get_center().x),
-		_clamp_camera_axis(focus.y, min_position.y, max_position.y, ARENA_BOUNDS.get_center().y)
+		_clamp_camera_axis(focus.x, min_position.x, max_position.x, camera_bounds.get_center().x),
+		_clamp_camera_axis(focus.y, min_position.y, max_position.y, camera_bounds.get_center().y)
 	)
 
 func _clamp_camera_axis(value: float, minimum: float, maximum: float, fallback: float) -> float:

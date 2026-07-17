@@ -16,6 +16,7 @@ func _run() -> void:
 	game = MainScene.instantiate()
 	root.add_child(game)
 	await process_frame
+	_check_single_layer_map()
 
 	await _check_complete_single_player_run()
 	await _check_restart_cleanup()
@@ -33,6 +34,73 @@ func _run() -> void:
 		printerr("FAIL: %s" % failure)
 	quit(1)
 
+func _check_single_layer_map() -> void:
+	var water := game.map_root.get_node_or_null("WaterBase") as TextureRect
+	var island := game.map_root.get_node_or_null("GrassIsland") as TileMapLayer
+	var light_meadow := game.map_root.get_node_or_null("LightMeadowZone") as TileMapLayer
+	var dark_meadow := game.map_root.get_node_or_null("DarkMeadowZone") as TileMapLayer
+	_expect(water != null and water.texture != null, "single-layer map is missing its tiled water background")
+	_expect(island != null and island.get_used_cells().size() >= 500, "single-layer grass island is incomplete")
+	_expect(light_meadow != null and not light_meadow.get_used_cells().is_empty(), "light meadow region is missing")
+	_expect(dark_meadow != null and not dark_meadow.get_used_cells().is_empty(), "dark meadow region is missing")
+	_expect_flat_meadow(light_meadow, "light meadow")
+	_expect_flat_meadow(dark_meadow, "dark meadow")
+	_expect(_count_map_children("BoundaryBuilding") == 6, "map does not contain the full peripheral settlement")
+	_expect(_count_map_children("BoundaryTree") >= 22, "full-map tree line is incomplete")
+	_expect(_count_map_children("BoundaryBush") >= 16, "full-map bush clusters are incomplete")
+	_expect_map_obstacle_collisions("BoundaryBuilding", 6, true)
+	_expect_map_obstacle_collisions("BoundaryTree", 22, true)
+	_expect_map_obstacle_collisions("SoftObstacle", 10, false)
+	_expect_map_obstacle_collisions("CornerProp", 4, false)
+	_expect_rocks_clear_of_trees()
+	for child in game.map_root.get_children():
+		if not str(child.name).begins_with("BoundaryTree"):
+			continue
+		var tree := child as Sprite2D
+		var expected_frame := Vector2(tree.texture.get_width() / 8.0, tree.texture.get_height())
+		_expect(tree.region_rect.size.is_equal_approx(expected_frame), "tree frame includes pixels from an adjacent animation frame: %s" % child.name)
+
+func _expect_rocks_clear_of_trees() -> void:
+	var rocks: Array = game.map_root.get_children().filter(func(child): return str(child.name).begins_with("SoftObstacle"))
+	var trees: Array = game.map_root.get_children().filter(func(child): return str(child.name).begins_with("BoundaryTree"))
+	for rock_value in rocks:
+		var rock := rock_value as Sprite2D
+		for tree_value in trees:
+			var tree := tree_value as Sprite2D
+			_expect(not _sprite_bounds(rock).intersects(_sprite_bounds(tree)), "%s overlaps %s" % [rock.name, tree.name])
+
+func _sprite_bounds(sprite: Sprite2D) -> Rect2:
+	var display_size := sprite.region_rect.size * sprite.scale.abs()
+	return Rect2(sprite.position - display_size * 0.5, display_size).grow(4.0)
+
+func _expect_map_obstacle_collisions(name_prefix: String, expected_count: int, blocks_ranged_attacks: bool) -> void:
+	var props: Array = game.map_root.get_children().filter(func(child): return str(child.name).begins_with(name_prefix))
+	_expect(props.size() == expected_count, "%s collision check found an unexpected prop count" % name_prefix)
+	for prop_value in props:
+		var prop := prop_value as Sprite2D
+		var body := prop.get_node_or_null("MapObstacleBody") as StaticBody2D
+		var collision := body.get_node_or_null("CollisionShape2D") as CollisionShape2D if body != null else null
+		_expect(body != null and (body.collision_layer & (1 << 3)) != 0, "%s is missing its map obstacle body" % prop.name)
+		if body != null:
+			_expect(((body.collision_layer & (1 << 4)) != 0) == blocks_ranged_attacks, "%s has the wrong ranged attack blocking layer" % prop.name)
+		_expect(collision != null and collision.shape is RectangleShape2D, "%s is missing its collision shape" % prop.name)
+		if collision != null and collision.shape is RectangleShape2D:
+			var rectangle := collision.shape as RectangleShape2D
+			_expect(rectangle.size.y >= prop.region_rect.size.y * 0.70, "%s collision only covers its bottom edge" % prop.name)
+
+func _expect_flat_meadow(layer: TileMapLayer, label: String) -> void:
+	if layer == null:
+		return
+	for cell in layer.get_used_cells():
+		_expect(layer.get_cell_atlas_coords(cell) == Vector2i(1, 1), "%s uses a raised edge tile" % label)
+
+func _count_map_children(name_prefix: String) -> int:
+	var count := 0
+	for child in game.map_root.get_children():
+		if str(child.name).begins_with(name_prefix):
+			count += 1
+	return count
+
 func _check_complete_single_player_run() -> void:
 	game._start_game(1)
 	await process_frame
@@ -42,6 +110,34 @@ func _check_complete_single_player_run() -> void:
 	_expect(game.game_state == GameStateScript.WAVE_ACTIVE, "first wave is not active")
 	_expect(game.wave_time_left > 0.0 and game.wave_time_left <= 120.0, "normal wave did not start with a 120-second limit")
 	_expect(game.player_huds[0].get("player") == game.players[0], "player HUD was not bound to the created player")
+	var player = game.players[0]
+	_expect(player.collision_mask == 1 << 3, "player does not collide with the map obstacle layer")
+	await physics_frame
+	for obstacle_name in ["SoftObstacle1", "BoundaryTree1", "BoundaryBuilding1"]:
+		var obstacle := game.map_root.get_node(obstacle_name) as Sprite2D
+		var obstacle_collision := obstacle.get_node("MapObstacleBody/CollisionShape2D") as CollisionShape2D
+		player.global_position = obstacle_collision.global_position - Vector2(200.0, 0.0)
+		_expect(player.test_move(player.global_transform, Vector2(400.0, 0.0)), "player movement was not blocked by %s" % obstacle_name)
+	var enemy: EnemyController = game.enemies[0]
+	for blocker_name in ["BoundaryTree1", "BoundaryBuilding1"]:
+		var blocker := game.map_root.get_node(blocker_name) as Sprite2D
+		var blocker_collision := blocker.get_node("MapObstacleBody/CollisionShape2D") as CollisionShape2D
+		player.global_position = blocker_collision.global_position - Vector2(200.0, 0.0)
+		enemy.global_position = blocker_collision.global_position + Vector2(200.0, 0.0)
+		enemy.health = enemy.max_health
+		var projectile = game.combat_manager.fire_player_arrow(player.global_position, Vector2.RIGHT, 5.0, player, 500.0, 1.2)
+		projectile._process(1.0)
+		_expect(projectile.is_queued_for_deletion(), "%s did not stop a player projectile" % blocker_name)
+		_expect(is_equal_approx(enemy.health, enemy.max_health), "player projectile damaged an enemy through %s" % blocker_name)
+		enemy._marked_by = null
+		game.combat_manager.mark_nearest_enemy(player.global_position, Vector2.RIGHT, 420.0, 8.0, 1.55, player)
+		_expect(enemy._marked_by == null, "ranged skill targeted an enemy through %s" % blocker_name)
+		await process_frame
+	player.global_position = game.ARENA_BOUNDS.end
+	game._update_camera()
+	_expect(game.camera.global_position.x + game._get_viewport_size().x * 0.5 > game.ARENA_BOUNDS.end.x, "camera does not reveal water beyond the island edge")
+	player.global_position = Vector2.ZERO
+	game._update_camera()
 	var hud: Dictionary = game.player_huds[0]
 	var action_icons: Array = hud.get("action_icons", [])
 	var action_cooldown_overlays: Array = hud.get("action_cooldown_overlays", [])
@@ -51,7 +147,6 @@ func _check_complete_single_player_run() -> void:
 	_expect(action_cooldown_overlays.size() == 6, "player HUD did not create six vertical cooldown overlays")
 	_expect(skill_icons.size() == 3 and skill_icons.all(func(icon): return (icon as TextureRect).texture != null), "player HUD did not load all three profession skill icons")
 	_expect(cooldown_overlays.size() == 3, "player HUD did not create three vertical cooldown overlays")
-	var player = game.players[0]
 	player._attack_timer = player.attack_cooldown
 	game.player_roster.update_hud(0)
 	_expect(is_equal_approx((action_cooldown_overlays[0] as ColorRect).anchor_bottom, 1.0), "basic attack cooldown did not cover its icon")
@@ -72,15 +167,19 @@ func _check_complete_single_player_run() -> void:
 	skill_badge.queue_free()
 	_check_combat_manager_connections()
 
+	var expected_wave_start_position := Vector2.ZERO
 	for expected_wave_index in range(game.wave_manager.wave_count()):
 		_expect(game.wave_index == expected_wave_index, "wave index did not advance in order")
 		_expect(not game.enemies.is_empty(), "wave started without enemies")
-		_expect(game.players[0].global_position.is_equal_approx(Vector2.ZERO), "player was not returned to the arena center before the wave spawned")
+		_expect(game.players[0].global_position.is_equal_approx(expected_wave_start_position), "player did not retain the previous wave-end position")
 		var expected_damage_multiplier := 1.0 + float(expected_wave_index) * GameRulesScript.PLAYER_DAMAGE_GROWTH_PER_WAVE
 		_expect(is_equal_approx(game.players[0].wave_damage_multiplier, expected_damage_multiplier), "player wave damage growth did not advance with the wave")
 		var boss_wave: bool = game.game_state == GameStateScript.BOSS_WAVE
 		if boss_wave:
 			_expect(game.wave_time_left > 120.0 and game.wave_time_left <= 180.0, "boss wave did not start with a 180-second limit")
+		else:
+			expected_wave_start_position = Vector2(160.0 + float(expected_wave_index) * 24.0, -96.0)
+			game.players[0].global_position = expected_wave_start_position
 		await _kill_current_wave()
 		await process_frame
 		if boss_wave:

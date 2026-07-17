@@ -31,6 +31,7 @@ const MAGE_ARCANE_REPEL_DAMAGE_MULTIPLIER := 0.50
 const MAGE_ARCANE_REPEL_FORCE := 260.0
 const MAGE_ARCANE_REPEL_SLOW_DURATION := 1.5
 const MAGE_ARCANE_REPEL_SLOW_MULTIPLIER := 0.75
+const RANGED_ATTACK_BLOCKER_LAYER := 1 << 4
 
 var game: Node
 var character_modules: Dictionary
@@ -51,6 +52,23 @@ func _register_skill_area(area: Dictionary) -> void:
 	area["network_id"] = game.allocate_combat_entity_id()
 	game.persistent_skill_areas.append(area)
 
+func get_ranged_blocker_hit(start: Vector2, finish: Vector2) -> Dictionary:
+	if game == null or not game.is_inside_tree() or start.is_equal_approx(finish):
+		return {}
+	var query := PhysicsRayQueryParameters2D.create(start, finish, RANGED_ATTACK_BLOCKER_LAYER)
+	query.collide_with_areas = false
+	return game.get_world_2d().direct_space_state.intersect_ray(query)
+
+func has_clear_ranged_path(start: Vector2, finish: Vector2) -> bool:
+	return get_ranged_blocker_hit(start, finish).is_empty()
+
+func clamp_ranged_target(start: Vector2, desired_target: Vector2) -> Vector2:
+	var hit := get_ranged_blocker_hit(start, desired_target)
+	if hit.is_empty():
+		return desired_target
+	var forward := (desired_target - start).normalized()
+	return (hit.get("position", start) as Vector2) - forward * 8.0
+
 func get_character_module(character_id: String):
 	return character_modules.get(character_id, character_modules["warrior"])
 
@@ -64,7 +82,7 @@ func has_enemy_in_aim_cone(origin: Vector2, direction: Vector2, max_range: float
 			continue
 		var offset: Vector2 = enemy.global_position - origin
 		var distance := offset.length()
-		if distance <= max_range and (distance <= 1.0 or offset.normalized().dot(forward) >= minimum_dot):
+		if distance <= max_range and (distance <= 1.0 or offset.normalized().dot(forward) >= minimum_dot) and has_clear_ranged_path(origin, enemy.global_position):
 			return true
 	return false
 
@@ -279,7 +297,7 @@ func mark_nearest_enemy(origin: Vector2, direction: Vector2, max_range: float, d
 			continue
 		var offset: Vector2 = enemy.global_position - origin
 		var distance := offset.length()
-		if distance > max_range or (distance > 1.0 and offset.normalized().dot(forward) < 0.35):
+		if distance > max_range or (distance > 1.0 and offset.normalized().dot(forward) < 0.35) or not has_clear_ranged_path(origin, enemy.global_position):
 			continue
 		var score := distance - (offset.normalized().dot(forward) * 80.0 if distance > 1.0 else 80.0)
 		if score < best_score:
@@ -355,6 +373,8 @@ func cast_chain_lightning(origin: Vector2, direction: Vector2, damage: float, ow
 				if distance > 320.0 or (distance > 1.0 and offset.normalized().dot(forward) < 0.25):
 					continue
 			elif distance > jump_range:
+				continue
+			if not has_clear_ranged_path(current_position, enemy.global_position):
 				continue
 			if distance < best_distance:
 				best = enemy
@@ -605,7 +625,9 @@ func _on_mage_fireball_reached_limit(impact: Vector2, damage: float, attacker: P
 func _mage_fireball_explode(impact: Vector2, damage: float, attacker: PlayerController, explosion_radius: float, is_critical: bool = false) -> void:
 	game._spawn_effect(impact, explosion_radius, Color(0.82, 0.30, 1.0, 0.30), 0.16)
 	_spawn_mage_q_explosion(impact, explosion_radius)
-	damage_enemies_in_radius(impact, explosion_radius, damage, attacker, is_critical)
+	for enemy in game.enemies.duplicate():
+		if is_instance_valid(enemy) and enemy.global_position.distance_to(impact) <= explosion_radius and has_clear_ranged_path(impact, enemy.global_position):
+			damage_enemy(enemy, damage, attacker, impact, attacker.attack_knockback, true, true, true, is_critical)
 
 func _spawn_mage_q_explosion(impact: Vector2, radius: float) -> void:
 	var root := Node2D.new()
@@ -850,7 +872,7 @@ func add_arrow_rain(origin: Vector2, direction: Vector2, damage: float, duration
 	var forward := direction.normalized()
 	if forward == Vector2.ZERO:
 		forward = Vector2.RIGHT
-	var center := origin + forward * 180.0
+	var center := clamp_ranged_target(origin, origin + forward * 180.0)
 	var root := Node2D.new()
 	root.name = "ArrowRain_%s" % attacker.name
 	game.effect_root.add_child(root)
@@ -1149,7 +1171,7 @@ func _get_arrow_rain_target(center: Vector2, radius: float) -> EnemyController:
 	for enemy in game.enemies.duplicate():
 		if not is_instance_valid(enemy):
 			continue
-		if enemy.global_position.distance_to(center) <= radius:
+		if enemy.global_position.distance_to(center) <= radius and has_clear_ranged_path(center, enemy.global_position):
 			candidates.append(enemy)
 	if candidates.is_empty():
 		return null
@@ -1179,12 +1201,22 @@ func _update_traveling_skill(area: Dictionary, owner: PlayerController, delta: f
 	var max_travel := float(area.get("max_travel", 280.0))
 	var speed := float(area.get("speed", 620.0))
 	var returning := bool(area.get("returning", false))
+	var previous_travel := travel
 	travel += (-speed if returning else speed) * delta
 	travel = clampf(travel, 0.0, max_travel)
 	area["travel"] = travel
 	var origin := area.get("origin", owner.global_position) as Vector2
 	var direction := area.get("direction", Vector2.RIGHT) as Vector2
-	root.global_position = origin + direction * travel
+	var desired_position := origin + direction * travel
+	if not returning:
+		var blocker_hit := get_ranged_blocker_hit(origin + direction * previous_travel, desired_position)
+		if not blocker_hit.is_empty():
+			desired_position = blocker_hit.get("position", root.global_position) as Vector2
+			travel = clampf((desired_position - origin).dot(direction), 0.0, max_travel)
+			max_travel = travel
+			area["travel"] = travel
+			area["max_travel"] = max_travel
+	root.global_position = desired_position
 	root.rotation = direction.angle() + (PI if returning else 0.0)
 	var hit_ids := area.get("hit_ids") as Dictionary
 	for enemy in game.enemies.duplicate():
@@ -1268,7 +1300,7 @@ func _tick_mage_area(area: Dictionary, owner: PlayerController) -> void:
 	game._spawn_effect(center, radius, color, 0.10)
 	game._spawn_ring_effect(center, radius, Color(color.r, color.g, color.b, 0.42), 0.16)
 	for enemy in game.enemies.duplicate():
-		if is_instance_valid(enemy) and enemy.global_position.distance_to(center) <= radius:
+		if is_instance_valid(enemy) and enemy.global_position.distance_to(center) <= radius and has_clear_ranged_path(center, enemy.global_position):
 			var area_type := str(area.get("type", ""))
 			if area_type == "mage_field":
 				enemy.apply_slow(0.60, 0.90)

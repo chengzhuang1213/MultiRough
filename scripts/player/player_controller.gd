@@ -2,6 +2,7 @@ extends CharacterBody2D
 class_name PlayerController
 
 const PlayerAnimationCatalogScript := preload("res://scripts/player/player_animation_catalog.gd")
+const MAP_OBSTACLE_COLLISION_LAYER := 1 << 3
 
 signal health_changed(current: float, maximum: float)
 signal died
@@ -171,7 +172,7 @@ var _skill_ascension_time := 0.0
 func _ready() -> void:
 	add_to_group("players")
 	collision_layer = 0
-	collision_mask = 0
+	collision_mask = MAP_OBSTACLE_COLLISION_LAYER
 	_setup_nodes()
 	health_changed.emit(health, max_health)
 

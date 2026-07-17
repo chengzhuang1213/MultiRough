@@ -1,6 +1,8 @@
 extends Node2D
 class_name PlayerProjectile
 
+const RANGED_ATTACK_BLOCKER_LAYER := 1 << 4
+
 signal hit_enemy(enemy: EnemyController, damage: float, is_critical: bool)
 signal reached_max_distance(position: Vector2)
 
@@ -46,7 +48,14 @@ func _process(delta: float) -> void:
 		move_direction = Vector2.RIGHT
 	rotation = move_direction.angle()
 	var movement := move_direction * speed * delta
-	global_position += movement
+	var next_position := global_position + movement
+	var blocker_hit := _get_ranged_blocker_hit(global_position, next_position)
+	if not blocker_hit.is_empty():
+		global_position = blocker_hit.get("position", global_position) as Vector2
+		reached_max_distance.emit(global_position)
+		queue_free()
+		return
+	global_position = next_position
 	_distance_traveled += movement.length()
 	if max_distance > 0.0 and _distance_traveled >= max_distance:
 		reached_max_distance.emit(global_position)
@@ -64,6 +73,13 @@ func _process(delta: float) -> void:
 			if not pierces_enemies:
 				queue_free()
 				return
+
+func _get_ranged_blocker_hit(start: Vector2, finish: Vector2) -> Dictionary:
+	if not is_inside_tree() or start.is_equal_approx(finish):
+		return {}
+	var query := PhysicsRayQueryParameters2D.create(start, finish, RANGED_ATTACK_BLOCKER_LAYER)
+	query.collide_with_areas = false
+	return get_world_2d().direct_space_state.intersect_ray(query)
 
 func make_authority_state() -> Dictionary:
 	return {

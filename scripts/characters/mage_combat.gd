@@ -27,7 +27,8 @@ func use_e(combat, origin: Vector2, direction: Vector2, length: float, half_widt
 	var expanded := attacker.get_upgrade_level("mage_e_field") > 0
 	if expanded:
 		radius *= 1.25
-	combat.add_mage_field(origin + forward * minf(length * 0.55, E_MAX_CAST_RANGE), radius, damage, attacker, 5.0 if expanded else 4.0, attacker.get_upgrade_level("mage_e_accumulation") > 0, is_critical)
+	var desired_center := origin + forward * minf(length * 0.55, E_MAX_CAST_RANGE)
+	combat.add_mage_field(combat.clamp_ranged_target(origin, desired_center), radius, damage, attacker, 5.0 if expanded else 4.0, attacker.get_upgrade_level("mage_e_accumulation") > 0, is_critical)
 
 func can_use_e(combat, origin: Vector2, direction: Vector2, attacker: PlayerController) -> bool:
 	if attacker.get_upgrade_level("mage_e_chain") <= 0:
@@ -36,4 +37,4 @@ func can_use_e(combat, origin: Vector2, direction: Vector2, attacker: PlayerCont
 
 func use_f(combat, origin: Vector2, direction: Vector2, damage: float, duration: float, is_critical: bool, attacker: PlayerController) -> void:
 	var forward := direction.normalized() if direction != Vector2.ZERO else Vector2.RIGHT
-	combat.add_mage_storm(origin + forward * F_MAX_CAST_RANGE, damage, duration, attacker, is_critical)
+	combat.add_mage_storm(combat.clamp_ranged_target(origin, origin + forward * F_MAX_CAST_RANGE), damage, duration, attacker, is_critical)

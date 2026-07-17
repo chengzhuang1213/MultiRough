@@ -108,6 +108,19 @@ func _run() -> void:
 	var combat_hud_data: Dictionary = game.player_huds[0]
 	var combat_health_layer := combat_hud_data.get("health_layer") as Control
 	_expect(combat_health_layer != null and combat_health_layer.size.y <= 26.0, "combat health bar is taller than the compact layout")
+	_expect(combat_health_layer != null and combat_health_layer.size.x <= 350.0, "combat health bar was not shortened inside the HUD")
+	var combat_health_bar := combat_hud_data.get("health_bar") as ProgressBar
+	_expect(combat_health_bar.size.y >= 23.0, "combat health bar was compressed into a thin line")
+	var health_background := combat_health_bar.get_theme_stylebox("background") as StyleBoxFlat
+	var health_fill := combat_health_bar.get_theme_stylebox("fill") as StyleBoxFlat
+	_expect(health_background != null and health_background.bg_color.r > health_background.bg_color.g * 3.0, "lost health is not red")
+	_expect(health_fill != null and health_fill.bg_color.g > health_fill.bg_color.r, "remaining health is not green")
+	var health_frame := combat_health_layer.get_node_or_null("HealthFrame") as Panel
+	_expect(health_frame != null, "combat health bar lost its decorative frame")
+	_expect(health_frame != null and health_frame.get_index() < combat_health_bar.get_index(), "combat health frame overlays and splits the colored bar")
+	var combat_health_label := combat_hud_data.get("health_label") as Label
+	_expect(combat_health_label.get_theme_color("font_color").get_luminance() >= 0.85, "combat health text is not bright enough")
+	_expect(combat_health_label.get_theme_constant("outline_size") >= 3, "combat health text outline is too thin")
 	for action_panel_value in combat_hud_data.get("action_panels", []):
 		var action_panel := action_panel_value as PanelContainer
 		_expect(action_panel.size.y <= 56.0, "combat action slot is taller than the compact layout")

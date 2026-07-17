@@ -43,7 +43,8 @@ godot --headless --path . --script res://tests/run_lifecycle_checks.gd
 
 This suite loads the real main scene and verifies a complete single-player run,
 every upgrade transition, boss victory, player defeat, and cleanup after two
-separate restarts. It also verifies player-to-HUD binding, player attack signal
+separate restarts. It also verifies the single-layer water, grass-island,
+meadow-patch, building, tree, and bush map structure, player-to-HUD binding, player attack signal
 routing, persistent skill-area registration and cleanup after the managers are
 split out of the main scene script, synchronized E-branch upgrades across host
 and client instances, ordered authority-snapshot correction, stale snapshot

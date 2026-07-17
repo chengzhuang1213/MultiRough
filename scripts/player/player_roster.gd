@@ -67,22 +67,34 @@ func create_hud(parent: PanelContainer, skill_labels: Array[String], hud_width: 
 	margin.add_child(content)
 
 	var health_layer := Control.new()
-	health_layer.custom_minimum_size = Vector2(hud_width - 80.0, 24.0)
+	health_layer.custom_minimum_size = Vector2(hud_width - 96.0, 24.0)
+	health_layer.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	content.add_child(health_layer)
 	var health_bar := ProgressBar.new()
-	health_bar.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	health_bar.anchor_right = 1.0
+	health_bar.anchor_bottom = 1.0
+	health_bar.offset_left = 14.0
+	health_bar.offset_top = 0.0
+	health_bar.offset_right = -14.0
+	health_bar.offset_bottom = 0.0
 	health_bar.show_percentage = false
 	_style_health_bar(health_bar)
 	health_layer.add_child(health_bar)
+	var health_frame := Panel.new()
+	health_frame.name = "HealthFrame"
+	health_frame.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	health_frame.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	health_frame.add_theme_stylebox_override("panel", VerdantUIThemeScript.make_hud_bar_style())
+	health_layer.add_child(health_frame)
+	health_layer.move_child(health_frame, 0)
 	var health_label := Label.new()
 	health_label.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	health_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	health_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	health_label.add_theme_font_size_override("font_size", 16)
-	health_label.add_theme_color_override("font_color", Color(0.025, 0.045, 0.075, 1.0))
-	health_label.add_theme_color_override("font_shadow_color", Color(0.8, 1.0, 0.35, 0.42))
-	health_label.add_theme_constant_override("shadow_offset_x", 1)
-	health_label.add_theme_constant_override("shadow_offset_y", 1)
+	health_label.add_theme_color_override("font_color", Color(1.0, 0.96, 0.92, 1.0))
+	health_label.add_theme_color_override("font_outline_color", Color(0.08, 0.01, 0.01, 1.0))
+	health_label.add_theme_constant_override("outline_size", 3)
 	health_layer.add_child(health_label)
 
 	var actions := HBoxContainer.new()
@@ -276,12 +288,8 @@ func update_hud(index: int) -> void:
 		status_label.add_theme_color_override("font_color", Color.WHITE if action_index >= 3 else (Color(0.55, 1.0, 0.08, 1.0) if ready else Color(1.0, 0.68, 0.12, 1.0)))
 
 func _style_health_bar(bar: ProgressBar) -> void:
-	bar.add_theme_stylebox_override("background", VerdantUIThemeScript.make_hud_bar_style())
-	var fill := _make_panel_style(Color(0.55, 1.0, 0.06, 1.0), Color(0.28, 0.52, 0.04, 1.0), 2, 4)
-	fill.content_margin_left = 16.0
-	fill.content_margin_top = 10.0
-	fill.content_margin_right = 16.0
-	fill.content_margin_bottom = 10.0
+	bar.add_theme_stylebox_override("background", _make_panel_style(Color(0.76, 0.055, 0.045, 1.0), Color(0.40, 0.018, 0.015, 1.0), 1, 4))
+	var fill := _make_panel_style(Color(0.48, 0.90, 0.10, 1.0), Color(0.20, 0.48, 0.035, 1.0), 1, 4)
 	bar.add_theme_stylebox_override("fill", fill)
 
 func _make_panel_style(background: Color, border: Color, border_width: int, corner_radius: int) -> StyleBoxFlat:
